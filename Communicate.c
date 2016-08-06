@@ -170,11 +170,11 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
         }
 }
 
-int RespondMessage_TestData(otdr *PXX,int PS,int SNo, int mode)
+int RespondMessage_TestData(otdr *PXX,int PS,int SNo,int CM, int mode)
 {
     	char   *pdata = NULL;
         char   str[20];
-        int    CM=3;
+    
     	int    en_size=0,nret,ContentLength=0;
         time_t rawtime;
 	struct tm * timeinfo;
@@ -197,12 +197,12 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo, int mode)
      	 } 
     	char *en_tetDat = base64_encode(pdata, ContentLength); 
         char * timE =ctime(&rawtime);
-	    printf("<RespondCode>10</RespondCode>\n");
-        printf("<Data>\n");
-        printf("    <TestData>\n");
+	printf("<RespondCode>10</RespondCode>\n"     );
+        printf("<Data>\n"                                );
+        printf("    <TestData>\n"                        );
         printf("	<CMDcode>500</CMDcode>\n"        );
-        printf("	<R>*</R>\n"        );             
-        uint32tostring(SNo, str);			    printf("	<SNo>%s</SNo>\n"         ,str); 
+        printf("	<R>*</R>\n"                      );             
+        uint32tostring(SNo, str);			printf("	<SNo>%s</SNo>\n"         ,str); 
         uint32tostring(CM, str);       			printf("	<CM>%s</CM>\n"           ,str);  
         uint32tostring(PS, str);       			printf("	<PS>%s</PS>\n"           ,str);	    
         uint32tostring(PXX->MeasureLength_m, str);	printf("	<P11>%s</P11>\n"         ,str);
@@ -210,9 +210,9 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo, int mode)
         uint32tostring(PXX->Lambda_nm, str); 		printf("	<P13>%s</P13>\n"         ,str);
         uint32tostring(PXX->MeasureTime_ms, str); 	printf("	<P14>%s</P14>\n"         ,str);	
         printf("	<P15>%f</P15>\n"        ,PXX->n);
-	    printf("	<P16>%f</P16>\n"        ,PXX->NonRelectThreshold);
-	    printf("	<P17>%f</P17>\n"        ,PXX->EndThreshold);
-	    printf("	<T9>%s</T9>\n"          ,timE);
+	printf("	<P16>%f</P16>\n"        ,PXX->NonRelectThreshold);
+	printf("	<P17>%f</P17>\n"        ,PXX->EndThreshold);
+	printf("	<T9>%s</T9>\n"          ,timE);
     	printf("	<TstDat>%s\n</TstDat>\n",en_tetDat);
         printf("    </TestData>\n");		
         printf("</Data>\n");	  
@@ -281,10 +281,8 @@ char *base64_encode(const char* data, int data_len)
             f++; 
         } 
     } 
-    *f = '\0'; 
-      
+    *f = '\0';     
     return ret; 
-      
 } 
 static char find_pos(char ch)   
 { 

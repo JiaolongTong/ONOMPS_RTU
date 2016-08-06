@@ -457,7 +457,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
     SQL_Destory(mysql);  
     sqlite3_close(mydb);
 /*******Send Signal to cycMain*******
-(1)向周期测试守护进程发送取消周期测试信号  
+(1)向周期测试守护进程发送取消周期测试信号
 (2)注意一定要将发送程序和接收程序划到一个用户组，并且都具有root权限，否则信号发射会失败(BoaCgi 4777)
 (3)程可以通过sigqueue函数向包括它本身在内的其他进程发送一个信号，如果程序没有发送这个信号的权限，对sigqueue函数的调用就将失败，而失败的常见原因是目标进程由另一个用户所拥有
 (4)现阶段使用的是不可靠信号,不支持排队，信号可能丢失。

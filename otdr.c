@@ -45,6 +45,8 @@ int HostStartMeasure(int sockt,otdr const * me,char * buf)
 		start->Ctrl.RefreshPeriod_ms = 1000;                //var time
 		start->State.Lambda_nm = me->Lambda_nm;
 		start->State.MeasureLength_m = me->MeasureLength_m;
+                
+                printf("TEST::----------------------------------->ML=%d",start->State.MeasureLength_m);
 		start->State.PulseWidth_ns = me->PulseWidth_ns;
 		start->State.MeasureTime_ms = me->MeasureTime_ms*1000;
 		start->State.n =me->n;

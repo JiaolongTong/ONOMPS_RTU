@@ -1,7 +1,7 @@
 #include "uploadCycTestData.h"
 
 const char base[]  =   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-int upload(int SNo,otdr *Par)  
+int upload(int SNo,int CM,otdr *Par)  
 {  
    CURL   *curl;  
    CURLM  *multi_handle; 
@@ -10,7 +10,7 @@ int upload(int SNo,otdr *Par)
    struct curl_httppost *formpost=NULL;  
    struct curl_httppost *lastptr=NULL;  
    struct curl_slist    *headerlist=NULL; 
-   XMLgenerNewOTDRData(RTUSENDFILE,"NewOTDRData",SNo,Par);
+   XMLgenerNewOTDRData(RTUSENDFILE,"NewOTDRData",SNo,CM,Par);
   
    curl_formadd(&formpost,  
                 &lastptr,  
@@ -167,7 +167,7 @@ int XMLgenerStartCableProtection (char * filename,char *types)
     return 0; 
 }
 
-int XMLgenerNewOTDRData (char * filename,char * types,int SNo,otdr *Par)
+int XMLgenerNewOTDRData (char * filename,char * types,int SNo,int CM,otdr *Par)
 {
     char    *sumStr;
     sumStr  =(char *)malloc(sizeof(char)*1024*100);
@@ -202,7 +202,8 @@ int XMLgenerNewOTDRData (char * filename,char * types,int SNo,otdr *Par)
     strcat(sumStr,"<NewOTDRData>\n");
     strcat(sumStr,"	<CMDcode>524</CMDcode>\n");
     strcat(sumStr,"	<R>*</R>\n");
-    strcat(sumStr,"	<CM>3</CM>\n");
+    sprintf(str,"%d",CM);
+    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM\n>");
     strcat(sumStr,"	<CLP>2</CLP>\n");
     sprintf(str,"%d",SNo);
     strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo\n>");
@@ -224,10 +225,10 @@ int XMLgenerNewOTDRData (char * filename,char * types,int SNo,otdr *Par)
     strcat(sumStr,"		<P17>");strcat(sumStr,str);strcat(sumStr,"</P17\n>");
     sprintf(str,"%s",timE);
     strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9\n>");
-    strcat(sumStr,"		<ExtraInformation>information</ExtraInformation>\n");
+    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
     strcat(sumStr,"		<TstDat>\n");
     strcat(sumStr,              en_tetDat);            //
-    strcat(sumStr,"	        \n</TstDat>\n");
+    strcat(sumStr,"\n</TstDat>\n");
     strcat(sumStr,"	</Data>\n");
     strcat(sumStr,"</NewOTDRData>\n");
     strcat(sumStr,"</AsynPush>\n"); 

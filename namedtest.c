@@ -57,9 +57,10 @@ void  getNamedParameter(mxml_node_t *root,mxml_node_t *tree, namedtest *namedpar
 int SetNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
 	
-   mxml_node_t *node,*perCMDcode;
+   mxml_node_t *CM,*perCMDcode;
    namedtest * nmdpar;
    otdr * test_p;
+   int intCM;
    test_p = OTDR_Create();
    nmdpar = NamedP_Create();
    int PS,SNo;        
@@ -74,8 +75,10 @@ int SetNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
       else
       {
               getNamedParameter(cmd,tree,nmdpar);
-
-            printf("-----------------------\n");
+	      CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
+	      intCM = strtoul (CM->child->value.text.string, NULL, 0); 
+	    
+              printf("-----------------------\n");
               printf("PS -uint -[%d]\n",nmdpar->PS);
 	      printf("SNo-uint -[%d]\n",nmdpar->SNo);
 	      printf("P11-uint -[%d]\n",nmdpar->paramter.MeasureLength_m);
@@ -108,7 +111,7 @@ int SetNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 		test_p->EndThreshold=5.0;
 */
 	 OtdrTest(test_p);
-         RespondMessage_TestData(test_p,PS,SNo,FILE_MODE_NAMED);
+         RespondMessage_TestData(test_p,PS,SNo,intCM,FILE_MODE_NAMED);
 	 OTDR_Destory(test_p);
          NamedP_Destory(nmdpar);
         

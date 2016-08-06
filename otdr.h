@@ -7,9 +7,9 @@
 typedef struct otdr otdr;
 struct otdr {
 	/***属性****/
-	uint32_t Lambda_nm;                    // 工作光波长，单位 nm
 	uint32_t MeasureLength_m;              // 测量长度，单位 m
 	uint32_t PulseWidth_ns;                // 光脉冲宽度，单位 ns
+	uint32_t Lambda_nm;                    // 工作光波长，单位 nm
 	uint32_t MeasureTime_ms;               // 测量时间，单位 ms
 	float    n;                               // 折射率
 	float    EndThreshold;                    // 结束门限

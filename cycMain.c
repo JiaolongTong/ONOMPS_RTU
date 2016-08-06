@@ -14,6 +14,7 @@
 typedef struct testLinknode testLinknode;
 struct testLinknode{
 	int    SNo;
+        int    CM;
 	time_t    fristTestTime;
         time_t    nextTestTime;
         time_t    timePeriod;
@@ -86,7 +87,7 @@ testLinknode *deleteFirst(testLinknode *head ){//O[1]
         p0 = (testLinknode *) malloc (sizeof(testLinknode ));
         
         p0->SNo           = head->SNo;
-
+        p0->CM            = head->CM;
         p0->fristTestTime = head->fristTestTime;
 
         p0->nextTestTime  = head->nextTestTime;
@@ -148,7 +149,7 @@ void outPutALL(testLinknode *head){
 	else
 		printf("There are %d lines on testing:\n",n);
 	while(p!=NULL){
-		printf("SNo:%d,firstTime:%ld,nextTime%ld\n",p->SNo,p->fristTestTime,p->nextTestTime);
+		printf("SNo:%d,rtuCM:%d,firstTime:%ld,nextTime%ld\n",p->SNo,p->CM,p->fristTestTime,p->nextTestTime);
 		p=p->next;
 	}
 }
@@ -185,6 +186,7 @@ testLinknode * Init_CycleLink(void)
          head = link_creat();
          head = delete(head,0);                                     //创建一个空链表
          time_t T1,T2;
+         int    CM=0;
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
@@ -202,11 +204,19 @@ testLinknode * Init_CycleLink(void)
 		    {
 		       printf("SNo:%s",resultSNo[i]);
 		       strcpy(SNo,resultSNo[i]);
+
+		       mysql->filedsName    = "rtuCM"; 
+		       mysql->mainKeyValue  = SNo;
+		       rc= SQL_lookup(mysql,&result);
+                       CM =atoi(result[0]);
+		       printf("CM:%d\n",CM);
+
 		       mysql->filedsName    = "T1"; 
 		       mysql->mainKeyValue  = SNo;
 		       rc= SQL_lookup(mysql,&result);
                        T1 =str2Timestamp(result[0]);
 		       printf("T1:%ld\n",T1);
+
 		       mysql->filedsName    = "T2"; 
 		       rc= SQL_lookup(mysql,&result);
                        printf("res:%s",result[0]);
@@ -215,6 +225,7 @@ testLinknode * Init_CycleLink(void)
 
 			node=(testLinknode *)malloc(sizeof(testLinknode));
 			node->SNo =atoi(SNo);
+                        node->CM  =CM;
 			node->fristTestTime=T1;
 			node->nextTestTime =getLocalTimestamp();
 			node->timePeriod =  T2;  //5*(i+1); 
@@ -251,6 +262,7 @@ testLinknode * insertWaitingNode(testLinknode *head)                    //插入
 
          char **result = NULL;
          time_t T1,T2;
+         int    CM=0;
          testLinknode *node,*find;
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
@@ -269,23 +281,33 @@ testLinknode * insertWaitingNode(testLinknode *head)                    //插入
 		    {
 		       printf("SNo:%s",resultSNo[i]);
 		       strcpy(SNo,resultSNo[i]);
+
+		       mysql->filedsName    = "rtuCM"; 
+		       mysql->mainKeyValue  = SNo;
+		       rc= SQL_lookup(mysql,&result);
+                       CM =atoi(result[0]);
+		       printf("CM:%d\n",CM);
+
 		       mysql->filedsName    = "T1"; 
 		       mysql->mainKeyValue  = SNo;
 		       rc= SQL_lookup(mysql,&result);
                        T1 =str2Timestamp(result[0]);
 		       printf("T1:%ld\n",T1);
+
 		       mysql->filedsName    = "T2"; 
 		       rc= SQL_lookup(mysql,&result);
                        printf("res:%s",result[0]);
                        T2= computTime(result[0]);
 		       printf("T2:%ld\n",T2);
+
 		       node=(testLinknode *)malloc(sizeof(testLinknode));
 		       node->SNo =atoi(SNo);
+                       node->CM  =CM;
 		       node->fristTestTime=T1;
                         if(T1<=getLocalTimestamp())
 			    node->nextTestTime =getLocalTimestamp();
 			else
-                            node->nextTestTime =T1;
+                            node->nextTestTime =getLocalTimestamp();  //T1;               //for test
 			node->timePeriod =  T2;                  
                         find=findNode(head,node->SNo);            // 查看链表中是否已经存在SNo光路
                         if(find ==NULL)
@@ -596,13 +618,14 @@ int main()
         else
             printf("Head:NULL");
 
-        testPar =OTDR_Create();                                 //新建一个OTDR测试对象 
+ 
 
 /******周期测试调度主进程********/
 
        int nowTime=0;
        int setTime = 0;
        int SNo=0;
+       int intCM=0;
        struct sigaction act;
        int sig;
        pid_t pid;
@@ -631,7 +654,8 @@ int main()
         {
 		p1=outFirstnode(linkHead);                       //获取待服务器节点（头节点）
                 if(p1!=NULL){
-                   SNo     = p1->SNo;   
+                   SNo     = p1->SNo; 
+                   intCM   = p1->CM;
                    setTime = p1->nextTestTime;   
                    nowTime = getLocalTimestamp(); 
                     
@@ -645,7 +669,8 @@ int main()
                            if(flagNew ){
                                 p1=outFirstnode(linkHead);
                                 if(p1!=NULL){    
-		                   SNo     = p1->SNo;   
+		                   SNo     = p1->SNo;  
+                                   intCM   = p1->CM;
 		                   setTime = p1->nextTestTime; 
                                    flagNew =0;  
                                 }else{
@@ -653,7 +678,8 @@ int main()
                                    break;
                                 }
                             }
-		           printf("*SNo =%4d *** Proid:%ld *** ON OTDRTest! NowTime:%ld *** setTime:%4d\n ",SNo,p1->timePeriod,getLocalTimestamp(),setTime);  
+		           printf("*SNo =%4d  rtuCM =%4d*** Proid:%ld *** ON OTDRTest! NowTime:%ld *** setTime:%4d\n ",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
+                           testPar =OTDR_Create();                                 //新建一个OTDR测试对象  
 		           testPar = lookupParm(SNo);
 			   printf("------Time:%ld--------\n"  ,getLocalTimestamp());
 			   printf("SNo-uint -[%d]\n",SNo);
@@ -667,14 +693,16 @@ int main()
 			   printf("\n");
 		
 		           OtdrTest(testPar);
-		           sleep(1);                                       //等待OTDR测试结束（此处获取测试参数并执行OTDR测试）
-		           upload(SNo,testPar);                            //在此判断网络超时
+		           //sleep(1);                                           //等待OTDR测试结束（此处获取测试参数并执行OTDR测试）
+		           upload(SNo,intCM,testPar);                            //在此判断网络超时
+                           OTDR_Destory(testPar);
                           // p1=NULL;
-//printf("SNo=%d,fristTestTime=%ld,nextTestTime=%ld,timePeriod=%ld",p1->SNo,p1->fristTestTime,p1->nextTestTime,p1->timePeriod);  
+                          // printf("SNo=%d,fristTestTime=%ld,nextTestTime=%ld,timePeriod=%ld",p1->SNo,p1->fristTestTime,p1->nextTestTime,p1->timePeriod);  
 			   p1=outFirstnode(linkHead); 
          
                            if(p1!=NULL){
-				   SNo     = p1->SNo;   
+				   SNo     = p1->SNo;
+                                   intCM   = p1->CM; 
 				   setTime = p1->nextTestTime;   
 				   nowTime = getLocalTimestamp(); 
                                    printf("1\n");
