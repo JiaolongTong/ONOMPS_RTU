@@ -80,10 +80,6 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 
               if(cycfpar->Group[i].SNo == 0) break; 
     }
-
- 
-
-
 /*****************************数据库同步检查*********************************/  
  cycletest *cycTemp;
  sqlite3 *mydb;
@@ -332,7 +328,6 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
      free(recvStr);
 
    return resp;
-
 }
 
 

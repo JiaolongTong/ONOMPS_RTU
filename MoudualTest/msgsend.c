@@ -20,7 +20,7 @@
         int msgid = -1;  
       
         //建立消息队列  
-        msgid = msgget((key_t)1234, 0666 | IPC_CREAT);  
+        msgid = msgget((key_t)444, 0666 | IPC_CREAT);  
         if(msgid == -1)  
         {  
             fprintf(stderr, "msgget failed with error: %d\n", errno);  

@@ -20,6 +20,7 @@
 #include <time.h>
 #include <sys/time.h>  
 
+#include <signal.h>
  
 
 union semun   
@@ -41,6 +42,7 @@ struct msg_st                                  //消息队列，服务器判断�
  int semaphore_v();  
 
 int sendMessageQueue(char * message);
+int sendMessageQueue_B(char * message);
 char * recvMessageQueue_A(void);
 char * recvMessageQueue_B(void);
 char * recvMessageQueue_C(void);

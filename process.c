@@ -82,21 +82,53 @@ int sendMessageQueue(char * message)
         return 0;
 	
 }
-char * recvMessageQueue_A(void )                                        //阻塞方法
+
+int sendMessageQueue_B(char * message)
+{
+
+        struct msg_st data;  
+        char buffer[BUFSIZ];  
+        int msgid = -1;  
+      
+        //建立消息队列  
+        msgid = msgget((key_t)444, 4777 | IPC_CREAT);  
+        if(msgid == -1)  
+        {  
+            printf( "msgget failed with error: %d\n", errno);  
+            return  -1;
+        }  
+            //输入数据  
+        data.msg_type = 1;                            //注意2  
+        strcpy(data.text, message);  
+            //向队列发送数据  
+        if(msgsnd(msgid, (void*)&data, MAX_TEXT, 0) == -1)  
+           {  
+                printf("msgsnd failed:%d\n",errno);  
+               return -1;
+           }
+         else
+           {
+                printf("msgsnd successful!\n");
+           }  
+        return 0;
+	
+}
+
+char * recvMessageQueue_A(void)                                        //阻塞方法
 {
         int msgid = -1;  
         struct msg_st data;  
         long int msgtype = 0;                                           //只获取某一特定类型消息 
          
         char * str;
-        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);                  //建立消息队列 
+        msgid = msgget((key_t)444, 4777 | IPC_CREAT);                   //建立消息队列 (与otdrMain通信)   444
         if(msgid == -1)  
         {  
             printf("msgget failed with error: %d\n", errno);  
             return  "MSG Error"; 
         }  
-        msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, 0);               //从队列中获取消息   
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                           //删除消息队列 
+        msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, 0);                //从队列中获取消息   
+        if(msgctl(msgid, IPC_RMID, 0) == -1)                            //删除消息队列 
         {  
             printf("msgctl(IPC_RMID) failed\n");  
             return "MSG Error";    
@@ -110,16 +142,15 @@ char * recvMessageQueue_A(void )                                        //阻塞
 
 
 
-char * recvMessageQueue_B(void)                                      //非阻塞方法
+char * recvMessageQueue_B(void)                                          //非阻塞方法
 {
         int msgid = -1;  
         int running = 1;  
         struct msg_st data;  
-        long int msgtype = 0; //只获取某一特定类型消息  
+        long int msgtype = 0;                                            //只获取某一特定类型消息  
         int rflags;
         char * str;
-        //建立消息队列  
-        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);  
+         msgid = msgget((key_t)444, 4777 | IPC_CREAT);                   //建立消息队列 (与otdrMain通信)   444  
         if(msgid == -1)  
         {  
             printf( "msgget failed with error: %d\n", errno);  
@@ -127,13 +158,13 @@ char * recvMessageQueue_B(void)                                      //非阻塞
              
         }  
 
-        rflags=IPC_NOWAIT|MSG_NOERROR;                              //从队列中获取消息，直到遇到消息为止
+        rflags=IPC_NOWAIT|MSG_NOERROR;                                   //从队列中获取消息，直到遇到消息为止
           
 
         while(1)  
         {  
             msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
-            if(strlen(data.text) !=0){                              //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
+            if(strlen(data.text) !=0){                                   //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
                printf("RecvMessage: %s\n",data.text);                       
                //running = 0;  
                break;              
@@ -163,29 +194,24 @@ void sigOutime(int signo){
     }
     return;
 }
-
 char * recvMessageQueue_C(void)                                      //非阻塞方法+超时判断
 {
-//
-    struct itimerval value, ovalue;          //(1)
-    signal(SIGVTALRM, sigOutime);
-    value.it_value.tv_sec = 0;
-    value.it_value.tv_usec = 100000;
-    value.it_interval.tv_sec = 0;
-    value.it_interval.tv_usec = 400000;
-    setitimer(ITIMER_VIRTUAL, &value, &ovalue);
-//
 
-
+        struct itimerval value, ovalue;  
         int msgid = -1;  
         int running = 1;  
         struct msg_st data;  
-        long int msgtype = 0; //只获取某一特定类型消息  
+        long int msgtype = 0;                                        //只获取某一特定类型消息  
         int rflags;
-        char * str;
+        char * str;        
+        signal(SIGVTALRM, sigOutime);
+        value.it_value.tv_sec = 0;
+        value.it_value.tv_usec = 100000;
+        value.it_interval.tv_sec = 0;
+        value.it_interval.tv_usec = 400000;
+        setitimer(ITIMER_VIRTUAL, &value, &ovalue);
         str = (char * ) malloc (sizeof(char)*10);
-        //建立消息队列  
-        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);  
+        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);              //建立消息队列(与BOA服务器通信) 1234
         if(msgid == -1)  
         {  
             printf( "msgget failed with error: %d\n", errno);  
@@ -213,7 +239,7 @@ char * recvMessageQueue_C(void)                                      //非阻塞
         }  
         
 
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                          //删除消息队列 
+        if(msgctl(msgid, IPC_RMID, 0) == -1)                        //删除消息队列 
         {  
             printf("msgctl(IPC_RMID) failed\n");  
             return "MSG Error";    

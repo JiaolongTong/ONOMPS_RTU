@@ -2,14 +2,13 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <signal.h>
-
-#include "sql.h"
 #include "common.h"
-#include "uploadCycTestData.h"
 #include "defaulttest.h"
 #include "process.h"
+#include "sql.h"
 #include "otdr.h"
- 
+#include "uploadCycTestData.h" 
+
 
 typedef struct testLinknode testLinknode;
 struct testLinknode{
@@ -22,7 +21,7 @@ struct testLinknode{
 };
 
 
-int sem_id=0;                                //
+int sem_id=0;                               
 int flagNew=0;
 testLinknode *linkHead;
 int n =0;
@@ -469,134 +468,13 @@ void flushWaitingSNo(void)
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb);   
          return ;
-}
-otdr *lookupParm(int SNo)
-{
-	 sqlite3 *mydb;
-         otdr    *myotdr;
-	 char *zErrMsg = 0;
-	 int rc;
-         uint32_t uint_a;
-         float float_a;
-	 sql  *mysql;
-         char **result = NULL;
-         char *sno;
-         sno = (char *) malloc(sizeof(char)*10);
-         mysql  =  SQL_Create();
-         myotdr  = OTDR_Create();
-	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }
-
-         mysql->db          =  mydb;
-	 mysql->tableName   =  "DefaultTsetSegmentTable";	
-	 uint32tostring(SNo,sno);
-	 mysql->mainKeyValue  =  sno;
-
-
-         mysql->filedsName    =  "P01";
-         rc=SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         uint_a = strtoul (result[0], NULL, 0);  
-	 myotdr->MeasureLength_m = uint_a;    
-         }
-
-
-
-         mysql->filedsName    = "P02";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         uint_a = strtoul (result[0], NULL, 0);  
-	 myotdr->PulseWidth_ns = uint_a;    
-         }
-
-
-         mysql->filedsName    = "P03";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         uint_a = strtoul (result[0], NULL, 0);  
-	 myotdr->Lambda_nm = uint_a;    
-         }
-
-
-         mysql->filedsName    = "P04";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         uint_a = strtoul (result[0], NULL, 0);  
-	 myotdr->MeasureTime_ms = uint_a;    
-         }
-
-         mysql->filedsName    = "P05";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         float_a = atof (result[0]);  
-	 myotdr->n = float_a;    
-         }
-
-         mysql->filedsName    = "P06";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         float_a = atof (result[0]);  
-	 myotdr->NonRelectThreshold = float_a;    
-         }
-
-
-         mysql->filedsName    = "P07";
-	 rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	 }else{
-         float_a = atof (result[0]);  
-	 myotdr->EndThreshold = float_a;    
-         }
-
-
-
-	free(sno);
-	SQL_Destory(mysql);  
-	sqlite3_close(mydb);
-	
-	if(result != NULL)
-	{
-	     if(result[0] != NULL)
-		{
-			free(result[0]);
-			result[0] = NULL;
-		}
-
-		free(result);
-		result = NULL;
-	}
-
-        return(myotdr);
-}
-
+} 
 
 void addNewtoLink(int,siginfo_t*,void*);
-int main()
+void main(void)
 {
         testLinknode *p1;
+         
         p1 =( testLinknode *) malloc (sizeof(testLinknode));
        // int ifNULL=-1;
         otdr * testPar;
@@ -620,18 +498,23 @@ int main()
 
  
 
-/******周期测试调度主进程********/
+/******周期调度主进程********/
 
        int nowTime=0;
        int setTime = 0;
        int SNo=0;
        int intCM=0;
+
+       int signum;
+       union sigval mysigval;
+       char* process;  
+       int ret = 0;  
+       int n;  
+       pid_t cycPID[MAX_PID_NUM];  
+       char * recvStr; 
+
        struct sigaction act;
        int sig;
-       pid_t pid;
-       
-       pid=getpid();
-       printf("PID:%d",pid);
        sig=SIGUSR1;  
        sigemptyset(&act.sa_mask);
        act.sa_sigaction=addNewtoLink;
@@ -643,6 +526,8 @@ int main()
               printf("install sigal error\n");
        }
 
+
+/********************************************************/
        sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建信号量 
        if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
          {  
@@ -678,45 +563,44 @@ int main()
                                    break;
                                 }
                             }
-		           printf("*SNo =%4d  rtuCM =%4d*** Proid:%ld *** ON OTDRTest! NowTime:%ld *** setTime:%4d\n ",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
-                           testPar =OTDR_Create();                                 //新建一个OTDR测试对象  
-		           testPar = lookupParm(SNo);
-			   printf("------Time:%ld--------\n"  ,getLocalTimestamp());
-			   printf("SNo-uint -[%d]\n",SNo);
-			   printf("P01-uint -[%d]\n",testPar->MeasureLength_m);
-			   printf("P02-uint -[%d]\n",testPar->PulseWidth_ns);
-			   printf("P03-uint -[%d]\n",testPar->Lambda_nm);
-			   printf("P04-uint -[%d]\n",testPar->MeasureTime_ms);
-			   printf("P05-float-[%f]\n",testPar->n);
-			   printf("P06-float-[%f]\n",testPar->NonRelectThreshold);
-			   printf("P07-float-[%f]\n",testPar->EndThreshold);
-			   printf("\n");
-		
-		           OtdrTest(testPar);
-		           //sleep(1);                                           //等待OTDR测试结束（此处获取测试参数并执行OTDR测试）
-		           upload(SNo,intCM,testPar);                            //在此判断网络超时
-                           OTDR_Destory(testPar);
-                          // p1=NULL;
-                          // printf("SNo=%d,fristTestTime=%ld,nextTestTime=%ld,timePeriod=%ld",p1->SNo,p1->fristTestTime,p1->nextTestTime,p1->timePeriod);  
-			   p1=outFirstnode(linkHead); 
-         
+		           printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
+
+                                          /*向otdrMain发送启动信号*/
+			   process ="/web/cgi-bin/otdrMain";                        
+			   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+			   printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
+			   signum=SIGUSR1;                                         
+			   mysigval.sival_int = SNo+300;                           //发送需要启动测试的光路号  及测试类型：百位表示类型+十位个位表示SNo   (eg:301,type=3,SNo=1)                         
+			   for(n=0;n<ret;n++){                                      
+				printf("otdrMain PID:%u\n", cycPID[n]);                  //获取OTDR测试进程PID
+				if(sigqueue(cycPID[n],signum,mysigval)==-1)
+				       printf("send signal error\n");
+			   }  
+                                        /*等待信号的成功处理消息*/			    
+			   recvStr = (char *) malloc (sizeof (char)*10);
+			   recvStr = recvMessageQueue_B();
+                           sleep(1);
+			   if(strncmp(recvStr, "3-OK", 4) == 0)                    //遇"3-OK"结束
+			       printf("Recv back message from otdrMain  sucessful!\n");
+			   else
+			       printf("Don't have any messges from otdrMain!\n");
+			   free(recvStr);
+                                        /*更新头节点参数，执行周期调度*/
+			   p1=outFirstnode(linkHead);        
                            if(p1!=NULL){
-				   SNo     = p1->SNo;
-                                   intCM   = p1->CM; 
-				   setTime = p1->nextTestTime;   
-				   nowTime = getLocalTimestamp(); 
-                                   printf("1\n");
-			           linkHead= taskScheduler(linkHead,p1);           //运行调度器，切换测试节点  
-                                   printf("2\n");
+				SNo     = p1->SNo;
+                                intCM   = p1->CM; 
+				setTime = p1->nextTestTime;   
+				nowTime = getLocalTimestamp(); 
+                                printf("\n");
+			        linkHead= taskScheduler(linkHead,p1);              //运行调度器，切换测试节点  
+                                printf("\n");
                            } 
 
                            break;
                     }	
                 }
-        } 
- 
-/******调度主进程end********/      
-        return 0;
+        }  
 }
 
 void addNewtoLink(int signum,siginfo_t *info,void *myact)

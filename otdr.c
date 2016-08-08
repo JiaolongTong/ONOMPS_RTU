@@ -1,4 +1,5 @@
 #include "otdr.h"  
+#include "sql.h"
 otdr * OTDR_Create()
 {
 	otdr * me = (otdr *) malloc(sizeof(otdr));
@@ -8,7 +9,127 @@ void OTDR_Destory(otdr *me)
 {
 	free(me);	
 }
-                                         // OTDR 
+otdr *lookupParm(int SNo)   // OTDR 
+{
+         sqlite3 *mydb;
+         otdr    *myotdr;
+	 char *zErrMsg = 0;
+	 int rc;
+         uint32_t uint_a;
+         float float_a;
+	 sql  *mysql;
+         char **result = NULL;
+         char *sno;
+         sno = (char *) malloc(sizeof(char)*10);
+         mysql  =  SQL_Create();
+         myotdr  = OTDR_Create();
+	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }
+
+         mysql->db          =  mydb;
+	 mysql->tableName   =  "DefaultTsetSegmentTable";	         //后期需要修改，根据不同测试状况，到不同的数据表中查询测试参数。
+	 uint32tostring(SNo,sno);
+	 mysql->mainKeyValue  =  sno;
+
+
+         mysql->filedsName    =  "P01";
+         rc=SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         uint_a = strtoul (result[0], NULL, 0);  
+	 myotdr->MeasureLength_m = uint_a;    
+         }
+
+
+
+         mysql->filedsName    = "P02";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         uint_a = strtoul (result[0], NULL, 0);  
+	 myotdr->PulseWidth_ns = uint_a;    
+         }
+
+
+         mysql->filedsName    = "P03";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         uint_a = strtoul (result[0], NULL, 0);  
+	 myotdr->Lambda_nm = uint_a;    
+         }
+
+
+         mysql->filedsName    = "P04";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         uint_a = strtoul (result[0], NULL, 0);  
+	 myotdr->MeasureTime_ms = uint_a;    
+         }
+
+         mysql->filedsName    = "P05";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         float_a = atof (result[0]);  
+	 myotdr->n = float_a;    
+         }
+
+         mysql->filedsName    = "P06";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         float_a = atof (result[0]);  
+	 myotdr->NonRelectThreshold = float_a;    
+         }
+
+
+         mysql->filedsName    = "P07";
+	 rc= SQL_lookup(mysql,&result);
+         if( rc != SQLITE_OK ){
+	      printf( "Lookup SQL error: %s\n", zErrMsg);
+	      sqlite3_free(zErrMsg);
+	 }else{
+         float_a = atof (result[0]);  
+	 myotdr->EndThreshold = float_a;    
+         }
+
+
+
+	free(sno);
+	SQL_Destory(mysql);  
+	sqlite3_close(mydb);
+	
+	if(result != NULL)
+	{
+	     if(result[0] != NULL)
+		{
+			free(result[0]);
+			result[0] = NULL;
+		}
+
+		free(result);
+		result = NULL;
+	}
+
+        return(myotdr);
+}                                        
 int NetworkIdle(int s,char *buf)
 	{
 		frame_header_t  *header;
@@ -46,7 +167,7 @@ int HostStartMeasure(int sockt,otdr const * me,char * buf)
 		start->State.Lambda_nm = me->Lambda_nm;
 		start->State.MeasureLength_m = me->MeasureLength_m;
                 
-                printf("TEST::----------------------------------->ML=%d",start->State.MeasureLength_m);
+                //printf("TEST::----------------------------------->ML=%d",start->State.MeasureLength_m);
 		start->State.PulseWidth_ns = me->PulseWidth_ns;
 		start->State.MeasureTime_ms = me->MeasureTime_ms*1000;
 		start->State.n =me->n;
@@ -75,7 +196,7 @@ int ProcessData(char pbuf[], uint32_t len,int * flag)
 					uint32_t code;
 					state = (otdr_state_t*)pbuf;
 					code  = state->StateCode;
-					printf("\n%s : OTDR State code : %d\n", timE, code);
+					printf("%s : OTDR State code : %d\n", timE, code);
 					memset(pbuf, 0, 100);
 					return code;
 				}
