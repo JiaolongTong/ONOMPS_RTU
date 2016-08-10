@@ -119,17 +119,13 @@ otdrNode *deleteFirst(otdrNode *head )//O[1]
  otdrNode * outFirstnode(otdrNode *head)
 {
         otdrNode *p0;
-	if(head==NULL){
-	//printf("This is a void execl");
-		return(head);                                //NULL
-	}
-        p0 = (otdrNode *) malloc (sizeof(otdrNode ));
-        
+	if(head==NULL)
+	     return(head);                               
+        p0 = (otdrNode *) malloc (sizeof(otdrNode )); 
         p0->SNo           = head->SNo;
         p0->CM            = head->CM ;
         p0->type          = head->type;
         p0->creat_time    = head->creat_time;
-
 	return(p0);
 }
 
@@ -153,11 +149,11 @@ otdrNode * Init_CycleLink(void)
 {
          otdrNode *head,*node;
          head = link_creat();
-         head = delete(head,0);                                     //创建一个空链表
+         head = delete(head,0);                                        //创建一个空链表
          return(head);
 }
 
-otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)                    //插入数据库中状态为-1 的节点，并把状态修改为1
+otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入数据库中状态为-1 的节点，并把状态修改为1
 {
 	 sqlite3 *mydb;
 	 char *zErrMsg = 0,*SNo;
@@ -186,7 +182,7 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)                   
 	 node->SNo =intSNo;
          node->type=type;
          node->CM  =CM;                
-         head=insert(head,node);                // 将节点node插入链表
+         head=insert(head,node);                                     // 将节点node插入链表
 
          free(SNo);
 	 SQL_Destory(mysql);  
@@ -213,6 +209,7 @@ void main(void)
         otdrNode *p1;
         int SNo=0;
         int intCM=0;
+        int type=0;
         otdr * testPar;
         struct sigaction act;
         int sig;
@@ -221,20 +218,21 @@ void main(void)
         sig=SIGUSR1;  
         sigemptyset(&act.sa_mask);
         act.sa_sigaction=addNewtoLink;
-        act.sa_flags=SA_SIGINFO|SA_RESTART;                     //(1)SA_SIGINFO，当设定了该标志位时，表示信号附带的参数可以传递到信号处理函数中。 
-                                                                //(2)SA_RESTART可以自动重启被中断的慢系统调用.
-                                                                //   可以避免正在执行网络访问（eg:接收OTDR数据过程中），接收到调度进程发来信号时保持与OTDR的正常通信,不至于发生OTDR数据接收错误.
-       if(sigaction(sig,&act,NULL)<0){                          //   eg:   145:recv error --> Interrupted system call
+        act.sa_flags=SA_SIGINFO|SA_RESTART;                         //(1)SA_SIGINFO，当设定了该标志位时，表示信号附带的参数可以传递到信号处理函数中。 
+                                                                    //(2)SA_RESTART可以自动重启被中断的慢系统调用.
+                                                                    //   可以避免正在执行网络访问（eg:接收OTDR数据过程中），接收到调度进程发来信号时保持与OTDR的正常通信,不至于发生OTDR数据接收错误.
+       if(sigaction(sig,&act,NULL)<0){                              //   eg:   145:recv error --> Interrupted system call
           printf("install sigal error\n");
        }
         while(1){
-	    p1=outFirstnode(linkHead);                          //获取待服务器节点（头节点）
+	    p1=outFirstnode(linkHead);                              //获取待服务器节点（头节点）
                 if(p1!=NULL){
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
-                   testPar = OTDR_Create();                     //新建一个OTDR测试对象  
-		   testPar = lookupParm(SNo);
-	           printf("NowTime:%ld\n"  ,getLocalTimestamp());
+                   type    = p1->type;
+                   testPar = OTDR_Create();                     
+		   testPar = lookupParm(SNo,type);                  //查询光路测试参数       
+	           printf("NowTime:%ld\n"   ,getLocalTimestamp());
 	           printf("SNo-uint -[%d]\n",SNo);
 	           printf("P01-uint -[%d]\n",testPar->MeasureLength_m);
 	           printf("P02-uint -[%d]\n",testPar->PulseWidth_ns);
@@ -242,13 +240,16 @@ void main(void)
 		   printf("P04-uint -[%d]\n",testPar->MeasureTime_ms);
 		   printf("P05-float-[%f]\n",testPar->n);
 		   printf("P06-float-[%f]\n",testPar->NonRelectThreshold);
-		   printf("P07-float-[%f]\n",testPar->EndThreshold);		
-		   OtdrTest(testPar);
-		   upload(SNo,intCM,testPar);                    //在此判断网络超时
+		   printf("P07-float-[%f]\n",testPar->EndThreshold);	
+		   OtdrTest(testPar);		  
+                   if(type == 1)
+                      sendMessageQueue_B("1-OK");  
+                   else
+                      upload(SNo,intCM,testPar);                    //在此判断网络超时                   
                    printf("\n");
                    printf("-------OTDR--Test-------\n");
                    OTDR_Destory(testPar);                          
-                   linkHead = delete(linkHead,SNo);              //测试完毕，删除当前测试节点。
+                   linkHead = delete(linkHead,SNo);                 //测试完毕，删除当前测试节点。
                    sleep(1);
                    outPutALL(linkHead);
                   
@@ -263,21 +264,19 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
        SNo =info->si_int%100;
        printf("type:%d,SNo:%d,",type,SNo);
        switch(type){
-           case 1:{                                              //加入一个点名测试节点
+           case 1:{                                                 //加入一个点名测试节点
 		    linkHead=insertTestNode(linkHead,type,SNo);
 		    outPutALL(linkHead);
-                    sendMessageQueue_B("1-OK");
-
+                    //sendMessageQueue_B("1-OK");
 		    break;
                   }
-           case 2:{                                              //加入一个告警测试节点
+           case 2:{                                                 //加入一个告警测试节点
                     linkHead=insertTestNode(linkHead,type,SNo);                   
                     outPutALL(linkHead);
                     sendMessageQueue_B("2-OK");
-
 		    break;
                   }
-           case 3:{                                              //加入一个周期测试节点
+           case 3:{                                                 //加入一个周期测试节点
                     linkHead=insertTestNode(linkHead,type,SNo);                   
                     outPutALL(linkHead);
                     sendMessageQueue_B("3-OK");

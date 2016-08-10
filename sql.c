@@ -14,8 +14,9 @@ void SQL_Destory(sql *me)
 char * getMainKeyname(sql* const me)
 {
 	char * out;
-	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"AlarmSegmentTestTable")) ||(0==strcmp(me->tableName,"CycleTestSegnemtTable"))
-            ||(0==strcmp(me->tableName,"OTDRTestDataTable")))
+	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"NamedTestSegmentTable")) 
+           ||(0==strcmp(me->tableName,"AlarmSegmentTestTable"))||(0==strcmp(me->tableName,"CycleTestSegnemtTable")) 
+           ||(0==strcmp(me->tableName,"OTDRTestDataTable")))
           return  out = "SNo";
         else
           return  out ="rtuCM";
@@ -25,6 +26,8 @@ char * getMainKeyname(sql* const me)
 char * getFieldsName(sql *const me)
 {
 	char * out;
+        if(0==strcmp(me->tableName,"NamedTestSegmentTable"))
+             return  out = "(SNo,PS,P11,P12,P13,P14,P15,P16,P17)";
 	if(0==strcmp(me->tableName,"DefaultTsetSegmentTable"))
              return  out = "(SNo,rtuCM,rtuCLP,rtuSN,P01,P02,P03,P04,P05,P06,P07)";
 	if(0==strcmp(me->tableName,"CycleTestSegnemtTable"))
@@ -205,7 +208,7 @@ int  SQL_add(sql * const me)
       sprintf(sql_s,"INSERT INTO %s%s values (%s);",me->tableName,Fileds,me->filedsValue);
       printf("%s\n",sql_s);
       if((rc = sqlite3_exec(me->db,sql_s,callback,0, &zErrMsg)) != SQLITE_OK ){  
-      printf("%s\n",zErrMsg);                   
+      printf("ADD--%s\n",zErrMsg);                   
          int i ;
          char unique[7];
          for (i=0;i<6;i++)

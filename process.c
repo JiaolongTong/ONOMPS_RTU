@@ -114,35 +114,41 @@ int sendMessageQueue_B(char * message)
 	
 }
 
-char * recvMessageQueue_A(void)                                        //阻塞方法
+char * recvMessageQueue_A(void)                                         //阻塞方法  (点名测试)
 {
         int msgid = -1;  
+        int running = 1;  
         struct msg_st data;  
         long int msgtype = 0;                                           //只获取某一特定类型消息 
          
         char * str;
+         str = (char * ) malloc (sizeof(char)*10);
         msgid = msgget((key_t)444, 4777 | IPC_CREAT);                   //建立消息队列 (与otdrMain通信)   444
         if(msgid == -1)  
         {  
             printf("msgget failed with error: %d\n", errno);  
             return  "MSG Error"; 
-        }  
-        msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, 0);                //从队列中获取消息   
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                            //删除消息队列 
-        {  
-            printf("msgctl(IPC_RMID) failed\n");  
-            return "MSG Error";    
         } 
 
-        printf("RecvMessage: %s\n",data.text);
-        str = (char * ) malloc (sizeof(char)*10);
-        strcpy(str,data.text);
+        while(running)  
+        {  
+            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype,IPC_NOWAIT|MSG_NOERROR);
+            if(strlen(data.text) !=0){                     
+               if(strncmp(data.text, "1-OK", 4) == 0){
+                     printf("RecvMessage: %s\n",data.text);  
+                     strcpy(str,data.text);
+                     running = 0;                                       //遇到1-OK结束 
+                     break;
+                }
+             }      
+        } 
+        strcpy(data.text,"");       
         return str;
 }
 
 
 
-char * recvMessageQueue_B(void)                                          //非阻塞方法
+char * recvMessageQueue_B(void)                                         //非阻塞方法
 {
         int msgid = -1;  
         int running = 1;  

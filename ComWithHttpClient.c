@@ -115,8 +115,7 @@ int main(void)
 
 
 /*******************************************加入功能块begin*****************************************************/
- 			        case 100 :  { //设置优化参数
-                                    
+ 			        case 100 :  { //设置优化参数                                   
                                     if (setDefaultTestSegment(root,tree,code)<0){
                                             printf("</RespondMessage>");
                                             mxmlDelete(tree);
@@ -126,17 +125,17 @@ int main(void)
                                         break;    
                                 }                            
                                 case 110 :  { //执行点名测试任务
-                                                                            
-                                    if (SetNamedTestSegment(root,tree,code)<0){
+                                     ret=setNamedTestSegment(root,tree,code);                                        
+                                     if(ret->RespondCode <0){
                                         printf("</RespondMessage>");
                                         mxmlDelete(tree);
-			                exit(0);   
-                                            } 
-                                        RespondMessage_OK(code); 
-                                        break;   
-                                }
-
-                              
+                                        exit(0);  
+                                        }
+                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                     else RespondMessage_Error(code,ret);
+                                     free(ret);
+                                     break; 
+                                }               
                                case 120:{    // 执行周期测试任务
       
                                     ret=setCycletestSegment(root,tree,code);

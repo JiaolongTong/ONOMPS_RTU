@@ -21,7 +21,7 @@ otdr * OTDR_Create();
 void OTDR_Destory(otdr *me);
 /*********方法**********************/
 int NetworkIdle(int s,char *buf);
-otdr *lookupParm(int SNo);
+otdr *lookupParm(int SNo,int type);
 int HostStartMeasure(int sockt,otdr const * me,char * buf);
 int ProcessData(char pbuf[], uint32_t len,int * flag);
 int OtdrTest(otdr const * me);

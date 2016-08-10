@@ -27,22 +27,20 @@ int main(int argc, char* argv[])
       fprintf(stdout, "Opened database successfully\n");
    }
 
+
+//  create table NamedTestSegmentTable(SNo INT PRIMARY KEY,PS INT,P11 INT,P12 INT,P13 INT,P14 INT,P15 FLOAT,P16 FLOAT,P17 FLOAT);
    /* Create SQL statement */
-   sql = "CREATE TABLE CycleTestSegnemtTable("  \
-         "SNo INT PRIMARY KEY     ," \
-         "rtuCM       INT         ," \
-         "rtuCLP      INT         ," \
-         "rtuSN       INT         ," \
-         "T1          CHAR(15)    ," \
-         "T2          CHAR(7)     ," \
-         "IP01        CHAR(16)    ," \
-         "IP02        CHAR(16)    ," \
-         "IP03        CHAR(16)    ," \
-         "IP04        CHAR(16)    ," \
-         "IP05        CHAR(16)    ," \
-         "IP06        CHAR(16)    ," \
-         "Status      INT         ," \
-         "PID         INT );";
+   sql = "CREATE TABLE NamedTestSegmentTable("  \
+         "SNo INT PRIMARY KEY   ," \
+         "PS       INT          ," \
+         "P11      INT          ," \
+         "P12      INT         ," \
+         "P13      FLOAT     ," \
+         "P14      FLOAT      ," \
+         "P15      FLOAT     ," \
+         "P16      FLOAT     ," \
+         "P17      FLOAT    );" \
+;
 
    /* Execute SQL statement */
    rc = sqlite3_exec(db, sql, callback, 0, &zErrMsg);
@@ -56,7 +54,36 @@ int main(int argc, char* argv[])
    return 0;
 }
 
-/*
+
+/*                                优化参数表
+Name	Declared Type	Type	Size	Precision	Not Null	Not Null On Conflict	Default Value	Collate	Position	Old Position
+SNo	INT	INT	0	0	False	""	0	""	0	0
+rtuCM	INT	INT	0	0	False	""	0	""	1	1
+rtuCLP	INT	INT	0	0	False	""	0	""	2	2
+rtuSN	INT	INT	0	0	False	""	0	""	3	3
+P01	INT	INT	0	0	False	""	""	""	4	4
+P02	INT	INT	0	0	False	""	""	""	5	5
+P03	INT	INT	0	0	False	""	""	""	6	6
+P04	INT	INT	0	0	False	""	""	""	7	7
+P05	FLOAT	FLOAT	0	0	False	""	""	""	8	8
+P06	FLOAT	FLOAT	0	0	False	""	""	""	9	9
+P07	FLOAT	FLOAT	0	0	False	""	""	""	10	10
+*/
+
+/*                               点名测试表
+SNo
+PS
+P11
+P12
+P13
+P14
+P15
+P16
+P17
+*/
+
+
+/*                               周期测试表
 Name	Declared Type	Type	Size	Precision	Not Null	Not Null On Conflict	Default Value	Collate	Position	Old Position
 SNo	INT(3)	INT	3	0	False	""	""	""	0	0
 rtuCM	INT(20)	INT	20	0	False	""	""	""	1	1
