@@ -20,18 +20,36 @@ static int callback(void *NotUsed, int argc, char **argv, char **az)
 	}
 
 
-	/*分配内存*/
+	//计算每个记录的长度, 并保存在length中.
+	length = strlen((argv[0]));
+	for(i=0; i<argc; i++)
+	{
+
+		len = strlen((argv[i]));
+
+		if(len > length)
+		{
+			length = len;
+		}
+	}		
+	printf("length %d\n", length);
+
+
+
+	//分配内存
 	p_first = (char**)malloc(sizeof(char*)*argc);
+
 	if(p_first != NULL)
 	{
 		for(j=0; j<argc; j++)
 		{
-                        p_first[j] = (char*)malloc(sizeof(char)*strlen(argv[j]));
-                        memset(p_first[j], 0, strlen(argv[j])+1);          
-		}	 
+
+			p_first[j] = (char*)malloc((length+1)*sizeof(char));
+			memset(p_first[j], 0, length+1);
+		}	
 	}
 
-        //将argv中的数据缓存到分配好的内存中.
+   //将argv中的数据缓存到分配好的内存中.
 
 	for(i=0; i<argc; i++)
 	{
@@ -50,7 +68,7 @@ int main()
 {
 	unsigned int i = 0;
 
-	char *argv[3] = {"123545345453643656563454353jfdjfljfdsijgoidghjdsigjo;gjdioahgjlgj", "456", "789233344"};
+	char *argv[3] = {"123", "456", "789233344"};
 
 	
 	callback(NULL, 3, argv, 0);
@@ -69,10 +87,7 @@ int main()
 		free(global_point[i]);
 	}
 
-
 	free(global_point);
-
-        *global_point = NULL;
 
 	return 0;
 

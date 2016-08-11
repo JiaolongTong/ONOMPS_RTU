@@ -142,6 +142,12 @@ char * recvMessageQueue_A(void)                                         //阻塞
                 }
              }      
         } 
+
+        if(msgctl(msgid, IPC_RMID, 0) == -1)                          //删除消息队列 
+        {  
+            printf("msgctl(IPC_RMID) failed\n");  
+            return "MSG Error";    
+        } 
         strcpy(data.text,"");       
         return str;
 }

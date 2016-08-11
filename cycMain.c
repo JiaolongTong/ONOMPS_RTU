@@ -9,7 +9,14 @@
 #include "otdr.h"
 #include "uploadCycTestData.h" 
 
-
+/***节点结构***/
+/*
+    SNO:光路号
+    CM :局站号
+    fristTestTime:首次启动时间
+    nextTestTime :下一次启动时间
+    timePeriod   :时间间隔
+*/
 typedef struct testLinknode testLinknode;
 struct testLinknode{
 	int    SNo;
@@ -20,12 +27,17 @@ struct testLinknode{
 	struct testLinknode *next;
 };
 
+/*全局变量*/
+int sem_id=0;              //信号量ID（数据库互斥访问）                             
+int flagNew=0;             //新节点插入标志
+testLinknode *linkHead;    //链表头
+int n =0;                  //链表节点数
 
-int sem_id=0;                               
-int flagNew=0;
-testLinknode *linkHead;
-int n =0;
 
+/***插入有序节点****/
+/*
+     (1) 根据下次启动时间,按照时间先后插入链表，安时间戳大小排序.
+*/
 testLinknode *insert(testLinknode *head,testLinknode *newNode)
 {
 
@@ -49,6 +61,7 @@ testLinknode *insert(testLinknode *head,testLinknode *newNode)
         return (head);
 }
 
+/***创建新链表***/
 testLinknode *link_creat(){
 	testLinknode *head,*p1;
         head = (testLinknode *) malloc (sizeof(testLinknode ));
@@ -61,11 +74,17 @@ testLinknode *link_creat(){
 	head = insert(head,p1);
 	return(head);
 }
+
+/***判断链表是否为空***/
 int isEmpty(testLinknode *head){
         return (head==NULL);
 }
 
-testLinknode *deleteFirst(testLinknode *head ){//O[1]
+/***删除头节点***/
+/*
+    (1)链表非空的前提下才能删除
+*/
+testLinknode *deleteFirst(testLinknode *head ){
         if (isEmpty(head)){
             return NULL;
         }
@@ -76,12 +95,16 @@ testLinknode *deleteFirst(testLinknode *head ){//O[1]
         n--;
         return temp;
     }
- testLinknode * outFirstnode(testLinknode *head)
+
+/***输出头节点***/
+/*
+    (1)链表非空情况下才能输出
+*/
+testLinknode * outFirstnode(testLinknode *head)
 {
         testLinknode *p0;
 	if(head==NULL){
-	//printf("This is a void execl");
-		return(head);                                //NULL
+		return(head);                               
 	}
         p0 = (testLinknode *) malloc (sizeof(testLinknode ));
         
@@ -95,7 +118,10 @@ testLinknode *deleteFirst(testLinknode *head ){//O[1]
 	return(p0);
 }
 
-
+/***删除节点***/
+/*
+   (1)以光路号SNo为索引
+*/
 testLinknode *delete(testLinknode *head,int SNo){
 	testLinknode *p1,*p2;
 	if(head==NULL){
@@ -124,7 +150,10 @@ testLinknode *delete(testLinknode *head,int SNo){
 	return(head);
 }
 
-
+/***查找结点***/
+/*
+   (1)以光路号SNo为索引
+*/
 testLinknode *findNode(testLinknode *head,int SNo)
 {
 	testLinknode * current;
@@ -137,6 +166,7 @@ testLinknode *findNode(testLinknode *head,int SNo)
         return NULL;
 }
 
+/***遍历链表***/
 void outPutALL(testLinknode *head){
 	testLinknode *p;
 
@@ -170,8 +200,13 @@ testLinknode *taskScheduler(testLinknode *head,testLinknode *p1){
         return(head);        
 }
 
-
-
+/***初始化链表****/
+/*
+    (1)创建一个空链表
+    (2)将数据库时间表中具有启动标识（status=1）的光路，加入初始化链表。
+          --->光路状态为1 表示正在进行周期测试，因此在初始化过程中需要将其加入调度链表.
+          --->保证每次启动，需要进程测试的节点能加入链表（例如，停机重启之后.
+*/
 testLinknode * Init_CycleLink(void)
 {
 	 sqlite3 *mydb;
@@ -183,7 +218,7 @@ testLinknode * Init_CycleLink(void)
          char **result = NULL;
          testLinknode *head,*node;
          head = link_creat();
-         head = delete(head,0);                                     //创建一个空链表
+         head = delete(head,0);                                     
          time_t T1,T2;
          int    CM=0;
 	 SNo = (char *) malloc(sizeof(char)*5);
@@ -195,7 +230,7 @@ testLinknode * Init_CycleLink(void)
 		   }
 	 mysql->db = mydb;
 	 mysql->tableName   = "CycleTestSegnemtTable";	
-         mysql->filedsValue =  "1";                                //光路状态为1 表示正在进行周期测试，因此在初始化过程中需要将其加入调度链表
+         mysql->filedsValue =  "1";                                
          mysql->filedsName  =  "Status";
          SN=SQL_findSNo(mysql,resultSNo);
          if(SN>0){
@@ -227,17 +262,15 @@ testLinknode * Init_CycleLink(void)
                         node->CM  =CM;
 			node->fristTestTime=T1;
 			node->nextTestTime =getLocalTimestamp();
-			node->timePeriod =  T2;  //5*(i+1); 
+			node->timePeriod =  T2;  
 			head=insert(head,node);
 		    }
          }
-
          free(SNo);
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb);
-  
-	if(result != NULL)
-	{
+	 if(result != NULL)
+	   {
 	     if(result[0] != NULL)
 		{
 			free(result[0]);
@@ -246,12 +279,27 @@ testLinknode * Init_CycleLink(void)
 
 		free(result);
 		result = NULL;
-	}
-    
+	  }
          return(head);
 }
 
-testLinknode * insertWaitingNode(testLinknode *head)                    //插入数据库中状态为-1 的节点，并把状态修改为1
+/***插入待启动节点***/
+/*
+      (1) 查询光路时间表状态
+            --->BOA收到周期测试指令后，将待测试的光路状态修改为-1
+            --->周期测试调度进程，查询数据库中状态为-1的节点. 
+      (2) 加入测试节点
+            --->将刚刚修改的光路加入周期测试链表
+            --->BOA检查刚刚待测试状态为-1的光路，是否全部修改为1状态，若成功，则向中心服务器报告周期测试指令成功执行。
+      (3) 检擦测试节点对应的光路数否已经存在
+            --->若链表中SNo指定的光路存在，则只需更新测试参数（起始时间，下次启动时间、时间间隔）
+            --->若不存在，则插入新的周期测试节点(先将其删除在插入链表。这样可保证更新的节点任然有序)
+      (4)修改数据库时间表状态
+            --->在数据库中，将刚刚检查出状态为-1的状态修改为1，保证所有待测试光路都处于测试状态
+            --->修改完成后，即可向BOA发送测试节点加入成功消息
+            --->修改过程中需要信号量进行数据库互斥访问(PV操作)
+*/
+testLinknode * insertWaitingNode(testLinknode *head)                    
 {
 	 sqlite3 *mydb;
 	 char *zErrMsg = 0,*SNo;
@@ -272,7 +320,7 @@ testLinknode * insertWaitingNode(testLinknode *head)                    //插入
 		   }
 	 mysql->db = mydb;
 	 mysql->tableName   = "CycleTestSegnemtTable";	
-         mysql->filedsValue =  "-1";                                //光路状态为1 表示正在进行周期测试，因此在初始化过程中需要将其加入调度链表
+         mysql->filedsValue =  "-1";                                
          mysql->filedsName  =  "Status";
          SN=SQL_findSNo(mysql,resultSNo);                           //查找光路状态为待启动的记录  光路状态为“-1”
          if(SN>0){
@@ -308,16 +356,15 @@ testLinknode * insertWaitingNode(testLinknode *head)                    //插入
 			else
                             node->nextTestTime =getLocalTimestamp();  //T1;               //for test
 			node->timePeriod =  T2;                  
-                        find=findNode(head,node->SNo);            // 查看链表中是否已经存在SNo光路
+                        find=findNode(head,node->SNo);                           // 查看链表中是否已经存在SNo光路
                         if(find ==NULL)
                         {
-                           head=insert(head,node);                // 若不存在直接将节点node插入链表
+                           head=insert(head,node);                
 		        }else{
-		           head = delete(head,node->SNo);         // 若已经存在，则先将其删除在插入链表。这样可保证更新的节点任然有序
+		           head = delete(head,node->SNo);         
                            head=  insert(head,node); 
                         }
-
-                       mysql->filedsValue  =  "1";                // 更新光路状态为“1” 已启动
+                       mysql->filedsValue  =  "1";                
                        mysql->filedsName   =  "Status";
                        mysql->mainKeyValue =  SNo;
                        if(!semaphore_p())  
@@ -352,6 +399,15 @@ testLinknode * insertWaitingNode(testLinknode *head)                    //插入
 }
 
 
+/***删除待取消测试节点***/
+/*
+      (1) 查询光路时间表状态
+            --->BOA收到取消周期测试指令后，将待取消测试的光路状态修改为-2
+            --->周期测试调度进程，查询数据库中状态为-2的节点.  
+      (2) 删除待取消的测试节点
+           --->先从链表中删除该SNo节点
+           --->再更新光路状态为“2”(已取消)
+*/
 testLinknode * removeWaitingNode(testLinknode *head) 
 {
 	 sqlite3 *mydb;
@@ -369,22 +425,22 @@ testLinknode * removeWaitingNode(testLinknode *head)
 		   }
 	 mysql->db = mydb;
 	 mysql->tableName   = "CycleTestSegnemtTable";	
-         mysql->filedsValue =  "-2";                                //光路状态为1 表示正在进行周期测试，因此在初始化过程中需要将其加入调度链表
+         mysql->filedsValue =  "-2";                                
          mysql->filedsName  =  "Status";
-         SN=SQL_findSNo(mysql,resultSNo);                           //查找光路状态为待启动的记录  光路状态为“-1”
+         SN=SQL_findSNo(mysql,resultSNo);                           
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
 		    {
 		       printf("SNo:%s",resultSNo[i]);
 		       strcpy(SNo,resultSNo[i]);		
 		       intSNo =atoi(SNo);                                    
-                       find=findNode(head,intSNo);                  // 查看链表中是否已经存在SNo光路
+                       find=findNode(head,intSNo);                  
                         if(find ==NULL)
                         {
-                          printf("Don't have SNo=%d node in this Link!\n",intSNo);                // 若不存在不做任何处理，直接退出
+                          printf("Don't have SNo=%d node in this Link!\n",intSNo);                
 		        }else{
-                          head = delete(head,intSNo);                                             // 若存:(1)先从链表中删除该SNo节点
-                          mysql->filedsValue  =  "2";                                             //      (2)再更新光路状态为“2”            已终止
+                          head = delete(head,intSNo);                                             
+                          mysql->filedsValue  =  "2";                                             
                           mysql->filedsName   =  "Status";
                           mysql->mainKeyValue =  SNo;
                           if(!semaphore_p())  
@@ -406,6 +462,11 @@ testLinknode * removeWaitingNode(testLinknode *head)
          return(head);
 }
 
+/***刷新状态***/
+/*
+      (1)将数据库中状态为“-1”和“-2”的状态光路，修改为“1”和“2”。
+          --->防止BOA单方面修改状态而并没有通过插入节点程序更新状态，导致后台周期测试调度程序没有发现，或由于意外情况发生，没有及时处理的光路。
+*/
 void flushWaitingSNo(void)
 {
       	 sqlite3 *mydb;
@@ -423,8 +484,8 @@ void flushWaitingSNo(void)
 	 mysql->db = mydb;
 	 mysql->tableName   =  "CycleTestSegnemtTable";	
          mysql->filedsName  =  "Status";
-         mysql->filedsValue =  "-1";                                //光路状态为-1 表示正在进行周期测试，因此在初始化过程中需要修改其状态"1"
-         SN=SQL_findSNo(mysql,resultSNo);                           //数据库中查找所有状态为“-1”需要清理的光路
+         mysql->filedsValue =  "-1";                                
+         SN=SQL_findSNo(mysql,resultSNo);                          
 
 
          if(SN>0){
@@ -441,26 +502,26 @@ void flushWaitingSNo(void)
 			 sqlite3_free(zErrMsg);
 		    }
                      if(!semaphore_v())                                                    //V
-                         exit(EXIT_FAILURE);                 	
+                         exit(EXIT_FAILURE);                 	 
 	       }
          }
 
-         mysql->filedsValue =  "-2";                                //光路状态为-2 表示等待取消周期测试，因此在初始化过程中需要修改其状态"2"
-         SN=SQL_findSNo(mysql,resultSNo);                           //数据库中查找所有状态为“-2”需要清理的光路
+         mysql->filedsValue =  "-2";                                
+         SN=SQL_findSNo(mysql,resultSNo);                          
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
 		    {
 		       printf("SNo:%s",resultSNo[i]);	                                  
                        mysql->filedsValue  =  "2";                                             
-                       mysql->mainKeyValue =  resultSNo[i];                                     //需要修改状态的光路号
+                       mysql->mainKeyValue =  resultSNo[i];                                 //需要修改状态的光路号
                        if(!semaphore_p())  
-                            exit(EXIT_FAILURE);                                                 //P
+                            exit(EXIT_FAILURE);                                             //P
                        rc=SQL_modify(mysql);
                        if( rc != SQLITE_OK ){
 			    printf( "Modify SQL error\n");
 			   sqlite3_free(zErrMsg);
 		       }
-                       if(!semaphore_v())                                                       //V
+                       if(!semaphore_v())                                                   //V
                              exit(EXIT_FAILURE);                  	
 	            }
          }
@@ -471,12 +532,41 @@ void flushWaitingSNo(void)
 } 
 
 void addNewtoLink(int,siginfo_t*,void*);
+
+/***otdr测试调度主进程***/
+/*
+    (1)  初始化链表
+    (2)  创建信号机制，与BOA进程通信,与OTDR测试进程通信
+          -->SA_SIGINFO标志，表示信号附带的参数可以传递到信号处理函数中
+          -->SA_RESTART标志自动重启被中断的慢系统调用.可以避免正在执行网络访问（eg:接收OTDR数据过程中,
+             接收到调度进程发来信号时保持与OTDR的正常通信,不至于发生OTDR数据接收错误.
+             eg:   145:recv error --> Interrupted system call
+    (3)  信号安装
+          -->用于接收BOA的信号，通过附加信息区分消息类型（启动测试：120，取消测试：220）
+          -->信号处理程序（addNewtoLink）类似中断处理，可以异步接收信号，进程内部通过传递的参数执行不同的任务.
+    (4)  信号发送
+          --->用于向OTDR测试进程发送信号，以启动一次测试任务.
+          --->通过附加信息传递测试参数（类型type =300和光路SNo）形式为:300+SNO.
+    (5)   执行调度程序
+          --->A.获取待服务器节点（头节点）
+          --->B.判断测节点是否到时，若到时则执行周期进行下一步(C)，否则等待该节点到时
+          --->C.向otdrMain发送启动信号
+                 获取OTDR测试进程PID
+                 发送需要启动测试的光路号及测试类型：百位表示类型+十位个位表示SNo   (此处为:3XX,type=3,SNo=XX)     
+          --->D.等待信号的成功处理消息
+                  遇"3-OK"结束,未收到则挂起程序的执行.
+          --->E.更新节点参数，并调度下一个需要启动的节点
+                  节点参数主要更新测试的下次启动时间，下次启动时间=本次启动时间+时间间隔
+          --->F.循环调度下个节点(to A).
+    (6)信号处理
+          --->当有信号到来，并处理成功，则flagNEW标识置位，主进程检擦到后会调度一次测试节点，获取最新链表的头节点进行测试任务
+          --->再将flagNew标志置为0
+*/
 void main(void)
 {
         testLinknode *p1;
          
         p1 =( testLinknode *) malloc (sizeof(testLinknode));
-       // int ifNULL=-1;
         otdr * testPar;
 
         sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
@@ -485,21 +575,14 @@ void main(void)
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
         } 
-
-
         flushWaitingSNo();                                      //清理数据库中的等待状态（Status为"-1"，"-2"）
-
-        linkHead=Init_CycleLink();                              //初始化有序链表
-                                      
+        linkHead=Init_CycleLink();                              //初始化有序链表                                     
         if(linkHead !=NULL)
             outPutALL(linkHead);
         else
             printf("Head:NULL");
 
- 
-
-/******周期调度主进程********/
-
+/***************************************************************/
        int nowTime=0;
        int setTime = 0;
        int SNo=0;
@@ -513,31 +596,28 @@ void main(void)
        pid_t cycPID[MAX_PID_NUM];  
        char * recvStr; 
 
+        /*初始化信号机制（与BOA通信）*/
        struct sigaction act;
        int sig;
        sig=SIGUSR1;  
        sigemptyset(&act.sa_mask);
        act.sa_sigaction=addNewtoLink;
-       act.sa_flags=SA_SIGINFO|SA_RESTART;                     //(1)SA_SIGINFO，当设定了该标志位时，表示信号附带的参数可以传递到信号处理函数中。 
-                                                               //(2)SA_RESTART可以自动重启被中断的慢系统调用.
-                                                               //   可以避免正在执行网络访问（eg:接收OTDR数据过程中），接收到BOA发来信号时不至于发生OTDR数据接收错误.
-       if(sigaction(sig,&act,NULL)<0)                          //   eg:   145:recv error --> Interrupted system call
+       act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                 
+       if(sigaction(sig,&act,NULL)<0)                          
        {
               printf("install sigal error\n");
        }
-
-
-/********************************************************/
-       sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建信号量 
-       if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
+        /*创建信号量 */
+       sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                
+       if(!set_semvalue())                                                               
          {  
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
           } 
-
+        /*周期调度主进程*/
         while(1)
         {
-		p1=outFirstnode(linkHead);                       //获取待服务器节点（头节点）
+		p1=outFirstnode(linkHead);                                          //获取待服务器节点（头节点）
                 if(p1!=NULL){
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
@@ -545,12 +625,12 @@ void main(void)
                    nowTime = getLocalTimestamp(); 
                     
                 }                             
-                while(p1!=NULL){                                 //守护查询是否到时
- 
-                    nowTime= getLocalTimestamp();
-                     
-	            if((p1!=NULL && nowTime >= setTime) || flagNew ==1) 
-                    {                                        
+                while(p1!=NULL){                                 
+                    nowTime= getLocalTimestamp();             
+	            if((p1!=NULL && nowTime >= setTime) || flagNew ==1)             //守护查询是否到时
+                    {  
+                                
+                                 /*信号处理*/                                      
                            if(flagNew ){
                                 p1=outFirstnode(linkHead);
                                 if(p1!=NULL){    
@@ -564,27 +644,26 @@ void main(void)
                                 }
                             }
 		           printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
-
-                                          /*向otdrMain发送启动信号*/
+                                         /*向otdrMain发送启动信号*/
 			   process ="/web/cgi-bin/otdrMain";                        
 			   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 			   printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
 			   signum=SIGUSR1;                                         
-			   mysigval.sival_int = SNo+300;                           //发送需要启动测试的光路号  及测试类型：百位表示类型+十位个位表示SNo   (eg:301,type=3,SNo=1)                         
+			   mysigval.sival_int = SNo+300;                                                      
 			   for(n=0;n<ret;n++){                                      
-				printf("otdrMain PID:%u\n", cycPID[n]);                  //获取OTDR测试进程PID
+				printf("otdrMain PID:%u\n", cycPID[n]);                  
 				if(sigqueue(cycPID[n],signum,mysigval)==-1)
 				       printf("send signal error\n");
 			   }  
                                         /*等待信号的成功处理消息*/			    
 			   recvStr = (char *) malloc (sizeof (char)*10);
 			   recvStr = recvMessageQueue_B();
-                           sleep(1);
-			   if(strncmp(recvStr, "3-OK", 4) == 0)                    //遇"3-OK"结束
+			   if(strncmp(recvStr, "3-OK", 4) == 0)                    
 			       printf("Recv back message from otdrMain  sucessful!\n");
 			   else
 			       printf("Don't have any messges from otdrMain!\n");
 			   free(recvStr);
+                           sleep(1);
                                         /*更新头节点参数，执行周期调度*/
 			   p1=outFirstnode(linkHead);        
                            if(p1!=NULL){
@@ -593,7 +672,7 @@ void main(void)
 				setTime = p1->nextTestTime;   
 				nowTime = getLocalTimestamp(); 
                                 printf("\n");
-			        linkHead= taskScheduler(linkHead,p1);              //运行调度器，切换测试节点  
+			        linkHead= taskScheduler(linkHead,p1);              
                                 printf("\n");
                            } 
 

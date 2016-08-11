@@ -1,6 +1,7 @@
 
  
 #include "defaulttest.h"
+#include "cycletest.h"
 
 int main(int argc, char* argv[])
 {
@@ -29,7 +30,7 @@ int main(int argc, char* argv[])
 		     printf("</RespondMessage>");
 		     mxmlDelete(tree);
 		     return -1;}
-  setDefaultTestSegment(root,tree,100);
+  setCycletestSegment(root,tree,120);
   mxmlDelete(tree);
 
   uint32_t uint_a;
