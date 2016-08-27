@@ -243,7 +243,7 @@ char * recvMessageQueue_C(void)                                      //非阻塞
                break;              
              } 
             if(flag){
-               printf("Wait cycMain message time out");
+               printf("Wait backProcessor xxxMain message time out");
                strcpy(str,"Timeout");
                flag=0;
                break;

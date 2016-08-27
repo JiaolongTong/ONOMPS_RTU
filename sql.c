@@ -1,5 +1,5 @@
 #include "sql.h"
-
+#include "common.h"
 sql *SQL_Create()
 {
 	sql * me= (sql*)malloc(sizeof(sql));
@@ -15,9 +15,11 @@ char * getMainKeyname(sql* const me)
 {
 	char * out;
 	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"NamedTestSegmentTable")) 
-           ||(0==strcmp(me->tableName,"AlarmSegmentTestTable"))||(0==strcmp(me->tableName,"CycleTestSegnemtTable")) 
+           ||(0==strcmp(me->tableName,"AlarmTestSegmentTable"))||(0==strcmp(me->tableName,"CycleTestSegnemtTable")) 
            ||(0==strcmp(me->tableName,"OTDRTestDataTable")))
           return  out = "SNo";
+        else if(0==strcmp(me->tableName,"ProtectGroupTable"))
+          return  out = "PNo";
         else
           return  out ="rtuCM";
 }
@@ -32,6 +34,10 @@ char * getFieldsName(sql *const me)
              return  out = "(SNo,rtuCM,rtuCLP,rtuSN,P01,P02,P03,P04,P05,P06,P07)";
 	if(0==strcmp(me->tableName,"CycleTestSegnemtTable"))
              return  out = "(SNo,rtuCM,rtuCLP,rtuSN,T1,T2,IP01,IP02,IP03,IP04,IP05,IP06,Status,PID)";
+	if(0==strcmp(me->tableName,"AlarmTestSegmentTable"))
+             return  out = "(SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status)";
+        if(0==strcmp(me->tableName,"ProtectGroupTable"))
+             return  out = "(PNo,rtuCM,rtuCLP,SNoA,SNoB,Status)";
 }
 /*周期测试表CycleTestSegnemtTable
 
@@ -43,8 +49,22 @@ char * getFieldsName(sql *const me)
      (2)PID : 采用有序链表调度策略不考虑PID
 */
 
+/*障碍告警测试数据表AlarmTestSegmentTable
+
+SNo rtuCM rtuCLP Level PS P21 P22 P23 P24 P25 P26 P27 AT01 AT02 AT03 AT04 AT05 AT06 IP01 IP02 IP03 IP04 IP05 IP06 fiberType protectFlag Status	
+
+说明:(1)Status :    -1      1      
+                 待启动    已启动 
+*/
 
 
+/*
+Name	Declared Type	Type	Size	Precision	Not Null	Not Null On Conflict	Default Value	Collate	Position	Old Position
+PNo	INT	INT	0	0	False	""	""	""	0	0
+SNoA	INT	INT	0	0	False	""	""	""	1	1
+SNoB	INT	INT	0	0	False	""	""	""	2	2
+Status	BOOL	BOOL	0	0	False	""	""	""	3	3
+*/
 
 
 /*
@@ -124,7 +144,6 @@ int  SQL_lookup(sql * const me,char ***result)
         }else{
 
            *result = lookup;
-
 /*
             int i;
             char *s =(char *) malloc(sizeof(char)*1024);     //[1024];
@@ -132,13 +151,11 @@ int  SQL_lookup(sql * const me,char ***result)
             for (i= 0 ;i<recordnum ;i++){
 		 strcat(s,lookup[i]);            
             }
-
             strcpy(result,s);
 
             for (i= 0 ;i<recordnum ;i++){
 		free(lookup[i]);        
             }
-
             free(s);
             free(lookup);
 */
@@ -165,29 +182,55 @@ int  SQL_findSNo(sql * const me,char result[][5])
       char *zErrMsg = 0;
       int rc;
       char sql_s[1024];  
-      //const char* dat= "Callback function called";
-       sprintf(sql_s,"SELECT SNo from %s where %s=%s;",me->tableName,me->filedsName,me->filedsValue);
-       rc = sqlite3_exec(me->db, sql_s,callbackSNo,NULL, &zErrMsg);
-       if( rc != SQLITE_OK ){
-        // fprintf(stderr, "SQL error: %s\n", zErrMsg);
-         printf("SQL error: %s\n", zErrMsg); 
-         sqlite3_free(zErrMsg);
-         return rc;
-        }else{
-            int i;
-            for (i= 0 ;i<SN ;i++){
-                  strcpy(result[i],SNo[i]);            
-            }
-            i=SN;
-            SN=0;
-            return i;
-      }
-
+      sprintf(sql_s,"SELECT SNo from %s where %s=%s;",me->tableName,me->filedsName,me->filedsValue);
+      rc = sqlite3_exec(me->db, sql_s,callbackSNo,NULL, &zErrMsg);
+      if( rc != SQLITE_OK ){
+       // fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        printf("SQL error: %s\n", zErrMsg); 
+        sqlite3_free(zErrMsg);
+        return rc;
+       }else{
+           int i;
+           for (i= 0 ;i<SN ;i++){
+               strcpy(result[i],SNo[i]);            
+           }
+         i=SN;
+         SN=0;
+         return i;
+     }
 }
 
 
 
-
+char  PNo[64][5];
+int   PN=0;
+static int callbackPNo(void *NotUsed, int argc, char **argv, char **azColName){
+      sprintf(PNo[PN],"%s",argv[0] ? argv[0] : "NULL");
+      PN++;
+   return 0;
+}
+int  SQL_findPNo(sql * const me,char result[][5])                    
+{
+      char *zErrMsg = 0;
+      int rc;
+      char sql_s[1024];  
+      sprintf(sql_s,"SELECT PNo from %s where %s=%s;",me->tableName,me->filedsName,me->filedsValue);
+      rc = sqlite3_exec(me->db, sql_s,callbackPNo,NULL, &zErrMsg);
+      if( rc != SQLITE_OK ){
+       // fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        printf("SQL error: %s\n", zErrMsg); 
+        sqlite3_free(zErrMsg);
+        return rc;
+       }else{
+           int i;
+           for (i= 0 ;i<PN ;i++){
+               strcpy(result[i],PNo[i]);            
+           }
+         i=PN;
+         PN=0;
+         return i;
+     }
+}
 
 /*以整体的方式插入一条记录
 SQL语句:INSERT INTO  CycleTestSegnemtTable(SNo,rtuCM,rtuCLP,rtuSN,T1,T2,IP01,IP02,IP03,IP04,IP05,IP06,Status,PID) values (1,2,3,4,5,6,7,8,9,10,11,12,13,14);
@@ -200,57 +243,48 @@ int  SQL_add(sql * const me)
 {
       char *zErrMsg = 0;
       char *p1,*p2;
-      int rc;
+      int rc,i;
       char sql_s[1024]; 
       char mainKeyValue[20]; 
       char *Fileds=getFieldsName(me);
       char *mainKeyName = getMainKeyname(me); 
       sprintf(sql_s,"INSERT INTO %s%s values (%s);",me->tableName,Fileds,me->filedsValue);
-      printf("%s\n",sql_s);
+      printf("No unique:%s\n",sql_s);
       if((rc = sqlite3_exec(me->db,sql_s,callback,0, &zErrMsg)) != SQLITE_OK ){  
-      printf("ADD--%s\n",zErrMsg);                   
-         int i ;
-         char unique[7];
-         for (i=0;i<6;i++)
-	      unique[i] =zErrMsg[i];
-         unique[i] ='\0';
-         i=0;
-         while(me->filedsValue[i] !=',')
-              {
-		mainKeyValue[i] = me->filedsValue[i];
-		i++;
-	      }
-         mainKeyValue[i] ='\0';
-         //printf("%s",mainKeyValue);
-         
-         //p=strstr()
-         //if(!strcmp(unique,"UNIQUE")  || !(p2=strstr(zErrMsg,"unique")))
-           if( (!(p2=strstr(zErrMsg,"unique")))  || (!(p1=strstr(zErrMsg,"UNIQUE")))  )
-	   {
-            	sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,mainKeyValue);
-                rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
-                if( rc != SQLITE_OK ){
+      printf("INSERT_Error--%s\n",zErrMsg);    
+      i=0;               
+      while(me->filedsValue[i] !=',')
+      {
+	mainKeyValue[i] = me->filedsValue[i];
+	i++;
+      }
+      mainKeyValue[i] ='\0';
+      int  flagA=Search_Keyword(zErrMsg,"UNIQUE");
+      int  flagB=Search_Keyword(zErrMsg,"unique");
+      if(flagA!=0 || flagB!=0){
+          sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,mainKeyValue);
+          rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
+           if( rc != SQLITE_OK ){
 		 printf("SQL delete: %s\n", zErrMsg); 
 		 sqlite3_free(zErrMsg);
 		 return rc;
-		} 
-                sprintf(sql_s,"INSERT INTO %s%s values (%s);",me->tableName,Fileds,me->filedsValue);
+	    } 
+            sprintf(sql_s,"INSERT INTO %s%s values (%s);",me->tableName,Fileds,me->filedsValue);
 
-                rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
-                if( rc != SQLITE_OK ){
+            rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
+            if( rc != SQLITE_OK ){
 		 printf("SQL insert: %s\n", zErrMsg); 
 		 sqlite3_free(zErrMsg);
 		 return rc;
-		} 
-                return rc;
+	    } 
+            printf("unique:%s\n",sql_s); 
+            return rc;
            }
          else
-                return rc;
-      }else{
+            return rc;
+      }else
          return rc;
-      }
-     free(sql_s);
-	
+     free(sql_s);	
 }
 
 
@@ -305,7 +339,8 @@ int SQL_modify(sql * const me)
 int SQL_existIN_db(sql * const me)
 {
     char sql_query[128]={0};
-    sprintf(sql_query,"select SNo from %s where SNo='%s'",me->tableName,me->mainKeyValue);
+    char *mainKeyName = getMainKeyname(me);
+    sprintf(sql_query,"select %s from %s where %s='%s'",mainKeyName,me->tableName,mainKeyName,me->mainKeyValue);
     sqlite3_stmt *pstmt;
     sqlite3_prepare(me->db, sql_query, strlen(sql_query), &pstmt, NULL);
     sqlite3_step(pstmt);
@@ -317,6 +352,22 @@ int SQL_existIN_db(sql * const me)
  
     return 0;                    //don't
 }
+
+int SQL_Unique(sql * const me)
+{
+    char sql_query[128]={0};
+    char *mainKeyName = getMainKeyname(me);
+    sprintf(sql_query,"select %s from %s where %s='%s'",mainKeyName,me->tableName,me->filedsName,me->filedsValue);
+    sqlite3_stmt *pstmt;
+    sqlite3_prepare(me->db, sql_query, strlen(sql_query), &pstmt, NULL);
+    sqlite3_step(pstmt);
+    int count=sqlite3_column_int(pstmt,0);
+    sqlite3_finalize(pstmt);
+    if(count > 0)
+        return 1;                //No unique
+    return 0;                    //Unique
+}
+
 
 
 

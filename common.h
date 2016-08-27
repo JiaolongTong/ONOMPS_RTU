@@ -26,6 +26,7 @@
 #define  RCV_FILE      "/web/cgi-bin/recv.xml"       //Recvice command file  from tomcat server save to this file.
 
 #define  MAX_OTDR_SN   16
+#define  MAX_ALARM_AN  8
 
 #define  TIMEFORMAT "%Y-%m-%d %H:%M:%S"
 
@@ -36,4 +37,6 @@ time_t computTime(char * str);             // 按照字符串计算时间（日�
 float htonf(float t);                     //主机浮点字节转换成网络浮点字节
 float ntohf(float t);                     //网络浮点字节转换成主机浮点字节
 void  uint32tostring(uint32_t lNum,char chWord[]);
+
+int Search_Keyword(char *dst_str,char *search_str); //KMP字符串匹配
 #endif

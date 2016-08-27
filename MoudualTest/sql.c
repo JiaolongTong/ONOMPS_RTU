@@ -17,8 +17,10 @@ char * getMainKeyname(sql* const me)
 	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"AlarmSegmentTestTable")) ||(0==strcmp(me->tableName,"CycleTestSegnemtTable"))
             ||(0==strcmp(me->tableName,"OTDRTestDataTable")))
           return  out = "SNo";
+        else if(0==strcmp(me->tableName,"ProtectGroupTable"))
+          return  out = "PNo";
         else
-          return  out ="rtuCM";
+          return  out = "rtuCM";
 }
 
 

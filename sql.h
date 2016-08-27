@@ -27,8 +27,10 @@ char * getFieldsName(sql *const me);
 int  SQL_add(sql * const me);
 int  SQL_lookup(sql * const me,char ***result);
 int  SQL_findSNo(sql * const me,char result[][5]);
+int  SQL_findPNo(sql * const me,char result[][5]);
 int  SQL_delete(sql * const me);
 int  SQL_modify(sql * const me);
-int SQL_existIN_db(sql * const me);
+int  SQL_existIN_db(sql * const me);
+int  SQL_Unique(sql * const me);
 
 #endif

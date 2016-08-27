@@ -30,16 +30,13 @@ int main(int argc, char* argv[])
 
 //  create table NamedTestSegmentTable(SNo INT PRIMARY KEY,PS INT,P11 INT,P12 INT,P13 INT,P14 INT,P15 FLOAT,P16 FLOAT,P17 FLOAT);
    /* Create SQL statement */
-   sql = "CREATE TABLE NamedTestSegmentTable("  \
-         "SNo INT PRIMARY KEY   ," \
-         "PS       INT          ," \
-         "P11      INT          ," \
-         "P12      INT         ," \
-         "P13      FLOAT     ," \
-         "P14      FLOAT      ," \
-         "P15      FLOAT     ," \
-         "P16      FLOAT     ," \
-         "P17      FLOAT    );" \
+   sql = "CREATE TABLE ProtectGroupTable("  \
+         "PNo INT PRIMARY KEY   ," \
+         "rtuCM     INT     ," \
+         "rtuCLP    INT     ," \
+         "SNoA      INT     ," \
+         "SNoB      INT     ," \
+         "Status    INT     );" \
 ;
 
    /* Execute SQL statement */

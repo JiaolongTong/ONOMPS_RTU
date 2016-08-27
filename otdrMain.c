@@ -219,7 +219,7 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入�
 		 if(type==3)
 		    mysql->tableName     = "CycleTestSegnemtTable";
 		 if(type==2)
-		    mysql->tableName     = "DefaultTsetSegmentTable";	   
+		    mysql->tableName     = "AlarmTestSegmentTable";	   
 		 mysql->filedsName    = "rtuCM"; 
 		 mysql->mainKeyValue  = SNo;
 		 rc= SQL_lookup(mysql,&result);
@@ -303,8 +303,7 @@ void main(void)
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
                    type    = p1->type;
-                   testPar = OTDR_Create();  
-                   
+                   testPar = OTDR_Create();                  
 		   testPar = lookupParm(SNo,type);                      
 	           printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
 	           printf("SNo-uint -[%d]\n",SNo);
@@ -319,7 +318,7 @@ void main(void)
                    if(type == 1)
                       sendMessageQueue_B("1-OK");  
                    else
-                      upload(SNo,intCM,testPar);                                  
+                      upload(SNo,intCM,testPar,type);                                  
                    printf("\n");
                    printf("-------OTDR--Test-------\n");
                    OTDR_Destory(testPar);                          

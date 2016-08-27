@@ -27,17 +27,21 @@ char *  getCommendString(int code)
 	if(code == 130)
           return str = "SetAlarmTestSegment";
 	if(code == 140)
-          return str = "SetAlarmTestSegment";
+          return str = "SetAlarmSegment";
 	if(code == 150)
-          return str = "SetAlarmTestSegment";
+          return str = "SetReferenceTime";
 	if(code == 160)
-          return str = "SetAlarmTestSegment";
+          return str = "SetNetwork";
+	if(code == 170)
+          return str = "SetProtectGroup";
 	if(code == 220)
           return str = "CancelCycleTest";
 	if(code == 230)
           return str = "CancelAlarmTest";
 	if(code == 240)
           return str = "CancelAlarm";
+	if(code == 250)
+          return str = "CancelProtectGroup";
 	if(code == 300)
           return str = "RequestTestData";
         if(code == 320)
@@ -55,7 +59,7 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 {
      char *commendtype;
      mxml_node_t *search;
-     if ((search = mxmlFindElement(root, tree, "SetDefaultTestSegment",NULL, NULL,MXML_DESCEND))!=NULL)
+     if ((search = mxmlFindElement(root, tree,"SetDefaultTestSegment",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"SetDefaultTestSegment")==0)
 		{
@@ -105,6 +109,15 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		   return 160;
 		}    
         }
+
+     if ((search = mxmlFindElement(root, tree, "SetProtectGroup",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"SetProtectGroup")==0)
+		{
+		   return 170;
+		}    
+        }
+
      if ((search = mxmlFindElement(root, tree, "CancelCycleTest",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"CancelCycleTest")==0)
@@ -112,6 +125,7 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		   return 220;
 		}    
         }
+
      if ((search = mxmlFindElement(root, tree, "CancelAlarmTest",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"CancelAlarmTest")==0)
@@ -124,6 +138,13 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
             if (strcmp(search->value.element.name,"CancelAlarm")==0)
 		{
 		   return 240;
+		}    
+        }
+     if ((search = mxmlFindElement(root, tree, "CancelProtectGroup",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"CancelProtectGroup")==0)
+		{
+		   return 250;
 		}    
         }
      if ((search = mxmlFindElement(root, tree, "RequestTestData",NULL, NULL,MXML_DESCEND))!=NULL)

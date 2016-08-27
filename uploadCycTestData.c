@@ -1,7 +1,14 @@
 #include "uploadCycTestData.h"
 
-const char base[]  =   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-int upload(int SNo,int CM,otdr *Par)  
+const char base[]  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+void main(void)
+{
+    int SNo =50,CM=1;
+    otdr *par;
+    upload(SNo,CM,par,1);
+}
+
+int upload(int SNo,int CM,otdr *Par,int type)  
 {  
    CURL   *curl;  
    CURLM  *multi_handle; 
@@ -9,9 +16,10 @@ int upload(int SNo,int CM,otdr *Par)
    int    still_running;    
    struct curl_httppost *formpost=NULL;  
    struct curl_httppost *lastptr=NULL;  
-   struct curl_slist    *headerlist=NULL; 
-   XMLgenerNewOTDRData(RTUSENDFILE,"NewOTDRData",SNo,CM,Par);
-  
+   struct curl_slist    *headerlist=NULL;
+   if(type ==1)XMLgenerOpticPowerWarming(RTUSENDFILE,SNo,CM,Par,type);
+    else       XMLgenerNewOTDRData(RTUSENDFILE,SNo,CM,Par,type);
+
    curl_formadd(&formpost,  
                 &lastptr,  
                 CURLFORM_COPYNAME,"sendfile",  
@@ -83,7 +91,7 @@ size_t write_data(void* buffer,size_t size,size_t nmemb,void *stream)
 	    return size*nmemb;  
 	} 
 
-int XMLgenerLineFaultWarming(char * filename,char *types)
+int XMLgenerLineFaultWarming(char * filename,int type)
 {
     FILE * fd;
     char * sumStr;
@@ -109,21 +117,27 @@ int XMLgenerLineFaultWarming(char * filename,char *types)
     return 0; 
 }
 
-int XMLgenerOpticPowerWarming(char * filename,char *types)
+int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type)
 {
     FILE * fd;
+    char str[100];
     char * sumStr;
     sumStr  =(char *)malloc(sizeof(char)*1024*8);
+    *sumStr ='\0';
     strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
     strcat(sumStr,"<AsynPush>\n");
     strcat(sumStr,"<OpticPowerWarming >\n");
     strcat(sumStr,"	<CMDcode>522</CMDcode>\n");
     strcat(sumStr,"	<R></R >\n");
-    strcat(sumStr,"	<CM>3</CM>\n");
+    sprintf(str,"%d",CM);
+    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
     strcat(sumStr,"	<CLP>2</CLP>\n");
-    strcat(sumStr,"	<WarmingLevel>1</WarmingLevel>\n");
-    strcat(sumStr,"	<PowerValue>1.23</PowerValue>\n");
-    strcat(sumStr,"</OpticPowerWarming  >\n");
+    sprintf(str,"%d",SNo);
+    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
+    strcat(sumStr,"	<WarmingLevel>2</WarmingLevel>\n");
+    strcat(sumStr,"	<Gate>4.99</Gate>\n");
+    strcat(sumStr,"	<PowerValue>3.23</PowerValue>\n");
+    strcat(sumStr,"</OpticPowerWarming>\n");
     strcat(sumStr,"</AsynPush>\n");    
     if ((fd = fopen(filename,"w")) == NULL)  
     {  
@@ -137,37 +151,7 @@ int XMLgenerOpticPowerWarming(char * filename,char *types)
 }
 
 
-int XMLgenerStartCableProtection (char * filename,char *types)
-{
-    FILE * fd;
-    char * sumStr;
-    sumStr  =(char *)malloc(sizeof(char)*1024*8);
-    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
-    strcat(sumStr,"<AsynPush>\n");
-    strcat(sumStr,"<StartCableProtection>\n");
-    strcat(sumStr,"	<CMDcode>522</CMDcode>\n");
-    strcat(sumStr,"	<R></R >\n");
-    strcat(sumStr,"	<CM>3</CM>\n");
-    strcat(sumStr,"	<CLP>2</CLP>\n");
-    strcat(sumStr,"	<GSN>4</GSN>\n");
-    strcat(sumStr,"	<G1>3</G1>\n");
-    strcat(sumStr,"	<G2>5</G2>\n");
-    strcat(sumStr,"	<G3>6</G3>\n");
-    strcat(sumStr,"	<G4>7</G3>\n");
-    strcat(sumStr,"</StartCableProtection>\n");
-    strcat(sumStr,"</AsynPush>\n");    
-    if ((fd = fopen(filename,"w")) == NULL)  
-    {  
-        fprintf(stderr,"fopen file error:%s\n",filename);  
-        return -1;  
-    } 
-    fwrite(sumStr,strlen(sumStr),1,fd);    
-    fclose(fd);
-    free(sumStr);
-    return 0; 
-}
-
-int XMLgenerNewOTDRData (char * filename,char * types,int SNo,int CM,otdr *Par)
+int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
 {
     char    *sumStr;
     sumStr  =(char *)malloc(sizeof(char)*1024*100);
@@ -197,42 +181,95 @@ int XMLgenerNewOTDRData (char * filename,char * types,int SNo,int CM,otdr *Par)
 	struct tm * timeinfo;
 	time (&rawtime);
         char * timE =ctime(&rawtime);
-    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
-    strcat(sumStr,"<AsynPush>\n");
-    strcat(sumStr,"<NewOTDRData>\n");
-    strcat(sumStr,"	<CMDcode>524</CMDcode>\n");
-    strcat(sumStr,"	<R>*</R>\n");
-    sprintf(str,"%d",CM);
-    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM\n>");
-    strcat(sumStr,"	<CLP>2</CLP>\n");
-    sprintf(str,"%d",SNo);
-    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo\n>");
-    strcat(sumStr,"	<Type>1</Type>\n");
-    strcat(sumStr,"	<Data>\n");
-    sprintf(str,"%d",Par->Lambda_nm);
-    strcat(sumStr,"		<P11>");strcat(sumStr,str);strcat(sumStr,"</P11\n>");
-    sprintf(str,"%d",Par->MeasureLength_m);
-    strcat(sumStr,"		<P12>");strcat(sumStr,str);strcat(sumStr,"</P12\n>");
-    sprintf(str,"%d",Par->PulseWidth_ns);
-    strcat(sumStr,"		<P13>");strcat(sumStr,str);strcat(sumStr,"</P13\n>");
-    sprintf(str,"%d",Par->MeasureTime_ms);
-    strcat(sumStr,"		<P14>");strcat(sumStr,str);strcat(sumStr,"</P14\n>");
-    sprintf(str,"%f",Par->n);
-    strcat(sumStr,"		<P15>");strcat(sumStr,str);strcat(sumStr,"</P15\n>");
-    sprintf(str,"%f",Par->EndThreshold);
-    strcat(sumStr,"		<P16>");strcat(sumStr,str);strcat(sumStr,"</P16\n>");
-    sprintf(str,"%f",Par->NonRelectThreshold);
-    strcat(sumStr,"		<P17>");strcat(sumStr,str);strcat(sumStr,"</P17\n>");
-    sprintf(str,"%s",timE);
-    strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9\n>");
-    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
-    strcat(sumStr,"		<TstDat>\n");
-    strcat(sumStr,              en_tetDat);            //
-    strcat(sumStr,"\n</TstDat>\n");
-    strcat(sumStr,"	</Data>\n");
-    strcat(sumStr,"</NewOTDRData>\n");
-    strcat(sumStr,"</AsynPush>\n"); 
-
+   if(type==3){  //周期测试数据
+	    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
+	    strcat(sumStr,"<AsynPush>\n");
+	    strcat(sumStr,"<NewOTDRData>\n");
+	    strcat(sumStr,"	<CMDcode>524</CMDcode>\n");
+	    strcat(sumStr,"	<R>*</R>\n");
+	    sprintf(str,"%d",CM);
+	    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
+	    strcat(sumStr,"	<CLP>2</CLP>\n");
+	    sprintf(str,"%d",SNo);
+	    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
+	    strcat(sumStr,"	<Type>1</Type>\n");
+	    strcat(sumStr,"	<Data>\n");
+	    sprintf(str,"%d",Par->Lambda_nm);
+	    strcat(sumStr,"		<P11>");strcat(sumStr,str);strcat(sumStr,"</P11>\n");
+	    sprintf(str,"%d",Par->MeasureLength_m);
+	    strcat(sumStr,"		<P12>");strcat(sumStr,str);strcat(sumStr,"</P12>\n");
+	    sprintf(str,"%d",Par->PulseWidth_ns);
+	    strcat(sumStr,"		<P13>");strcat(sumStr,str);strcat(sumStr,"</P13>\n");
+	    sprintf(str,"%d",Par->MeasureTime_ms);
+	    strcat(sumStr,"		<P14>");strcat(sumStr,str);strcat(sumStr,"</P14>\n");
+	    sprintf(str,"%f",Par->n);
+	    strcat(sumStr,"		<P15>");strcat(sumStr,str);strcat(sumStr,"</P15>\n");
+	    sprintf(str,"%f",Par->EndThreshold);
+	    strcat(sumStr,"		<P16>");strcat(sumStr,str);strcat(sumStr,"</P16>\n");
+	    sprintf(str,"%f",Par->NonRelectThreshold);
+	    strcat(sumStr,"		<P17>");strcat(sumStr,str);strcat(sumStr,"</P17>\n");
+	    sprintf(str,"%s",timE);
+	    strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9>\n");
+	    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
+	    strcat(sumStr,"		<TstDat>\n");
+	    strcat(sumStr,              en_tetDat);            //
+	    strcat(sumStr,"\n</TstDat>\n");
+	    strcat(sumStr,"	</Data>\n");
+	    strcat(sumStr,"</NewOTDRData>\n");
+	    strcat(sumStr,"</AsynPush>\n"); 
+   }
+   if(type==2){  //障碍告警测试数据
+	    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
+	    strcat(sumStr,"<AsynPush>\n");
+	    strcat(sumStr,"<NewOTDRData>\n");
+	    strcat(sumStr,"	<CMDcode>524</CMDcode>\n");
+	    strcat(sumStr,"	<R>*</R>\n");
+	    sprintf(str,"%d",CM);
+	    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
+	    strcat(sumStr,"	<CLP>2</CLP>\n");
+	    sprintf(str,"%d",SNo);
+	    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
+	    strcat(sumStr,"	<Type>2</Type>\n");
+	    strcat(sumStr,"	<Data>\n");
+	    sprintf(str,"%d",Par->PS);  
+	    strcat(sumStr,"		<PS>");strcat(sumStr,str);strcat(sumStr,"</PS>\n");
+	    sprintf(str,"%d",Par->Lambda_nm);          
+	    strcat(sumStr,"		<P11>");strcat(sumStr,str);strcat(sumStr,"</P11>\n");
+	    sprintf(str,"%d",Par->MeasureLength_m);
+	    strcat(sumStr,"		<P12>");strcat(sumStr,str);strcat(sumStr,"</P12>\n");
+	    sprintf(str,"%d",Par->PulseWidth_ns);
+	    strcat(sumStr,"		<P13>");strcat(sumStr,str);strcat(sumStr,"</P13>\n");
+	    sprintf(str,"%d",Par->MeasureTime_ms);
+	    strcat(sumStr,"		<P14>");strcat(sumStr,str);strcat(sumStr,"</P14>\n");
+	    sprintf(str,"%f",Par->n);
+	    strcat(sumStr,"		<P15>");strcat(sumStr,str);strcat(sumStr,"</P15>\n");
+	    sprintf(str,"%f",Par->EndThreshold);
+	    strcat(sumStr,"		<P16>");strcat(sumStr,str);strcat(sumStr,"</P16>\n");
+	    sprintf(str,"%f",Par->NonRelectThreshold);
+	    strcat(sumStr,"		<P17>");strcat(sumStr,str);strcat(sumStr,"</P17>\n");
+	    sprintf(str,"%f",Par->AT01);
+	    strcat(sumStr,"		<AT01>");strcat(sumStr,str);strcat(sumStr,"</AT01>\n");
+	    sprintf(str,"%f",Par->AT02);
+	    strcat(sumStr,"		<AT02>");strcat(sumStr,str);strcat(sumStr,"</AT02>\n");
+	    sprintf(str,"%f",Par->AT03);
+	    strcat(sumStr,"		<AT03>");strcat(sumStr,str);strcat(sumStr,"</AT03>\n");
+	    sprintf(str,"%f",Par->AT04);
+	    strcat(sumStr,"		<AT04>");strcat(sumStr,str);strcat(sumStr,"</AT04>\n");
+	    sprintf(str,"%f",Par->AT05);
+	    strcat(sumStr,"		<AT05>");strcat(sumStr,str);strcat(sumStr,"</AT05>\n");
+	    sprintf(str,"%f",Par->AT06);
+	    strcat(sumStr,"		<AT06>");strcat(sumStr,str);strcat(sumStr,"</AT06>\n");
+	    sprintf(str,"%s",timE);
+	    strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9>\n");
+	    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
+	    strcat(sumStr,"		<TstDat>\n");
+	    strcat(sumStr,              en_tetDat);            //
+	    strcat(sumStr,"\n</TstDat>\n");
+	    strcat(sumStr,"	</Data>\n");
+	    strcat(sumStr,"</NewOTDRData>\n");
+	    strcat(sumStr,"</AsynPush>\n"); 
+    }
+    
     FILE * fd;   
     if ((fd = fopen(filename,"w")) == NULL)  
     {  

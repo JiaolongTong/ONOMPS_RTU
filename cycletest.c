@@ -72,7 +72,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
               IP04 = mxmlFindElement(BX, tree, "IP04",NULL, NULL,MXML_DESCEND);
 	      cycfpar->Group[i].IP04 = IP04->child->value.text.string; 
 
-               IP05 = mxmlFindElement(BX, tree, "IP05",NULL, NULL,MXML_DESCEND);
+               IP05 = mxmlFindElement(BX, tree,"IP05",NULL, NULL,MXML_DESCEND);
 	      cycfpar->Group[i].IP05 = IP05->child->value.text.string; 
 
               IP06 = mxmlFindElement(BX, tree, "IP06",NULL, NULL,MXML_DESCEND);
@@ -219,7 +219,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
     mysql->tableName   = "CycleTestSegnemtTable"; 
    
     for(i=0 ;i<intSN;i++)
-            {                
+    {                
                  
                            /*SNo CM CLP SN bg   pd  IP1  IP2  IP3  IP4  IP5  IP6  Ac PID*/
 		 sprintf(str,"%d,%d,%d,%d,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d\n",cycTemp->Group[i].SNo
@@ -248,8 +248,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
                   printf("%s",str);
                   if(!semaphore_v())                                           //V
                            exit(EXIT_FAILURE);
-
-    }
+     }
 
     SQL_Destory(mysql);  
     sqlite3_close(mydb);

@@ -42,18 +42,30 @@ void RespondMessage_Error(int code ,responed * res)
         printf("<Data>\n");
         ErrorSN=res->ErrorSN;
         printf("<ErrorSN>%d</ErrorSN>\n",ErrorSN);
-        printf("<SNo>");
-        for(i=0;i<ErrorSN;i++){
-           uint32tostring((uint32_t)i,str);
-           printf("%d,",res->Group[i].SNo);                   //i>10待修改  
-          
-        }
-        printf("</SNo>\n");
-        for(i=0;i<ErrorSN;i++){
-         printf("%s SNo:%d %s",str1,res->Group[i].SNo,res->Group[i].Error_inform);
+        if(res->SNorPN==TYPE_PNo){
+		printf("<PNo>");
+		for(i=0;i<ErrorSN;i++){
+		   uint32tostring((uint32_t)i,str);
+		   printf("%d,",res->Group[i].PNo);                   //i>10待修改  
+		}
+		printf("</PNo>\n");
+		for(i=0;i<ErrorSN;i++){
+		 printf("%s PNo:%d %s\n",str1,res->Group[i].PNo,res->Group[i].Error_inform);
+		}
+        }else{
+		printf("<SNo>");
+		for(i=0;i<ErrorSN;i++){
+		   uint32tostring((uint32_t)i,str);
+		   printf("%d,",res->Group[i].SNo);                   //i>10待修改  
+		  
+		}
+		printf("</SNo>\n");
+		for(i=0;i<ErrorSN;i++){
+		 printf("%s SNo:%d %s\n",str1,res->Group[i].SNo,res->Group[i].Error_inform);
+                }	
         }
         printf("</Data>\n");
-        free(str);
+        
 }
 void RespondMessage_OpticPowerData(void)
 {

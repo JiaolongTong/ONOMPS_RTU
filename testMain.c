@@ -8,8 +8,7 @@
 #include "process.h"
 
 int sem_id=0;
-
-int main(void)  
+int main(int argc,char **argv)  
     {  
 	  char *pRequestMethod;
           char *urlline;
@@ -32,81 +31,25 @@ int main(void)
 
           printf("Content-type:text/xml\n\n");                                              //This is very important 
           printf("<?xml version='1.0' encoding='UTF-8'?>\n"); 
-          printf("<RespondMessage>\n");
-          pRequestMethod = getenv("REQUEST_METHOD");    
-          if(pRequestMethod==NULL)
-           {   
-               printf("<Error>Get Request_method Error</Error>");   
-               printf("</RespondMessage>");  
-               return   0;    
-           } 
-	  else
-          {
-               ;//printf("<Method>%s</Method>\n",pRequestMethod);
-          }
-/******************************************DoGet*******************************************************/
-          if (strcmp(pRequestMethod,"GET")==0)   
-          {    
-                urlline = getenv("QUERY_STRING");                                            //get From data from QUERY_STRING
-                      if   (urlline!=NULL)   {                        
-                              strncpy(InputBuffer,urlline,sizeof(InputBuffer));    
-                               printf("<GetData> %s </GetData>\n",urlline);
-                               //saveRecvXML(InputBuffer,strlen(InputBuffer));          //Save data     
-                      }
-                     else
-                      {
-			     printf("<Test> QUERY_STRING Empty,Please Check! </Test>\n"); 
-                             printf("</RespondMessage>");
-                             return   0;  
-                      }
-/*****************************************DoPost******************************************************/
-          } else if (strcmp(pRequestMethod,"POST")==0)   {    
-                      postlength=getenv("CONTENT_LENGTH");                                         //Get Length from env-value  
-
-                      if(postlength!=NULL){    
-                              ContentLength=atoi(postlength);   
-                      }
-                      else{    
-                              ContentLength = 0;  
-                              printf("<RespondCode>3</RespondCode>\n");
-                              printf("<Error>Lack of local.xml file!</Error>\n");
-                      }    
-                      if(ContentLength>sizeof(InputBuffer)-1)   {    
-                              ContentLength   =   sizeof(InputBuffer)-1;    
-                      }    
-                      i=0;    
-                      while(i<ContentLength){                                                  //get Form data from stdin
-                              x=fgetc(stdin);    
-                              if(x==EOF)break;    
-                              InputBuffer[i++]   =  x;    
-                      }    
-                      InputBuffer[i]  =  '\0';    
-                      ContentLength   =   i;    
-                      if(-1==saveRecvXML(InputBuffer,ContentLength))
-                      {
-                           printf("<Error>Can't save post data!</Error>\n");
-                           printf("</RespondMessage>");
-                           exit(0);     
-                      }                                                                        //Save data  to file
-                      fp = fopen(RCV_FILE, "r");
-	              if(fp == NULL){
-                    printf("<RespondCode>3</RespondCode>\n");
-			        printf("<Error>open the recv.xml error!</Error>\n");
-                    printf("</RespondMessage>");
-			        exit(0);
-					}
-		    }
-		    tree = mxmlLoadFile(NULL, fp, MXML_TEXT_CALLBACK);
-
-		    if(tree == NULL){
+          printf("<RespondMessage>\n"); 
+                                                                                        //Save data  to file
+          fp = fopen(RCV_FILE, "r");
+	  if(fp == NULL){
                 printf("<RespondCode>3</RespondCode>\n");
+		printf("<Error>open the recv.xml error!</Error>\n");
+                printf("</RespondMessage>");
+	        exit(0);
+	  }
+	  tree = mxmlLoadFile(NULL, fp, MXML_TEXT_CALLBACK);
+	  if(tree == NULL){
+                            printf("<RespondCode>3</RespondCode>\n");
 			    printf("<Data>Load XML file error!</Data>\n");
-                fclose(fp);
+                            fclose(fp);
 			    exit(0);
-			}
+	  }
     		   fclose(fp);
- 		       root = mxmlFindElement(tree, tree, "SegmentCode",NULL, NULL,MXML_DESCEND);
-              if(root == NULL){
+ 		   root = mxmlFindElement(tree, tree, "SegmentCode",NULL, NULL,MXML_DESCEND);
+                   if(root == NULL){
 		        printf("<RespondCode>3</RespondCode>\n");
 			    printf("<Data>Undefined Code :%s</Data>\n",root->value.element.name);
 		        printf("</RespondMessage>");
@@ -114,9 +57,9 @@ int main(void)
 			    exit(0);
 			}
 		    else{
-                    code=getCommendCode(root,tree);
+                    //code=getCommendCode(root,tree);
+                    code =atoi(argv[1]);
                     switch(code){
-
 
 /*******************************************加入功能块begin*****************************************************/
 /*回复消息*/
@@ -173,7 +116,6 @@ int main(void)
                                     break;
 				    }
 //*********障碍告警及光保护*************/
-
                                case 130:{   //执行障碍告警测试任务     
                                     ret=setAlarmtestSegment(root,tree,code);
                                     if(ret->RespondCode <0){
@@ -264,14 +206,12 @@ int main(void)
 
 /******************************************加入功能块end****************************************************************/                                        
                                default  :  NullPossess();
-
-                             }                                   
-
-            } 
+                             }    
+               }                               
           mxmlDelete(tree);		   
-          printf("</RespondMessage>");
+          printf("</RespondMessage>\n");
           exit(0);  
-    }  
+}  
 
 
 

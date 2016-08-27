@@ -10,16 +10,17 @@
 
 #include "process.h"
 
-void send(void);
-void main()
+void send(int value);
+void main(int argc ,char *argv[])
 {
-
-  send();
-  printf("send signal success!\n");
+  int value;
+  value =atoi(argv[1]);
+  send(value);
+  printf("send signal success :%d\n",value);
 }
 
 
-void send(void)
+void send(int value)
 {
        int signum;
        union sigval mysigval;
@@ -28,11 +29,11 @@ void send(void)
        int n;  
        pid_t cycPID[MAX_PID_NUM];  
       
-       process ="/web/cgi-bin/cycMain";
+       process ="/web/cgi-bin/alarmMain";
        ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
        printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
        signum=SIGUSR1;
-       mysigval.sival_int =10;
+       mysigval.sival_int =value;
        for(n=0;n<ret;n++){  
         printf("cycPID:%u\n", cycPID[n]);
        // if(kill(cycPID[n],signum)==-1)   printf("send error\n");

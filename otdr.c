@@ -31,7 +31,7 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
 	 }
          mysql->db          =  mydb;
          char PX1[4] ="PX1",PX2[4] ="PX2",PX3[4] ="PX3",PX4[4] ="PX4",PX5[4] ="PX5",PX6[4] ="PX6",PX7[4] ="PX7";
-         if(type==1){                                                    //点名测试
+         if(type==1){                                                                      //点名测试
             uint32tostring(SNo,sno);
             mysql->tableName     =  "NamedTestSegmentTable";    
 	    mysql->mainKeyValue  =  sno;
@@ -42,7 +42,8 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
 	       sqlite3_free(zErrMsg);
 	    }else{
                uint_a = strtoul (result[0], NULL, 0);  
-	       PS = uint_a;    
+	       PS = uint_a; 
+               myotdr->PS =PS;    
             }
             if(PS==0){
                mysql->tableName     =  "DefaultTsetSegmentTable";
@@ -53,9 +54,9 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
                PX1[1]='1';PX2[1]='1';PX3[1]='1';PX4[1]='1';PX5[1]='1';PX6[1]='1';PX7[1]='1';                     
              }
          }
-         if(type==2){                                                    //障碍告警测试                                          
+         if(type==2){                                                                     //障碍告警测试                                          
             uint32tostring(SNo,sno);
-            mysql->tableName     =  "AlarmTsetSegmentTable";    
+            mysql->tableName     =  "AlarmTestSegmentTable";    
 	    mysql->mainKeyValue  =  sno;
             mysql->filedsName    =  "PS";
             rc=SQL_lookup(mysql,&result);
@@ -64,14 +65,15 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
 	       sqlite3_free(zErrMsg);
 	    }else{
                uint_a = strtoul (result[0], NULL, 0);  
-	       PS = uint_a;    
+	       PS = uint_a; 
+               myotdr->PS =PS;   
             }
             if(PS==0){
                mysql->tableName     =  "DefaultTsetSegmentTable";
                PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';     
              }
             else{
-               mysql->tableName     =  "AlarmTsetSegmentTable";
+               mysql->tableName     =  "AlarmTestSegmentTable";
                PX1[1]='2';PX2[1]='2';PX3[1]='2';PX4[1]='2';PX5[1]='2';PX6[1]='2';PX7[1]='2';
              }
          }
@@ -79,7 +81,7 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
            // printf("cycleTest Task\n");                                                 //周期测试                                          
             uint32tostring(SNo,sno);
 	    mysql->mainKeyValue  =  sno;
-            printf("cycleTest Task--->SNo=%s\n",sno);                                                 //周期测试
+            printf("cycleTest Task--->SNo=%s\n",sno);                                     //周期测试
             mysql->tableName     =  "DefaultTsetSegmentTable";
             PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';  
          }      
@@ -154,6 +156,68 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
 		 myotdr->EndThreshold = float_a;    
 	} 
 
+        if(type==2){                                                                     //障碍告警测试需要单独查询告警门限
+           mysql->tableName     = "AlarmTestSegmentTable";
+           mysql->filedsName    = "AT01";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT01 = float_a;    
+	   } 
+
+           mysql->filedsName    = "AT02";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT02 = float_a;    
+	   } 
+
+           mysql->filedsName    = "AT03";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT03 = float_a;    
+	   } 
+
+           mysql->filedsName    = "AT04";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT04 = float_a;    
+	   } 
+
+           mysql->filedsName    = "AT05";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT05 = float_a;    
+	   } 
+
+           mysql->filedsName    = "AT06";
+	   rc= SQL_lookup(mysql,&result);
+	   if( rc != SQLITE_OK ){
+		 printf( "Lookup SQL error: %s\n", zErrMsg);
+		 sqlite3_free(zErrMsg);
+       	   }else{
+		 float_a = atof (result[0]);  
+		 myotdr->AT06 = float_a;    
+	   }  
+        }
 	free(sno);
 	SQL_Destory(mysql);  
 	sqlite3_close(mydb);	
@@ -207,8 +271,6 @@ int HostStartMeasure(int sockt,otdr const * me,char * buf)
 		start->Ctrl.RefreshPeriod_ms = 1000;                //var time
 		start->State.Lambda_nm = me->Lambda_nm;
 		start->State.MeasureLength_m = me->MeasureLength_m;
-                
-                //printf("TEST::----------------------------------->ML=%d",start->State.MeasureLength_m);
 		start->State.PulseWidth_ns = me->PulseWidth_ns;
 		start->State.MeasureTime_ms = me->MeasureTime_ms*1000;
 		start->State.n =me->n;
