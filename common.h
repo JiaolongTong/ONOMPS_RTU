@@ -17,6 +17,18 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <time.h>
+
+
+
+#include <linux/rtc.h>
+
+#include <sys/ioctl.h>
+
+#include <fcntl.h>
+
+#include <getopt.h>
+
+
 #define  FILE_MODE_NAMED  1
 #define  FILE_MODE_CYCLE  2
 #define  FILE_MODE_ALARM  3
@@ -37,6 +49,9 @@ time_t computTime(char * str);             // 按照字符串计算时间（日�
 float htonf(float t);                     //主机浮点字节转换成网络浮点字节
 float ntohf(float t);                     //网络浮点字节转换成主机浮点字节
 void  uint32tostring(uint32_t lNum,char chWord[]);
+int rtc_set_time(char * rtcDev, time_t setTime) ;  //设置RTC时间并更新系统时间
+
+time_t rtc_read_time(char * rtcDev);       //获取RTC时间
 
 int Search_Keyword(char *dst_str,char *search_str); //KMP字符串匹配
 #endif

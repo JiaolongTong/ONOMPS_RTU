@@ -1,15 +1,7 @@
 #include "responed.h"
 #include "Communicate.h"
 #include "common.h"
-/**************************************************************
-                Responed Code
-0：成功处理命令 	1：设置测试参数非法
-3: 命令无效	        2：设置门限参数非法
-4：设置通信参数非法	5：成功处理命令，并等待数据 (ignore)
-10：接收到测试数据文件	11：接收到RTU运行时间
-12：接收到RTU网络参数	13：成功切换到保护光缆
 
-**************************************************************/
 responed * Responed_Create()
 {
 	responed * me = (responed *) malloc(sizeof(responed));
@@ -49,8 +41,16 @@ void RespondMessage_Error(int code ,responed * res)
 		   printf("%d,",res->Group[i].PNo);                   //i>10待修改  
 		}
 		printf("</PNo>\n");
+
+		printf("<Infor>");
+                for(i=0;i<ErrorSN;i++)
+                {
+                   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
+                }
+ 		printf("</Infor>");  
+
 		for(i=0;i<ErrorSN;i++){
-		 printf("%s PNo:%d %s\n",str1,res->Group[i].PNo,res->Group[i].Error_inform);
+		 printf("%s PNo:%d %s[SNo:%d]\n",str1,res->Group[i].PNo,res->Group[i].Error_inform,res->Group[i].SNo);
 		}
         }else{
 		printf("<SNo>");
@@ -60,18 +60,19 @@ void RespondMessage_Error(int code ,responed * res)
 		  
 		}
 		printf("</SNo>\n");
+		printf("<Infor>");
+                for(i=0;i<ErrorSN;i++)
+                {
+                   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
+                }
+ 		printf("</Infor>");               
 		for(i=0;i<ErrorSN;i++){
+
 		 printf("%s SNo:%d %s\n",str1,res->Group[i].SNo,res->Group[i].Error_inform);
                 }	
         }
         printf("</Data>\n");
         
-}
-void RespondMessage_OpticPowerData(void)
-{
-	printf("<RespondCode>0</RespondCode>\n");
-        printf("<Data>\n");
-        printf("</Data>\n");	      
 }
 
 void RespondMessage_NetworkSegment(void)

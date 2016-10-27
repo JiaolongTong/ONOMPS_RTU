@@ -4,11 +4,15 @@
 #include "cycletest.h"
 #include "alarmtest.h"
 #include "opticalprotect.h"
+#include "opticalpower.h"
 #include "responed.h"
 #include "process.h"
+#include "myModbus.h"
+#include "rtuIformation.h"
 
 int sem_id=0;
-
+int modbus_sem_id=0;
+int otdr_sem_id=0;
 int main(void)  
     {  
 	  char *pRequestMethod;
@@ -23,13 +27,23 @@ int main(void)
           mxml_node_t *tree,*root,*command;
 
           responed *ret=NULL;
-          sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建信号量 
-          if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
+          /*初始化信号量*/
+          sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+          modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                         //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+/*
+         if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
           {  
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
+          }  
+
+          if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
+          {  
+              fprintf(stderr, "Failed to initialize modbus_semaphore\n");  
+              exit(EXIT_FAILURE); 
           } 
 
+*/
           printf("Content-type:text/xml\n\n");                                              //This is very important 
           printf("<?xml version='1.0' encoding='UTF-8'?>\n"); 
           printf("<RespondMessage>\n");
@@ -115,17 +129,37 @@ int main(void)
 			}
 		    else{
                     code=getCommendCode(root,tree);
-                    switch(code){
+
+/*                  if(code==180)                               //设备激活
+                    {
+                       ret=setOpticalProtectSegment(root,tree,code);
+                       if(ret->RespondCode <0){
+                          printf("</RespondMessage>");
+                          mxmlDelete(tree);
+                          exit(0);  
+                        }
+                        if (ret->RespondCode == 0)RespondMessage_OK(code);
+                        else RespondMessage_Error(code,ret);
+                        ree(ret);
+                        break;
+			}
+                    }else {
+                    
+ */                     switch(code){
 
 
 /*******************************************加入功能块begin*****************************************************/
 /*回复消息*/
-/*
-	(1) "0"   指令处理成功
-        (2) "1"   测试参数非法: SN,P01,P02,P03,P04,P05,P06,P07
-        (3) "4"   通信参数非法: 起始时间、时间间隔格式错误,回传IP地址错误
-        (4) "14"  数据库不同步: 设置时间表时，检查优化参数是否存在，如果不存在报告数据库不同步错误，并回传未同步的光路号(SNo)。
-*/ 			       case 100 :{   //设置优化参数                                   
+/**************************************************************
+                Responed Code
+0：成功处理命令 	1：设置测试参数非法
+3: 命令无效	        2：设置门限参数非法
+4：设置通信参数非法	5：成功处理命令，并等待数据 (ignore)
+10：接收到测试数据文件	11：接收到RTU运行时间
+12：接收到RTU网络参数	13：成功切换到保护光缆
+14：数据库不同步 
+**************************************************************/	
+    		               case 100 :{   //设置优化参数                                   
                                     if (setDefaultTestSegment(root,tree,code)<0){
                                             printf("</RespondMessage>");
                                             mxmlDelete(tree);
@@ -142,7 +176,7 @@ int main(void)
                                         mxmlDelete(tree);
                                         exit(0);  
                                         }
-                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                     if (ret->RespondCode == 0);//RespondMessage_OK(code);
                                      else RespondMessage_Error(code,ret);
                                      free(ret);
                                      break; 
@@ -172,7 +206,6 @@ int main(void)
                                     free(ret);
                                     break;
 				    }
-//*********障碍告警及光保护*************/
 
                                case 130:{   //执行障碍告警测试任务     
                                     ret=setAlarmtestSegment(root,tree,code);
@@ -199,6 +232,9 @@ int main(void)
                                     free(ret);
                                     break;
 				    }
+
+
+
                                case 250:{   //取消光保护配对     
                                     ret=endOpticalProtectSegment(root,tree,code);
                                     if(ret->RespondCode <0){
@@ -236,6 +272,43 @@ int main(void)
                                     break;
 				    }
 
+
+                               case 150:{   //设置基准时间     
+                                    ret=setReferenceTime(root,tree,code);
+                                    if(ret->RespondCode <0){
+                                        printf("</RespondMessage>");
+                                        mxmlDelete(tree);
+                                        exit(0);  
+                                    }
+                                    if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                    free(ret);
+                                    break;
+				    }
+                               case 320:{   //请求报告基准时间     
+                                    ret=requestReferenceTime (root,tree,code);
+                                    if(ret->RespondCode <0){
+                                        printf("</RespondMessage>");
+                                        mxmlDelete(tree);
+                                        exit(0);  
+                                    }
+                                    if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                    free(ret);
+                                    break;
+				    }
+
+
+                               case 160:{   //设置网络参数 
+                                    ret=setNetwork(root,tree,code);
+                                    if(ret->RespondCode <0){
+                                        printf("</RespondMessage>");
+                                        mxmlDelete(tree);
+                                        exit(0);  
+                                    }
+                                    if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                    free(ret);
+                                    break;
+				    }
+
                                case 230:{   //取消障碍告警测试     
                                     ret=endAlarmtestSegment(root,tree,code);
                                     if(ret->RespondCode <0){
@@ -261,15 +334,41 @@ int main(void)
                                     break;
 				    }
 
+                               case 360:{   //获取光功率值    
+                                    ret=getOpticPowerParameter(root,tree,code);
+                                    if(ret->RespondCode <0){
+                                        printf("</RespondMessage>");
+                                        mxmlDelete(tree);
+                                        exit(0);  
+                                    }
+                                    if (ret->RespondCode == 0);//RespondMessage_OK(code);
+                                    else RespondMessage_Error(code,ret);
+                                    free(ret);
+                                    break;
+				    }
 
+		              case  180:{
+				    ret=setRTUMode(root,tree,code);
+				    if(ret->RespondCode <0){
+		                        printf("</RespondMessage>");
+			                mxmlDelete(tree);
+			                exit(0);  
+				     }
+				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+			            else RespondMessage_Error(code,ret);
+				     free(ret);
+				     break;
+			            }
 /******************************************加入功能块end****************************************************************/                                        
                                default  :  NullPossess();
 
                              }                                   
-
+                    // }
             } 
           mxmlDelete(tree);		   
           printf("</RespondMessage>");
+          //del_semvalue();
+          //delModbusPV();
           exit(0);  
     }  
 

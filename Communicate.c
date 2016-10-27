@@ -34,6 +34,8 @@ char *  getCommendString(int code)
           return str = "SetNetwork";
 	if(code == 170)
           return str = "SetProtectGroup";
+        if(code == 180)
+          return str = "SetRTUMode";
 	if(code == 220)
           return str = "CancelCycleTest";
 	if(code == 230)
@@ -118,6 +120,14 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		}    
         }
 
+     if ((search = mxmlFindElement(root, tree, "SetRTUMode",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"SetRTUMode")==0)
+		{
+		   return 180;
+		}    
+        }
+
      if ((search = mxmlFindElement(root, tree, "CancelCycleTest",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"CancelCycleTest")==0)
@@ -199,7 +209,8 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo,int CM, int mode)
     	int    en_size=0,nret,ContentLength=0;
         time_t rawtime;
 	struct tm * timeinfo;
-	time (&rawtime);		
+	time (&rawtime);
+        char * timE =ctime(&rawtime);		
     	if(nret = read_file( en_DATA, &en_size, &pdata )!=0)
       	{
 		fprintf(stderr,"Open Error\n");
@@ -217,7 +228,7 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo,int CM, int mode)
         	pdata[ContentLength]  =  '\0';    
      	 } 
     	char *en_tetDat = base64_encode(pdata, ContentLength); 
-        char * timE =ctime(&rawtime);
+
 	printf("<RespondCode>10</RespondCode>\n"     );
         printf("<Data>\n"                                );
         printf("    <TestData>\n"                        );
@@ -233,7 +244,7 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo,int CM, int mode)
         printf("	<P15>%f</P15>\n"        ,PXX->n);
 	printf("	<P16>%f</P16>\n"        ,PXX->NonRelectThreshold);
 	printf("	<P17>%f</P17>\n"        ,PXX->EndThreshold);
-	printf("	<T9>%s</T9>\n"          ,timE);
+	printf("	<T9>%d</T9>\n"          ,rawtime);
     	printf("	<TstDat>%s\n</TstDat>\n",en_tetDat);
         printf("    </TestData>\n");		
         printf("</Data>\n");	  
@@ -243,6 +254,27 @@ int RespondMessage_TestData(otdr *PXX,int PS,int SNo,int CM, int mode)
 		free( pdata);
 		pdata =NULL;
     	}  
+        return 0;
+}
+
+int RespondMessage_OpticPowerData(opticalpower *optPwr,int mode)
+{
+        time_t rawtime;
+	struct tm * timeinfo;
+	time (&rawtime);
+        char * timE =ctime(&rawtime);
+	printf("<RespondCode>10</RespondCode>\n");
+        printf("<Data>\n"                                );
+        printf("<OpticalPowerData>\n");
+        printf("	<CMDcode>511</CMDcode>\n");
+        printf("	<R>*</R>\n");
+        printf("	<CM>%d</CM>\n",optPwr->CM);
+        printf("	<CLP>2</CLP>\n");
+        printf("	<SNo>%d</SNo>\n",optPwr->SNo);     
+        printf("	<T9>%d</T9>\n"          ,rawtime);  
+        printf("	<PowerValue>%f</PowerValue>\n",optPwr->value);     
+        printf("</OpticalPowerData>\n");	  
+        printf("</Data>\n");   
         return 0;
 }
 /* */ 

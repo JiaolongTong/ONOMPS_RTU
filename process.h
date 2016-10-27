@@ -29,6 +29,9 @@ union semun
     struct semid_ds *buf;  
     unsigned short *arry;  
 };                                             //信号量，做进程间同步
+
+
+
   
 struct msg_st                                  //消息队列，服务器判断设置是否成功
 {  
@@ -36,16 +39,25 @@ struct msg_st                                  //消息队列，服务器判断�
         char text[BUFSIZ];  
 };  
   
- int set_semvalue();  
- void del_semvalue();  
- int semaphore_p();  
- int semaphore_v();  
+
+
+int set_semvalue();  
+void del_semvalue();  
+int semaphore_p();  
+int semaphore_v();  
+
+
+
+
 
 int sendMessageQueue(char * message);
 int sendMessageQueue_B(char * message);
+int sendMessageQueue_C(char * message ,key_t key);
+
 char * recvMessageQueue_A(void);
 char * recvMessageQueue_B(void);
 char * recvMessageQueue_C(void);
+int recvMessageQueue_D(char * backMSG, key_t key);
 void   sigOutime(int signo);
 
 

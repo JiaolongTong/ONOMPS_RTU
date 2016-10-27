@@ -8,14 +8,14 @@
 #include "sql.h"
 #include "otdr.h"
 #include "uploadCycTestData.h" 
-
+#include "myModbus.h"
 /***测试链表节点结构***/ //LinkA
 /*
     SNO:光路号
     CM :局站号
     ANo:告警组号（优先级）
     PowerGate     :光功率门限，低于此门限产生告警
-    protectFlag   :光保护标识。0：不存在保护光路。1：存在保护光路
+    protectFlag   :光保护标识。1：存在保护光路。2：不存在保护光路
     fristAlarmFlag:首次告警标识：首次产生告警，置位为1，告警消失：置位为0。
     nextAlarmTime :告警未消失时，下次向服务器上传告警信息的时间
     alarmClick    :上传告警的周期
@@ -52,7 +52,9 @@ struct alarmNode{
 
 
 /*全局变量*/
-int sem_id=0;                      //信号量ID（数据库互斥访问）                             
+int sem_id=0;                      //信号量ID（数据库互斥访问）      
+int modbus_sem_id=0;               //信号量ID（ModBus互斥访问）  
+int otdr_sem_id=0;                 //信号量ID（OTDR互斥访问）                    
 int flagNewA=0;                    //有新的测试节点加入标识
 int flagNewB=0;                    //有新的异常节点加入标识
 checkNode *linkHead_check_A;       //测试节点链表头
@@ -95,8 +97,8 @@ checkNode *link_creat_A(){
         p1->SNo           =0;
         p1->CM            =0;
         p1->ANo           =0;
-        p1->PowerGate     =0;
-        p1->protectFlag   =0;
+        p1->PowerGate     =-30;
+        p1->protectFlag   =2;
         p1->fristAlarmFlag=0;
         p1->nextAlarmTime =0;
         p1->alarmClick    =0;
@@ -224,11 +226,11 @@ void outPutALL_A(checkNode *head){
 alarmNode *insert_B(alarmNode *head,alarmNode *newNode)
 {
 
-        alarmNode *current;
-        alarmNode *pre;
-        current = (alarmNode *) malloc (sizeof(alarmNode ));
-        pre = (alarmNode *) malloc (sizeof(alarmNode ));
-	pre     = NULL;
+        alarmNode *current=NULL;
+        alarmNode *pre=NULL;
+       // current = (alarmNode *) malloc (sizeof(alarmNode ));
+       // pre = (alarmNode *) malloc (sizeof(alarmNode ));
+       // pre     = NULL;
 	current = head;
         while(current!=NULL&&current->Order < newNode->Order){
             pre = current;
@@ -246,7 +248,7 @@ alarmNode *insert_B(alarmNode *head,alarmNode *newNode)
 
 /***创建新链表***/
 alarmNode *link_creat_B(){
-	alarmNode *head,*p1;
+	alarmNode *head=NULL,*p1=NULL;
         head = (alarmNode *) malloc (sizeof(alarmNode ));
         p1   = (alarmNode *) malloc (sizeof(alarmNode ));
 	head =NULL;
@@ -271,7 +273,7 @@ alarmNode *deleteFirst_B(alarmNode *head ){
         if (isEmpty_B(head)){
             return NULL;
         }
-        alarmNode *temp;
+        alarmNode *temp=NULL;
         temp = (alarmNode *) malloc (sizeof(alarmNode ));
         temp = head;
         head = head->next;
@@ -285,7 +287,7 @@ alarmNode *deleteFirst_B(alarmNode *head ){
 */
 alarmNode * outFirstnode_B(alarmNode *head)
 {
-        alarmNode *p0;
+        alarmNode *p0=NULL;
 	if(head==NULL){
 		return(head);                               
 	}
@@ -302,7 +304,7 @@ alarmNode * outFirstnode_B(alarmNode *head)
    (1)以光路号SNo为索引
 */
 alarmNode *delete_B(alarmNode *head,int SNo){
-	alarmNode *p1,*p2;
+	alarmNode *p1=NULL,*p2=NULL;
 	if(head==NULL){
 		printf("This is a void execl");
 		return(head);
@@ -322,6 +324,7 @@ alarmNode *delete_B(alarmNode *head,int SNo){
                  {
 			p2->next =p1->next;
 		        free(p1);
+                        p1=NULL;
                  }
 		num_B--;
 	}else
@@ -335,7 +338,7 @@ alarmNode *delete_B(alarmNode *head,int SNo){
 */
 alarmNode *findNode_B(alarmNode *head,int SNo)
 {
-	alarmNode * current;
+	alarmNode * current=NULL;
         current = head;
         while(current!=NULL){
             if(current->SNo == SNo)
@@ -347,7 +350,7 @@ alarmNode *findNode_B(alarmNode *head,int SNo)
 
 /***遍历链表***/
 void outPutALL_B(alarmNode *head){
-	alarmNode *p;
+	alarmNode *p=NULL;
 	p= head;
 	if(p==NULL)
 	   return ;
@@ -383,8 +386,10 @@ checkNode * InitA_CycleLink(void)
          head = link_creat_A();
          head = delete_A(head,0);                                     
          uint32_t ANo,protectFlag;
+         int fiberType;
          float PowerGate;
          int    CM=0;
+         int    ret=-1;
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
@@ -399,54 +404,71 @@ checkNode * InitA_CycleLink(void)
          SN=SQL_findSNo(mysql,resultSNo);
          if(SN>0){
 		for(i =0 ;i<SN;i++)
-		    {
+		{
 		        printf("SNo:%s",resultSNo[i]);
 		        strcpy(SNo,resultSNo[i]);
 		        mysql->mainKeyValue  = SNo;
 
-		        mysql->filedsName    = "rtuCM"; 
+		        mysql->filedsName    = "fiberType"; 
 		        rc= SQL_lookup(mysql,&result);
-                        CM =atoi(result[0]);
-		        printf("CM:%d\n",CM);
+                        fiberType=atoi(result[0]);
+		        printf("fiberType:%d\n",fiberType);
 
-		        mysql->filedsName    = "Level"; 
-		        rc= SQL_lookup(mysql,&result);
-                        ANo =atoi(result[0]);
-		        printf("ANo:%d\n",ANo);
+                        if(fiberType==0){
 
-		        mysql->filedsName    = "AT06"; 
-		        rc= SQL_lookup(mysql,&result);
-                        PowerGate=atof(result[0]);
-		        printf("PowerGate:%f\n",PowerGate);
+				mysql->filedsName    = "rtuCM"; 
+				rc= SQL_lookup(mysql,&result);
+		                CM =atoi(result[0]);
+				printf("CM:%d\n",CM);
 
-		        mysql->filedsName    = "protectFlag"; 
-		        rc= SQL_lookup(mysql,&result);
-                        protectFlag=atoi(result[0]);
-		        printf("protectFlag:%d\n",protectFlag);
+				mysql->filedsName    = "Level"; 
+				rc= SQL_lookup(mysql,&result);
+		                ANo =atoi(result[0]);
+				printf("ANo:%d\n",ANo);
 
+				mysql->filedsName    = "AT06"; 
+				rc= SQL_lookup(mysql,&result);
+		                PowerGate=atof(result[0]);
+				printf("PowerGate:%f\n",PowerGate);
 
-		        mysql->filedsName    = "T3"; 
-		        rc= SQL_lookup(mysql,&result);
-                        T3 =computTime(result[0]);
-		        printf("T3:%ld\n",T3);
-
-		        mysql->filedsName    = "T4"; 
-		        rc= SQL_lookup(mysql,&result);
-                        T4= computTime(result[0]);
-		        printf("T4:%ld\n",T4);
+				mysql->filedsName    = "protectFlag"; 
+				rc= SQL_lookup(mysql,&result);
+		                protectFlag=atoi(result[0]);
+				printf("protectFlag:%d\n",protectFlag);
 
 
-			node=(checkNode *)malloc(sizeof(checkNode));
-			node->SNo           = atoi(SNo);
-                        node->CM            = CM;
-			node->ANo           = ANo;
-			node->PowerGate     = PowerGate;
-			node->protectFlag   = protectFlag;
-			node->fristAlarmFlag= 0;
-			node->nextAlarmTime = getLocalTimestamp();
-			node->alarmClick    = T3;
-                        head=insert_A(head,node);  
-		    }
+				mysql->filedsName    = "T3"; 
+				rc= SQL_lookup(mysql,&result);
+		                T3 =computTime(result[0]);
+				printf("T3:%ld\n",T3);
+
+				mysql->filedsName    = "T4"; 
+				rc= SQL_lookup(mysql,&result);
+		                T4= computTime(result[0]);
+				printf("T4:%ld\n",T4);
+
+		                if(!setModbus_P())                                                //P
+                                   exit(EXIT_FAILURE);   
+                                modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+                                ret = setOneOpticalThreshold(mb,atoi(SNo),PowerGate); 
+                                freeModbus(mb);                     
+                                if(!setModbus_V())                                                //V
+                                   exit(EXIT_FAILURE); 
+        
+                                if(ret==0){ 
+				    node=(checkNode *)malloc(sizeof(checkNode));
+				    node->SNo           = atoi(SNo);
+		                    node->CM            = CM;
+				    node->ANo           = ANo;
+				    node->PowerGate     = PowerGate;
+				    node->protectFlag   = protectFlag;
+				    node->fristAlarmFlag= 0;
+				    node->nextAlarmTime = getLocalTimestamp();
+				    node->alarmClick    = T3;                                  //for test
+		                    head=insert_A(head,node); 
+                               } 
+                       }
+		}
          }
          free(SNo);
 	 SQL_Destory(mysql);  
@@ -543,9 +565,10 @@ void flushWaitingSNo(void)
 float realValue[8] ={4,4,4,4,4,4,4,4};                              //for test
 alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
 {
-     	checkNode *p;
-        alarmNode *q=NULL,*node;      
-        int i=0;
+     	checkNode *p=NULL;
+        alarmNode *q=NULL,*node=NULL;    
+        float powerValue=-100.0;  
+        int i=0,j;
         time_t nowTime;
 	p= headA;
         q= headB;
@@ -555,10 +578,25 @@ alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
 	}
 	else
 	  while(p!=NULL){
-                if(realValue[i] < p->PowerGate ){    // 异常		   
+                //powerValue = getOpticalPowerValue(p->SNo);                      //获取当前光路光功率值
+		if(!setModbus_P())                                                //P
+                   exit(EXIT_FAILURE);   
+       	        modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+                if(p->protectFlag==1){
+		  powerValue = getOneOpticalValue(mb,((p->SNo+1)/2)*2-1);  
+                }else if(p->protectFlag==2)
+                {
+                  powerValue = getOneOpticalValue(mb,p->SNo);
+                }    
+		freeModbus(mb);    
+                usleep(50000);                   
+		if(!setModbus_V())                                                //V
+		    exit(EXIT_FAILURE);  
+                usleep(50000);
+                if(powerValue < p->PowerGate ){    // 异常		   
                      nowTime = getLocalTimestamp(); 
                      if(p->fristAlarmFlag ==0){                                    //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
-                          printf("StateC--->SNo:%d -->i:%d realValue:%f <---> gateValue:%f\n",p->SNo,i,realValue[i],p->PowerGate);
+                          printf("StateC--->SNo:%d -->i:%d powerValue:%f <---> gateValue:%f\n",p->SNo,i,powerValue,p->PowerGate);
 		          p->fristAlarmFlag = 1;
 			  node=(alarmNode *)malloc(sizeof(alarmNode));
 		          node->SNo = p->SNo;
@@ -568,7 +606,7 @@ alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
 		          q=insert_B(q,node);  
 	                  p->nextAlarmTime  = getLocalTimestamp()+p->alarmClick;
                      }else if(nowTime >= p->nextAlarmTime){                        //状态D:长期处于异常 -->fristAlarmFlag=1   实际光功率值<阈值  
-                          printf("StateD--->SNo:%d -->i:%d realValue:%f <---> gateValue:%f\n",p->SNo,i,realValue[i],p->PowerGate);          
+                          printf("StateD--->SNo:%d -->i:%d powerValue:%f <---> gateValue:%f\n",p->SNo,i,powerValue,p->PowerGate);          
 			  node=(alarmNode *)malloc(sizeof(alarmNode));
 		          node->SNo = p->SNo;
 		          node->CM  = p->CM;
@@ -579,7 +617,7 @@ alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
                      }  
                  }                                 // 正常             
                  else if(p->fristAlarmFlag !=0){                                   //状态A:从异常中首次恢复 --> fristAlarmFlag=1 实际光功率值>=阈值      
-                          printf("StateA--->SNo:%d -->i:%d realValue:%f <---> gateValue:%f\n",p->SNo,i,realValue[i],p->PowerGate);        
+                          printf("StateA--->SNo:%d -->i:%d powerValue:%f <---> gateValue:%f\n",p->SNo,i,powerValue,p->PowerGate);        
                           p->fristAlarmFlag = 0;
                       } 
                       else ;                                                       //状态B:正常  -->  fristAlarmFlag=0 实际光功率值>=阈值            
@@ -590,12 +628,12 @@ alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
 }
 /***遍历链表***/
 alarmNode * deleteALL_B(alarmNode *head){
-	alarmNode *p;
+	alarmNode *p=NULL;
 	union sigval mysigval;
 	char* process;  
 	int ret = 0,n,signum;  
         pid_t cycPID[MAX_PID_NUM];  
-	char * recvStr; 
+	int recvInt=-1; 
 	p= head;
 	if(p==NULL){
 		return p=NULL;
@@ -603,11 +641,13 @@ alarmNode * deleteALL_B(alarmNode *head){
 	else{
 	while(p!=NULL){
                    /*向otdrMain发送启动信号*/
-                printf("Send message to otdrMain!\n");
+                if(!setOTDR_P())                                                //P
+                   exit(EXIT_FAILURE);   
+                printf("Send message to otdrMain! SNo=%d\n",p->SNo);
 		process ="/web/cgi-bin/otdrMain";                        
 		ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 		printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-		signum=SIGUSR1;                                         
+		signum=SIGRTMIN;//SIGUSR1;                                         
 		mysigval.sival_int = p->SNo+200;                                                      
 		for(n=0;n<ret;n++){                                      
 			printf("otdrMain PID:%u\n", cycPID[n]);                  
@@ -615,15 +655,29 @@ alarmNode * deleteALL_B(alarmNode *head){
 				printf("send signal error\n");
 			}  
                    /*等待信号的成功处理消息*/			    
-		recvStr = (char *) malloc (sizeof (char)*10);
+		recvInt = recvMessageQueue_D("2-OK",2222);
+                if(recvInt==0){
+                      printf("alarmMain Recv back message from otdrMain  sucessful!");
+                 }else{
+                      printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
+                 } 		
+
+/*
 		recvStr = recvMessageQueue_B();
 		if(strncmp(recvStr, "2-OK", 4) == 0)                    
-			printf("Recv back message from otdrMain  sucessful!\n");
+			printf("alarmMain Recv back message from otdrMain  sucessful!%s\n",recvStr);
 		else
-			printf("Don't have any messges from otdrMain!\n");
+			printf("alarmMain Don't have any messges from otdrMain!:%s\n",recvStr);
 		free(recvStr);
-                //usleep(1);
-		p=delete_B(p,p->SNo);
+*/
+                
+                //sleep(1);                                                         //确保信号被处理完
+                usleep(100000);
+                if(!setOTDR_V())                                                //V
+                   exit(EXIT_FAILURE); 
+
+                if(recvInt==0)  
+		    p=delete_B(p,p->SNo);
 	}
          printf("\n\n");
         }    
@@ -660,8 +714,10 @@ checkNode *insertWaitingNode(checkNode *head)
          head = link_creat_A();
          head = delete_A(head,0);                                     
          uint32_t ANo,protectFlag;
+         int   fiberType;
          float PowerGate;
          int    CM=0;
+         int    ret =-1;
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
@@ -675,76 +731,95 @@ checkNode *insertWaitingNode(checkNode *head)
          mysql->filedsName  =  "Status";
          SN=SQL_findSNo(mysql,resultSNo);                           //查找光路状态为待启动的记录  光路状态为“-1”
          if(SN>0){
-		for(i =0 ;i<SN;i++)
-		    {
+		for(i =0 ;i<SN;i++){
 		        printf("SNo:%s",resultSNo[i]);
 		        strcpy(SNo,resultSNo[i]);
 
-		        mysql->filedsName    = "rtuCM"; 
-		        mysql->mainKeyValue  = SNo;
+
+		        mysql->filedsName    = "fiberType"; 
+			mysql->mainKeyValue  = SNo;
 		        rc= SQL_lookup(mysql,&result);
-                        CM =atoi(result[0]);
-		        printf("CM:%d\n",CM);
+                        fiberType=atoi(result[0]);
+		        printf("fiberType:%d\n",fiberType);
 
-		        mysql->filedsName    = "Level"; 
-		        mysql->mainKeyValue  = SNo;
-		        rc= SQL_lookup(mysql,&result);
-                        ANo =atoi(result[0]);
-		        printf("ANo:%d\n",ANo);
+                        if(fiberType==0){
+				mysql->filedsName    = "rtuCM"; 
+				mysql->mainKeyValue  = SNo;
+				rc= SQL_lookup(mysql,&result);
+		                CM =atoi(result[0]);
+				printf("CM:%d\n",CM);
 
-		        mysql->filedsName    = "AT06"; 
-                        mysql->mainKeyValue  =  SNo;
-		        rc= SQL_lookup(mysql,&result);
-                        PowerGate=atof(result[0]);
-		        printf("PowerGate:%f\n",PowerGate);
+				mysql->filedsName    = "Level"; 
+				mysql->mainKeyValue  = SNo;
+				rc= SQL_lookup(mysql,&result);
+		                ANo =atoi(result[0]);
+				printf("ANo:%d\n",ANo);
 
-		        mysql->filedsName    = "protectFlag"; 
-		        rc= SQL_lookup(mysql,&result);
-                        protectFlag=atoi(result[0]);
-		        printf("protectFlag:%d\n",protectFlag);
+				mysql->filedsName    = "AT06"; 
+		                mysql->mainKeyValue  =  SNo;
+				rc= SQL_lookup(mysql,&result);
+		                PowerGate=atof(result[0]);
+				printf("PowerGate:%f\n",PowerGate);
 
-		        mysql->filedsName    = "T3"; 
-		        rc= SQL_lookup(mysql,&result);
-                        T3 =computTime(result[0]);
-		        printf("T3:%ld\n",T3);
+				mysql->filedsName    = "T3"; 
+				rc= SQL_lookup(mysql,&result);
+		                T3 =computTime(result[0]);
+				printf("T3:%ld\n",T3);
 
-		        mysql->filedsName    = "T4"; 
-		        rc= SQL_lookup(mysql,&result);
-                        T4= computTime(result[0]);
-		        printf("T4:%ld\n",T4);
+				mysql->filedsName    = "T4"; 
+				rc= SQL_lookup(mysql,&result);
+		                T4= computTime(result[0]);
+				printf("T4:%ld\n",T4);
 
-			node=(checkNode *)malloc(sizeof(checkNode));
-			node->SNo           = atoi(SNo);
-                        node->CM            = CM;
-			node->ANo           = ANo;
-			node->PowerGate     = PowerGate;
-			node->protectFlag   = protectFlag;
-			node->fristAlarmFlag= 0;
-			node->nextAlarmTime = getLocalTimestamp();
-			node->alarmClick    = T3;                                 
-                        find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
-                        if(find ==NULL)
-                        {
-                           head = insert_A(head,node);                
-		        }else{
-		           head = delete_A(head,node->SNo);         
-                           head = insert_A(head,node); 
-                        }
+				mysql->filedsName    = "protectFlag"; 
+				rc= SQL_lookup(mysql,&result);
+		                protectFlag=atoi(result[0]);
+				printf("protectFlag:%d\n",protectFlag);
 
-                       mysql->filedsValue  =  "1";                
-                       mysql->filedsName   =  "Status";
-                       mysql->mainKeyValue =   SNo;
-                       if(!semaphore_p())  
-                              exit(EXIT_FAILURE);                                 //P
-                       rc=SQL_modify(mysql);
-                       if( rc != SQLITE_OK ){
+				node=(checkNode *)malloc(sizeof(checkNode));
+				node->SNo           = atoi(SNo);
+		                node->CM            = CM;
+				node->ANo           = ANo;
+				node->PowerGate     = PowerGate;
+				node->protectFlag   = protectFlag;
+				node->fristAlarmFlag= 0;
+				node->nextAlarmTime = getLocalTimestamp();
+				node->alarmClick    = T3;                                 
+		                find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
+		                if(find ==NULL)
+		                {
+		                   head = insert_A(head,node);                
+				}else{
+				   head = delete_A(head,node->SNo);         
+		                   head = insert_A(head,node); 
+		                }
+
+                              if(!setModbus_P())                                                //P
+                                 exit(EXIT_FAILURE);   
+                              modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+                              ret = setOneOpticalThreshold(mb,node->SNo,node->PowerGate); 
+                              freeModbus(mb);                     
+                              if(!setModbus_V())                                                //V
+                                exit(EXIT_FAILURE);  
+
+                       }
+
+                      if(ret==0 || fiberType==1){
+                          mysql->filedsValue  =  "1";                
+                          mysql->filedsName   =  "Status";
+                          mysql->mainKeyValue =   SNo;
+                          if(!semaphore_p())  
+                               exit(EXIT_FAILURE);                                     //P
+                          rc=SQL_modify(mysql); 
+                          if( rc != SQLITE_OK ){
 			      printf( "Modify SQL error\n");
 			      sqlite3_free(zErrMsg);
-		       }
-                      if(!semaphore_v())                                          //V
-                             exit(EXIT_FAILURE);
+		           }
+                         if(!semaphore_v())                                            //V
+                            exit(EXIT_FAILURE);
+                      }
                          
-		    }
+		}  //end for 
          }
          free(SNo);
 	 SQL_Destory(mysql);  
@@ -776,18 +851,18 @@ checkNode *insertWaitingNode(checkNode *head)
 checkNode * removeWaitingNode(checkNode *head) 
 {
 	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo;
+	 char *SNo;
 	 int rc,i,SN=0,intSNo=0;
+         int fiberType;
 	 sql *mysql;
 	 char resultSNo[64][5];
+         char **result;
          checkNode *find;
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	 if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }
+	 if( rc != SQLITE_OK )
+	     printf("Lookup SQL error\n");
 	 mysql->db = mydb;
 	 mysql->tableName   = "AlarmTestSegmentTable";	
          mysql->filedsValue =  "-2";                                
@@ -795,44 +870,420 @@ checkNode * removeWaitingNode(checkNode *head)
          SN=SQL_findSNo(mysql,resultSNo);                           
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
-		    {
+		 {
 		       printf("SNo:%s",resultSNo[i]);
 		       strcpy(SNo,resultSNo[i]);		
-		       intSNo =atoi(SNo);                                    
-                       find=findNode_A(head,intSNo);                  
-                        if(find ==NULL)
-                        {
-                          printf("Don't have SNo=%d node in this Link!\n",intSNo);                
-		        }else{
-                          head = delete_A(head,intSNo);                                             
+		       intSNo =atoi(SNo);     
+                       
+		        mysql->filedsName    = "fiberType"; 
+			mysql->mainKeyValue  = SNo;
+		        rc= SQL_lookup(mysql,&result);
+                        fiberType=atoi(result[0]);
+		        printf("fiberType:%d\n",fiberType);
+		        if(fiberType==0){		                        
+		           find=findNode_A(head,intSNo);                  
+		           if(find ==NULL)
+		                printf("Don't have SNo=%d node in this Link!\n",intSNo);                
+			   else
+		                head = delete_A(head,intSNo);    
+                        }                                         
                           mysql->filedsValue  =  "2";                                             
                           mysql->filedsName   =  "Status";
-                          mysql->mainKeyValue =  SNo;
                           if(!semaphore_p())  
                               exit(EXIT_FAILURE);                                                 //P
                           rc=SQL_modify(mysql);
-                          if( rc != SQLITE_OK ){
+                          if( rc != SQLITE_OK )
 			      printf( "Modify SQL error\n");
-			      sqlite3_free(zErrMsg);
-		          }
                          if(!semaphore_v())                                                       //V
                              exit(EXIT_FAILURE);                  	
-                        }
-	            }
+                  }
          }
-
          free(SNo);
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb);   
          return(head);
 }
+checkNode * removeProtectGroup(checkNode *head) 
+{
+	 sqlite3 *mydb;
+	 int rc,i,PN=0,intSNo=0;
+         int fiberType;
+         char *strSNoA,*strSNoB,*PNo;
+	 sql *mysql;
+	 char resultPNo[64][5];
+         char **result;
+         checkNode *find;
+	 PNo     = (char *) malloc(sizeof(char)*5);
+	 strSNoA = (char *) malloc(sizeof(char)*5);
+	 strSNoB = (char *) malloc(sizeof(char)*5);
+	 mysql = SQL_Create();
+	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+	 if( rc != SQLITE_OK )
+	     printf("Lookup SQL error\n");
+	 mysql->db = mydb;
+	 mysql->tableName   = "ProtectGroupTable";	
+         mysql->filedsValue =  "-2";                                
+         mysql->filedsName  =  "Status";
+         PN=SQL_findPNo(mysql,resultPNo);                           
+         if(PN>0){
 
+		 for(i =0 ;i<PN;i++)
+		 {
+		        printf("PNo:%s",resultPNo[i]);
+		        strcpy(PNo,resultPNo[i]);		    
+
+	                mysql->tableName     = "ProtectGroupTable";                       
+		        mysql->filedsName    = "SNoA"; 
+			mysql->mainKeyValue  =  PNo;
+		        rc= SQL_lookup(mysql,&result);
+                        strSNoA=result[0];
+		        printf("SNoA:%s\n",strSNoA);
+
+		        mysql->filedsName    = "SNoB"; 
+		        rc= SQL_lookup(mysql,&result);
+                        strSNoB=result[0];
+		        printf("SNoB:%s\n",strSNoB);
+
+	                mysql->tableName     = "AlarmTestSegmentTable";	
+		        mysql->filedsName    = "fiberType"; 
+			mysql->mainKeyValue  =  strSNoA;
+		        rc= SQL_lookup(mysql,&result);
+                        fiberType=atoi(result[0]);
+		        if(fiberType==0){
+                           intSNo=atoi(strSNoA);		                        
+		           find=findNode_A(head,intSNo);                  
+		           if(find ==NULL)
+		                printf("Don't have SNo=%d node in this Link!\n",intSNo);                
+			   else
+		                head = delete_A(head,intSNo);                                             
+                        }
+                        mysql->filedsValue  =  "0";                                             
+                        mysql->filedsName   =  "protectFlag";
+
+                        if(!semaphore_p())  
+                          exit(EXIT_FAILURE);                                                //P
+                        rc=SQL_modify(mysql);
+                        if( rc != SQLITE_OK )
+			   printf( "Modify SQL error\n");
+                        if(!semaphore_v())                                                   //V
+                           exit(EXIT_FAILURE);  
+
+		        mysql->filedsName    = "fiberType"; 
+			mysql->mainKeyValue  = strSNoB;
+		        rc= SQL_lookup(mysql,&result);
+                        fiberType=atoi(result[0]);
+		        if(fiberType==0){
+                           intSNo=atoi(strSNoB);		                        
+		           find=findNode_A(head,intSNo);                  
+		           if(find ==NULL)
+		                printf("Don't have SNo=%d node in this Link!\n",intSNo);                
+			   else
+		                head = delete_A(head,intSNo);                                             
+                        }
+                        mysql->filedsValue  =  "0";                                             
+                        mysql->filedsName   =  "protectFlag";  //
+                        if(!semaphore_p())  
+                          exit(EXIT_FAILURE);                                                //P
+                        rc=SQL_modify(mysql);
+                        if( rc != SQLITE_OK )
+			  printf( "Modify SQL error\n");
+                        if(!semaphore_v())                                                   //V
+                           exit(EXIT_FAILURE);  
+
+	                mysql->tableName    = "ProtectGroupTable";   
+		        mysql->filedsName   = "Status";
+                        mysql->filedsValue  = "2";  
+			mysql->mainKeyValue = PNo;
+                        if(!semaphore_p())  
+                          exit(EXIT_FAILURE);                                                //P
+                        rc=SQL_modify(mysql);
+                        if( rc != SQLITE_OK )
+			    printf( "Modify SQL error\n");
+                        if(!semaphore_v())                                                   //V
+                           exit(EXIT_FAILURE);  
+                 }           
+     	
+         }
+         free(PNo);
+         free(strSNoA);
+         free(strSNoB);
+	 SQL_Destory(mysql);  
+	 sqlite3_close(mydb);   
+         return(head);     
+}
+
+checkNode *execOpticalSwich(checkNode *head)
+{
+	 sqlite3 *mydb;
+	 int rc,i,PN=0;
+         int fiberType;
+         char *strSNoA,*strSNoB,*PNo,*strSwitchPos;
+	 sql *mysql;
+	 char resultPNo[64][5];
+         char **result;
+         checkNode *find,*node;
+         int CM,ANo,protectFlag,SWstatus,retSW;
+         float PowerGate;  
+         time_t T3,T4; 
+
+	 PNo     = (char *) malloc(sizeof(char)*5);
+	 strSNoA = (char *) malloc(sizeof(char)*5);
+	 strSNoB = (char *) malloc(sizeof(char)*5);
+	 mysql = SQL_Create();
+	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+	 if( rc != SQLITE_OK )
+	     printf("Lookup SQL error\n");
+	 mysql->db = mydb;
+	 mysql->tableName   =  "ProtectGroupTable";	
+         mysql->filedsValue =  "0";                                
+         mysql->filedsName  =  "Status";
+         PN=SQL_findPNo(mysql,resultPNo);                                                                      
+         if(PN>0){
+ 		 for(i =0 ;i<PN;i++)
+		 {
+		        printf("PNo:%s",resultPNo[i]);
+		        strcpy(PNo,resultPNo[i]);
+
+	                mysql->tableName     = "ProtectGroupTable";                       
+		        mysql->filedsName    = "SNoA"; 
+			mysql->mainKeyValue  =  PNo;
+		        rc= SQL_lookup(mysql,&result);
+                        strSNoA=result[0];
+		        printf("SNoA:%s\n",strSNoA);
+
+		        mysql->filedsName    = "SNoB"; 
+		        rc= SQL_lookup(mysql,&result);
+                        strSNoB=result[0];
+		        printf("SNoB:%s\n",strSNoB);
+
+    		        mysql->filedsName    = "SwitchPos"; 
+		        rc= SQL_lookup(mysql,&result);
+                        strSwitchPos=result[0];
+		        printf("strSwitchPos:%s\n",strSwitchPos);                    
+
+	                mysql->tableName     = "AlarmTestSegmentTable";	
+		        mysql->filedsName    = "fiberType"; 
+			mysql->mainKeyValue  =  strSNoA;
+		        rc= SQL_lookup(mysql,&result);
+                        fiberType=atoi(result[0]);
+                        
+                        //Do Switch   
+
+                       if(!setModbus_P())                                                //P
+                           exit(EXIT_FAILURE);    
+                        SWstatus=atoi(strSwitchPos);
+                        modbus_t * mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+                        if(SWstatus==ACROSS){
+                           if(atoi(strSNoA)%2==1)
+                              retSW = doOpticalProtectSwitch(mb,(atoi(strSNoA)+1)/2,PARALLEL); 
+                           else
+                              retSW = doOpticalProtectSwitch(mb,(atoi(strSNoA)+1)/2,PARALLEL);
+                        }
+                        else if(SWstatus==PARALLEL){
+                           if(atoi(strSNoA)%2==1)
+                              retSW = doOpticalProtectSwitch(mb,(atoi(strSNoA)+1)/2,ACROSS); 
+                           else
+                              retSW = doOpticalProtectSwitch(mb,(atoi(strSNoA)+1)/2,ACROSS);
+                        }
+                        else
+                           retSW=-1;  
+                        freeModbus(mb);              
+                        if(!setModbus_V())                                                //V                     
+                           exit(EXIT_FAILURE);   
+                        
+
+                        if(retSW==-1){
+                            printf("Do Optical Switch Failed! back=%d\n",SWstatus); 
+                        }else{
+		          if(fiberType==0){                                              //SNoA 是备纤		                        
+		             find=findNode_A(head,atoi(strSNoA));                  
+		             if(find ==NULL)  printf("Don't have SNo=%d node in this Link!\n",atoi(strSNoA)); 		                               
+			     else{
+                                mysql->mainKeyValue  =  strSNoB;
+
+				mysql->filedsName    = "rtuCM"; 
+				rc= SQL_lookup(mysql,&result);
+		                CM =atoi(result[0]);
+				printf("CM:%d\n",CM);
+
+				mysql->filedsName    = "Level"; 
+				rc= SQL_lookup(mysql,&result);
+		                ANo =atoi(result[0]);
+				printf("ANo:%d\n",ANo);
+
+				mysql->filedsName    = "AT06"; 
+				rc= SQL_lookup(mysql,&result);
+		                PowerGate=atof(result[0]);
+				printf("PowerGate:%f\n",PowerGate);
+
+				mysql->filedsName    = "T3"; 
+				rc= SQL_lookup(mysql,&result);
+		                T3 =computTime(result[0]);
+				printf("T3:%ld\n",T3);
+
+				mysql->filedsName    = "T4"; 
+				rc= SQL_lookup(mysql,&result);
+		                T4= computTime(result[0]);
+				printf("T4:%ld\n",T4);
+
+				mysql->filedsName    = "protectFlag"; 
+				rc= SQL_lookup(mysql,&result);
+		                protectFlag=atoi(result[0]);
+				printf("protectFlag:%d\n",protectFlag);
+
+				node=(checkNode *)malloc(sizeof(checkNode));
+				node->SNo           = atoi(strSNoB);
+		                node->CM            = CM;
+				node->ANo           = ANo;
+				node->PowerGate     = PowerGate;
+				node->protectFlag   = protectFlag;
+				node->fristAlarmFlag= 0;
+				node->nextAlarmTime = getLocalTimestamp();
+				node->alarmClick    = T3;  
+                                head = delete_A(head,atoi(strSNoA));
+
+		                if(!semaphore_p())  
+		                   exit(EXIT_FAILURE);                               //P
+                                head = insert_A(head,node);
+		                mysql->filedsName    = "fiberType"; 
+                                mysql->filedsValue  =  "1";                          
+			        mysql->mainKeyValue  =  strSNoA; 
+		                rc=SQL_modify(mysql);
+		                if( rc != SQLITE_OK )
+				  printf( "Modify SQL error\n");
+                                mysql->filedsValue  =  "0";                          
+			        mysql->mainKeyValue  =  strSNoB; 
+		                rc=SQL_modify(mysql);
+		                if( rc != SQLITE_OK )
+				  printf( "Modify SQL error\n");
+		                if(!semaphore_v())                                   //V
+		                  exit(EXIT_FAILURE);                                
+		                        
+		             }
+		                                                            
+                          }else{                                                      //SNoB 是备纤		                        
+		             find=findNode_A(head,atoi(strSNoB));                  
+		             if(find ==NULL)
+		                printf("Don't have SNo=%d node in this Link!\n",atoi(strSNoB));                
+			     else{
+                                mysql->mainKeyValue  =  strSNoA;
+				mysql->filedsName    =  "rtuCM"; 
+				rc= SQL_lookup(mysql,&result);
+		                CM =atoi(result[0]);
+				printf("CM:%d\n",CM);
+
+				mysql->filedsName    = "Level"; 
+				rc= SQL_lookup(mysql,&result);
+		                ANo =atoi(result[0]);
+				printf("ANo:%d\n",ANo);
+
+				mysql->filedsName    = "AT06"; 
+				rc= SQL_lookup(mysql,&result);
+		                PowerGate=atof(result[0]);
+				printf("PowerGate:%f\n",PowerGate);
+
+				mysql->filedsName    = "T3"; 
+				rc= SQL_lookup(mysql,&result);
+		                T3 =computTime(result[0]);
+				printf("T3:%ld\n",T3);
+
+				mysql->filedsName    = "T4"; 
+				rc= SQL_lookup(mysql,&result);
+		                T4= computTime(result[0]);
+				printf("T4:%ld\n",T4);
+
+				mysql->filedsName    = "protectFlag"; 
+				rc= SQL_lookup(mysql,&result);
+		                protectFlag=atoi(result[0]);
+				printf("protectFlag:%d\n",protectFlag);
+
+				node=(checkNode *)malloc(sizeof(checkNode));
+				node->SNo           = atoi(strSNoA);
+		                node->CM            = CM;
+				node->ANo           = ANo;
+				node->PowerGate     = PowerGate;
+				node->protectFlag   = protectFlag;
+				node->fristAlarmFlag= 0;
+				node->nextAlarmTime = getLocalTimestamp();
+				node->alarmClick    = T3;  
+                                head = delete_A(head,atoi(strSNoB));
+
+		                if(!semaphore_p())  
+		                   exit(EXIT_FAILURE);                               //P
+                                head = insert_A(head,node);
+		                mysql->filedsName    = "fiberType"; 
+                                mysql->filedsValue  =  "1";                          
+			        mysql->mainKeyValue  =  strSNoB; 
+		                rc=SQL_modify(mysql);
+		                if( rc != SQLITE_OK )
+				  printf( "Modify SQL error\n");
+                                mysql->filedsValue  =  "0";                          
+			        mysql->mainKeyValue  =  strSNoA; 
+		                rc=SQL_modify(mysql);
+		                if( rc != SQLITE_OK )
+				  printf( "Modify SQL error\n");
+		                if(!semaphore_v())                                   //V
+		                  exit(EXIT_FAILURE);                                
+		                        
+		              }
+                         } 
+
+	                mysql->tableName    =  "ProtectGroupTable";  
+
+			mysql->mainKeyValue =  PNo;
+                        if(!semaphore_p())  
+                           exit(EXIT_FAILURE);                                                 //P
+                        mysql->filedsValue  =  "1";                                             
+                        mysql->filedsName   =  "Status";
+                        rc=SQL_modify(mysql);
+                        if( rc != SQLITE_OK )
+			  printf( "Modify SQL error\n");
+                        
+                        char SW_stus[10];
+                        if(SWstatus==ACROSS){
+                           sprintf(SW_stus,"%d",PARALLEL);
+                           mysql->filedsValue  =  SW_stus;        //16
+                        }     
+                        else if(SWstatus==PARALLEL){
+                           sprintf(SW_stus,"%d",ACROSS);
+                           mysql->filedsValue  =  SW_stus;        //96
+                        }   
+                        else 
+                           printf("Do Optical Switch Failed! back=%d\n",SWstatus);
+                                                              
+                        mysql->filedsName   =  "SwitchPos";
+                        rc=SQL_modify(mysql);
+                        if( rc != SQLITE_OK )
+			  printf( "Modify SQL error\n");
+
+                        if(!semaphore_v())                                                     //V
+                          exit(EXIT_FAILURE); 
+
+                        printf("Do Optical Switch Sucessful! PNo=%d\n",atoi(PNo));                  
+                     }
+                 }           
+         }
+         free(PNo);
+         free(strSNoA);
+         free(strSNoB);
+	 SQL_Destory(mysql);  
+	 sqlite3_close(mydb);  
+         return(head);    
+}
 void addNewtoLink(int signum,siginfo_t *info,void *myact);
 void main(void)
 {
         checkNode *node_A;
         alarmNode *node_B;
+        int i;
+        /*初始化信号量*/
+        sem_id        = semget((key_t)1234, 1, 4777 | IPC_CREAT);                         //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
+        modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                         //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
+        otdr_sem_id   = semget((key_t)2468, 1, 4777 | IPC_CREAT);                         //创建OTDR信号量   :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量 
 
+        if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
+            exit(0);
+         } 
         /*初始化测试链表*/
         flushWaitingSNo();
         linkHead_check_A=InitA_CycleLink();
@@ -860,7 +1311,9 @@ void main(void)
         while(1){
              
             linkHead_alarm_B=rollPolingAlarm(linkHead_check_A,linkHead_alarm_B); 
-            outPutALL_B(linkHead_alarm_B);
+
+            outPutALL_B(linkHead_alarm_B);     
+
             linkHead_alarm_B=deleteALL_B(linkHead_alarm_B);
  
             sleep(1);
@@ -876,32 +1329,37 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
        int value =info->si_int %100;
        switch(info->si_int){
            case 130:{   
-                    linkHead_check_A=insertWaitingNode(linkHead_check_A);        //启动告警测试
+                    linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
                     outPutALL_A(linkHead_check_A);
                     sendMessageQueue("130-OK");
 		    break;
                   }
            case 230:{                                                            //终止告警测试
-                    linkHead_check_A=removeWaitingNode(linkHead_check_A);                   
+                    linkHead_check_A = removeWaitingNode(linkHead_check_A);                   
                     outPutALL_A(linkHead_check_A);
                     sendMessageQueue("230-OK");
 		    break;
                   }
 
-           case 170:{                                                            //设置光保护配对
-                    sendMessageQueue("170-OK");
-		    break;
-                  }
-
            case 250:{                                                            //取消光保护配对
+                    linkHead_check_A = removeProtectGroup(linkHead_check_A);
+                    outPutALL_A(linkHead_check_A);
                     sendMessageQueue("250-OK");
 		    break;
                   }
 
            case 370:{                                                            //请求光保护切换
+                    linkHead_check_A=execOpticalSwich(linkHead_check_A);     
+                    outPutALL_A(linkHead_check_A);                                                      
                     sendMessageQueue("370-OK");
 		    break;
                   }
+
+           case 170:{                                                            //设置光保护配对(不考虑使用)
+                    sendMessageQueue("170-OK");
+		    break;
+                  }
+
           default:{                                                             //异步接收光功率异常(测试)
                     realValue[SNo]=(float)value;
                     break;

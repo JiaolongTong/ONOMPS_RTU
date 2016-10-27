@@ -160,7 +160,8 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;    
+            resp->RespondCode=-1;
+            return resp;    
        }
       else{
 /**************************解析XML消息***************************************/
@@ -306,9 +307,10 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
 	         if( rc != SQLITE_OK ){
 		   printf( "Lookup SQL error.\n");
 	         }else{
-		  intStatus =atoi(result[0]);
+		   intStatus =atoi(result[0]);
                   
-                  if((intStatus==1) || (intStatus ==0))flagStut=1;
+                   if((intStatus==1) || (intStatus ==0))flagStut=1;
+                   
 	         } 
                }
                if(resPN==1 && flagStut ==1)flag=1;
@@ -382,7 +384,9 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                        if(resp->SNorPN!=TYPE_SNo){
                          resp->SNorPN      = TYPE_PNo;
                          resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
-                         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->same fiberType\n";
+		         resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+                         resp->Group[ErrorSNo].Main_inform  = "[存在配对组 但 光纤类型相同]";
+                         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->same fiberType[存在配对组 但 光纤类型相同]";
                          ErrorSNo++; 
                        }
                   }
@@ -393,7 +397,8 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                        if(resp->SNorPN!=TYPE_PNo){
 		         resp->SNorPN      = TYPE_SNo;
 		         resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
-		         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Error SNo [fiberType=1 && protectFlag=0] \n";
+                         resp->Group[ErrorSNo].Main_inform  = "[不存在配对组 但 光纤类型为在纤]";
+		         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Error SNo [不存在配对组 但 光纤类型为在纤]";
 		         ErrorSNo++; 
                        }
                     }  
@@ -466,9 +471,9 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
     recvStr = (char *) malloc (sizeof (char)*10);
     recvStr = recvMessageQueue_C();
     if(strncmp(recvStr, "130-OK", 6) == 0)                     //遇"130-OK"结束
-       printf("SetCycleSegment sucessful!\n");
+       printf("Set Alarmtest sucessful!\n");
     else
-       printf("SetCycleSegment failed!\n");
+       printf("Set Alarmtest failed!:%s\n",recvStr);
        free(recvStr);
    }  
    return resp;
@@ -492,7 +497,8 @@ responed *  setAlarmInformation(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode){
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;    
+            resp->RespondCode=-1;
+            return resp;   
        }
       else{
 /**************************解析XML消息***************************************/
@@ -526,7 +532,8 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;    
+            resp->RespondCode=-1;
+            return resp;  
        }
       else{
 /**************************解析XML消息***************************************/
@@ -662,7 +669,8 @@ responed * endAlarmInfo(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;    
+            resp->RespondCode=-1;
+            return resp;      
        }
       else{
 /**************************解析XML消息******************************/

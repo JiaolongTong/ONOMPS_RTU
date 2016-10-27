@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SegmentCode>
+<RequestOpticalPower>
+<CMDcode>360</CMDcode>
+<R>*</R>
+<CM>1</CM>
+<CLP>1</CLP>
+<SNo>2</SNo>
+</RequestOpticalPower>
+</SegmentCode>

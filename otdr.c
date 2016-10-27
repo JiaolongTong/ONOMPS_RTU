@@ -1,5 +1,8 @@
 #include "otdr.h"  
 #include "sql.h"
+
+extern  int otdr_sem_id;  
+
 otdr * OTDR_Create()
 {
 	otdr * me = (otdr *) malloc(sizeof(otdr));
@@ -9,37 +12,97 @@ void OTDR_Destory(otdr *me)
 {
 	free(me);	
 }
+
+int  initOTDRPV()
+{
+    otdr_sem_id = semget((key_t)2468, 1, 4777 | IPC_CREAT);                                //创建OTDR信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量	
+    return otdr_sem_id;
+}
+
+int setOTDRPV()  
+{  
+    //用于初始化信号量，在使用信号量前必须这样做  
+    union sem_otdr sem_union;  
+  
+    sem_union.val = 1;  
+    if(semctl(otdr_sem_id, 0, SETVAL, sem_union) == -1){                                 //程序第一次被调用，初始化信号量
+      fprintf(stderr, "Failed to initialize otdr_semaphore\n");   
+      return 0;
+    }  
+    return 1;  
+}  
+
+void delOTDRPV()
+{
+    //删除信号量  
+    union sem_otdr sem_union;  
+  
+    if(semctl(otdr_sem_id, 0, IPC_RMID, sem_union) == -1)  
+        fprintf(stderr, "Failed to delete otdr_semaphore\n");  
+}
+int  setOTDR_P()
+{
+    struct sembuf sem_b;  
+    sem_b.sem_num = 0;  
+    sem_b.sem_op = -1;//P()  
+    sem_b.sem_flg = SEM_UNDO;  
+    if(semop(otdr_sem_id, &sem_b, 1) == -1)  
+    {  
+        fprintf(stderr, "otdr_semaphore_p failed\n");  
+        return 0;  
+    }  
+    return 1;  
+}
+int  setOTDR_V()
+{
+    //这是一个释放操作，它使信号量变为可用，即发送信号V（sv）  
+    struct sembuf sem_b;  
+    sem_b.sem_num = 0;  
+    sem_b.sem_op = 1;//V()  
+    sem_b.sem_flg = SEM_UNDO;  
+    if(semop(otdr_sem_id, &sem_b, 1) == -1)  
+    {  
+        fprintf(stderr, "otdr_semaphore_v failed\n");  
+        return 0;  
+    }  
+    return 1; 
+}
+
+
 otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type 
 {
-         sqlite3 *mydb;
-         otdr    *myotdr;
-	 char *zErrMsg = 0;
-	 int rc;
-         uint32_t uint_a;
-         float float_a;
-	 sql  *mysql;
+         sqlite3 *mydb=NULL;
+         otdr    *myotdr=NULL;
+	 int rc=0;
+         uint32_t uint_a=0;
+         float float_a=0;
+	 sql  *mysql=NULL;
          char **result = NULL;
-         char *sno;
+         int  rednum=0;
+         char *strSNo=NULL;
          int PS=0;
-         sno = (char *) malloc(sizeof(char)*10);
+         strSNo = (char *) malloc(sizeof(char)*10);
+         char PX1[4] ="PX1",PX2[4] ="PX2",PX3[4] ="PX3",PX4[4] ="PX4",PX5[4] ="PX5",PX6[4] ="PX6",PX7[4] ="PX7";
+
          mysql  =  SQL_Create();
          myotdr  = OTDR_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
          if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
+	      printf( "Creat SQL error \n");
 	 }
-         mysql->db          =  mydb;
-         char PX1[4] ="PX1",PX2[4] ="PX2",PX3[4] ="PX3",PX4[4] ="PX4",PX5[4] ="PX5",PX6[4] ="PX6",PX7[4] ="PX7";
+         mysql->db =  mydb;
+
+
+/******************查询是否是优化测试参数**************************/
          if(type==1){                                                                      //点名测试
-            uint32tostring(SNo,sno);
+            uint32tostring(SNo,strSNo);
             mysql->tableName     =  "NamedTestSegmentTable";    
-	    mysql->mainKeyValue  =  sno;
+	    mysql->mainKeyValue  =  strSNo;
             mysql->filedsName    =  "PS";
-            rc=SQL_lookup(mysql,&result);
+            rc= SQL_lookupPar(mysql,&result,&rednum);
             if( rc != SQLITE_OK ){
-	       printf( "Lookup SQL error: %s\n", zErrMsg);
-	       sqlite3_free(zErrMsg);
+	       printf( "Lookup SQL error\n");
+
 	    }else{
                uint_a = strtoul (result[0], NULL, 0);  
 	       PS = uint_a; 
@@ -53,16 +116,17 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
                mysql->tableName     =  "NamedTestSegmentTable";
                PX1[1]='1';PX2[1]='1';PX3[1]='1';PX4[1]='1';PX5[1]='1';PX6[1]='1';PX7[1]='1';                     
              }
+           SQL_freeResult(&result,&rednum); 
          }
          if(type==2){                                                                     //障碍告警测试                                          
-            uint32tostring(SNo,sno);
+            uint32tostring(SNo,strSNo);
             mysql->tableName     =  "AlarmTestSegmentTable";    
-	    mysql->mainKeyValue  =  sno;
+	    mysql->mainKeyValue  =  strSNo;
             mysql->filedsName    =  "PS";
-            rc=SQL_lookup(mysql,&result);
+            rc= SQL_lookupPar(mysql,&result,&rednum);
             if( rc != SQLITE_OK ){
-	       printf( "Lookup SQL error: %s\n", zErrMsg);
-	       sqlite3_free(zErrMsg);
+	       printf( "Lookup SQL error\n");
+
 	    }else{
                uint_a = strtoul (result[0], NULL, 0);  
 	       PS = uint_a; 
@@ -76,169 +140,165 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
                mysql->tableName     =  "AlarmTestSegmentTable";
                PX1[1]='2';PX2[1]='2';PX3[1]='2';PX4[1]='2';PX5[1]='2';PX6[1]='2';PX7[1]='2';
              }
+            SQL_freeResult(&result,&rednum); 
          }
-         if(type==3){   
-           // printf("cycleTest Task\n");                                                 //周期测试                                          
-            uint32tostring(SNo,sno);
-	    mysql->mainKeyValue  =  sno;
-            printf("cycleTest Task--->SNo=%s\n",sno);                                     //周期测试
+         if(type==3){                                      
+            uint32tostring(SNo,strSNo);
+	    mysql->mainKeyValue  =  strSNo;
+            printf("cycleTest Task--->SNo=%s\n",strSNo);                                  //周期测试
             mysql->tableName     =  "DefaultTsetSegmentTable";
             PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';  
-         }      
-/*********LOOKUP****************/     
+         } 
+ 
+
+
+   
+/****************查询测试参数**********************/     
 	mysql->filedsName    =  PX1;
-	rc=SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-	       printf( "Lookup SQL error: %s\n", zErrMsg);
-	       sqlite3_free(zErrMsg);
+	       printf( "Lookup SQL error\n");
          }else{
 	        uint_a = strtoul (result[0], NULL, 0);  
 	        myotdr->MeasureLength_m = uint_a;    
 	 }
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX2;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-		printf( "Lookup SQL error: %s\n", zErrMsg);
-		sqlite3_free(zErrMsg);
+		printf( "Lookup SQL error\n");
 	}else{
 		uint_a = strtoul (result[0], NULL, 0);  
 		myotdr->PulseWidth_ns = uint_a;    
 	}
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX3;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-		printf( "Lookup SQL error: %s\n", zErrMsg);
-		sqlite3_free(zErrMsg);
+		printf( "Lookup SQL error\n");
 	}else{
 		uint_a = strtoul (result[0], NULL, 0);  
 		myotdr->Lambda_nm = uint_a;  
         } 
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX4;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-		printf( "Lookup SQL error: %s\n", zErrMsg);
-	        sqlite3_free(zErrMsg);
+		printf( "Lookup SQL error\n");
 	}else{
 		uint_a = strtoul (result[0], NULL, 0);  
 		myotdr->MeasureTime_ms = uint_a;    
 	}
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX5;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-		printf( "Lookup SQL error: %s\n", zErrMsg);
-		sqlite3_free(zErrMsg);
+		printf( "Lookup SQL error\n");
 	}else{
 		float_a = atof (result[0]);  
 		myotdr->n = float_a;    
 	}
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX6;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-	         printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+	         printf( "Lookup SQL error\n");
         }else{
 		 float_a = atof (result[0]);  
 		 myotdr->NonRelectThreshold = float_a;    
 	}
+        SQL_freeResult(&result,&rednum); 
 
 	mysql->filedsName    = PX7;
-	rc= SQL_lookup(mysql,&result);
+        rc= SQL_lookupPar(mysql,&result,&rednum);
 	if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
 	}else{
 		 float_a = atof (result[0]);  
 		 myotdr->EndThreshold = float_a;    
 	} 
+        SQL_freeResult(&result,&rednum); 
 
         if(type==2){                                                                     //障碍告警测试需要单独查询告警门限
            mysql->tableName     = "AlarmTestSegmentTable";
            mysql->filedsName    = "AT01";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT01 = float_a;    
 	   } 
+           SQL_freeResult(&result,&rednum);
 
            mysql->filedsName    = "AT02";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error: %s\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT02 = float_a;    
 	   } 
+           SQL_freeResult(&result,&rednum);
 
            mysql->filedsName    = "AT03";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT03 = float_a;    
 	   } 
+           SQL_freeResult(&result,&rednum);
 
            mysql->filedsName    = "AT04";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT04 = float_a;    
-	   } 
+	   }
+           SQL_freeResult(&result,&rednum); 
 
            mysql->filedsName    = "AT05";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT05 = float_a;    
 	   } 
+           SQL_freeResult(&result,&rednum);
 
            mysql->filedsName    = "AT06";
-	   rc= SQL_lookup(mysql,&result);
+           rc= SQL_lookupPar(mysql,&result,&rednum);
 	   if( rc != SQLITE_OK ){
-		 printf( "Lookup SQL error: %s\n", zErrMsg);
-		 sqlite3_free(zErrMsg);
+		 printf( "Lookup SQL error\n");
        	   }else{
 		 float_a = atof (result[0]);  
 		 myotdr->AT06 = float_a;    
-	   }  
+	   }
+           SQL_freeResult(&result,&rednum);  
         }
-	free(sno);
-	SQL_Destory(mysql);  
-	sqlite3_close(mydb);	
-	if(result != NULL)
-	{
-	     if(result[0] != NULL)
-		{
-			free(result[0]);
-			result[0] = NULL;
-		}
 
-		free(result);
-		result = NULL;
-	}
+	free(strSNo);
+
+	SQL_Destory(mysql); 
+ 
+	sqlite3_close(mydb);
 
         return(myotdr);
 }                                        
 int NetworkIdle(int s,char *buf)
 	{
-		frame_header_t  *header;
-		start_measure_t *start;
+		frame_header_t  *header=NULL;
+		start_measure_t *start=NULL;
 		uint32_t tlen;
 		tlen   = sizeof(frame_header_t) + 12;
 		header = (frame_header_t *)buf;
@@ -253,8 +313,8 @@ int NetworkIdle(int s,char *buf)
 // 设置参数并启动OTDR测试
 int HostStartMeasure(int sockt,otdr const * me,char * buf)
 	{
-		frame_header_t *header;
-		start_measure_t *start;
+		frame_header_t *header=NULL;
+		start_measure_t *start=NULL;
 		uint32_t tlen;
 		memset(buf, 0, 1024);
 		tlen = sizeof(frame_header_t) + sizeof(start_measure_t);
@@ -283,10 +343,10 @@ int HostStartMeasure(int sockt,otdr const * me,char * buf)
 // process data
 int ProcessData(char pbuf[], uint32_t len,int * flag)
 	{
-		otdr_state_t *state;
+		otdr_state_t *state=NULL;
 		uint32_t cmd;
 		time_t rawtime;
-		struct tm * timeinfo;
+		struct tm * timeinfo=NULL;
 		char timE [80];
 		time (&rawtime);
 		timeinfo = localtime (&rawtime);
@@ -338,11 +398,11 @@ int ProcessData(char pbuf[], uint32_t len,int * flag)
 		}
 	}
 int OtdrTest(otdr const * me)
-	{
+{
 		int  count,sock, rxlen, curlen, totalrxlen, size;
         int  get_final;
 		struct sockaddr_in dst;                       
-		frame_header_t *header;
+		frame_header_t *header=NULL;
         char buf[BUF_SIZE];                      //保存接收到的数据 
 		size = sizeof(dst);
 		bzero(&dst, size);

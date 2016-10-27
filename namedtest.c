@@ -219,7 +219,7 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
         process ="/web/cgi-bin/otdrMain";                        
         ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 	printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-	signum=SIGUSR1;                                         
+	signum=SIGRTMIN;                                         
 	mysigval.sival_int = SNo+100;                           //发送需要启动测试的光路号  及测试类型：百位表示类型+十位个位表示SNo   (eg:101,type=1,SNo=1)                         
 	for(n=0;n<ret;n++){                                      
              printf("otdrMain PID:%u\n", cycPID[n]);            //获取OTDR测试进程PID

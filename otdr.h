@@ -2,8 +2,10 @@
 #define OTDR_H
 #include "tcp-otdr.h"
 #include "common.h"
+
+#include <sys/sem.h>
 #define BUF_SIZE          (128*1024)       //OTDR测试缓冲区大小
-#define OTDR_IP           "192.168.0.180"
+#define OTDR_IP           "192.168.1.180"
 typedef struct otdr otdr;
 struct otdr {
 	/***测试参数****/
@@ -27,12 +29,28 @@ struct otdr {
 
 /*********构造和析构函数************/
 otdr * OTDR_Create();
-void OTDR_Destory(otdr *me);
+void   OTDR_Destory(otdr *me);
 /*********方法**********************/
 int NetworkIdle(int s,char *buf);
 otdr *lookupParm(int SNo,int type);
 int HostStartMeasure(int sockt,otdr const * me,char * buf);
 int ProcessData(char pbuf[], uint32_t len,int * flag);
 int OtdrTest(otdr const * me);
+
+
+union sem_otdr   
+{  
+    int val;  
+    struct semid_ds *buf;  
+    unsigned short *arry;  
+}; 
+
+
+int  initOTDRPV();         //OK
+int  setOTDRPV();          //OK
+void delOTDRPV();          //OK
+int  setOTDR_P();          //OK
+int  setOTDR_V();          //OK
+
 
 #endif

@@ -37,7 +37,7 @@ char * getFieldsName(sql *const me)
 	if(0==strcmp(me->tableName,"AlarmTestSegmentTable"))
              return  out = "(SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status)";
         if(0==strcmp(me->tableName,"ProtectGroupTable"))
-             return  out = "(PNo,rtuCM,rtuCLP,SNoA,SNoB,Status)";
+             return  out = "(PNo,rtuCM,rtuCLP,SNoA,SNoB,Status,SwitchPos)";
 }
 /*周期测试表CycleTestSegnemtTable
 
@@ -74,8 +74,8 @@ argc保持了一共输出了多少字段内容。
 */
 //char  lookup[40][256];
 char **lookup =NULL;
-
 int   recordnum;
+
 static int callback(void *NotUsed, int argc, char **argv, char **azColName){
 
    recordnum = argc;
@@ -141,30 +141,56 @@ int  SQL_lookup(sql * const me,char ***result)
          printf("SQL error: %s\n", zErrMsg); 
          sqlite3_free(zErrMsg);
          return rc;
-        }else{
-
+        }
            *result = lookup;
-/*
-            int i;
-            char *s =(char *) malloc(sizeof(char)*1024);     //[1024];
-            // *s='\0';
-            for (i= 0 ;i<recordnum ;i++){
-		 strcat(s,lookup[i]);            
-            }
-            strcpy(result,s);
-
-            for (i= 0 ;i<recordnum ;i++){
-		free(lookup[i]);        
-            }
-            free(s);
-            free(lookup);
-*/
-            return rc;
-      }
-           lookup = NULL;
+           return rc;
 }
 
+int  SQL_lookupPar(sql* const me,char ***result,int *rednum)
+{
+      char *zErrMsg = 0;
+      int rc;
+      char sql_s[1024];  
+      const char* dat= "Callback function called";
+      char *mainKeyName = getMainKeyname(me); 
 
+      if("*"==me->filedsName)
+         sprintf(sql_s,"SELECT * from %s where %s=%s;",me->tableName,mainKeyName,me->mainKeyValue);
+      else
+         sprintf(sql_s,"SELECT %s from %s where %s=%s;",me->filedsName,me->tableName,mainKeyName,me->mainKeyValue);
+
+ 
+       rc = sqlite3_exec(me->db, sql_s,callback, (void*)dat, &zErrMsg);
+       if( rc != SQLITE_OK ){
+        // fprintf(stderr, "SQL error: %s\n", zErrMsg);
+         printf("SQL error: %s\n", zErrMsg); 
+         sqlite3_free(zErrMsg);
+         return rc;
+        }
+           *result = lookup;
+           *rednum = recordnum;
+           return rc;
+
+}
+
+void SQL_freeResult(char ***result,int * rednum)
+{
+       int i=0;
+       char ** rest=*result ;
+       if(rest!= NULL)
+	   {
+               for(i =0 ;i<*rednum;i++){
+	         if(rest[i] != NULL)
+	            {
+		      free(rest[i]);
+		      rest[i] = NULL;
+		    }
+
+		  free(rest);
+		  *result = NULL;
+               }
+	   }                    
+}
 /*
 每当执行完一次搜索，调用一次回调函数，同时输出结果。若搜索结果是多条记录，则需要使用全局计数器来保存数据。
 通过字段名+值搜索光路号

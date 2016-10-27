@@ -3,6 +3,7 @@
 #include "sql.h"
 #include "uploadCycTestData.h" 
 #include "process.h"
+#include "myModbus.h"
 
 /***节点结构***/
 /*
@@ -25,7 +26,9 @@ struct otdrNode{
 
 
 /*全局变量*/
-int sem_id=0;             //信号量ID（数据库互斥访问）
+int sem_id=0;
+int modbus_sem_id=0;
+int otdr_sem_id =0;
 int n =0;                 //链表节点数
 otdrNode *linkHead;       //链表头
 
@@ -38,11 +41,9 @@ otdrNode *linkHead;       //链表头
 otdrNode *insert(otdrNode *head,otdrNode *newNode)
 {
 
-        otdrNode *current;
-        otdrNode *pre;
-        current = (otdrNode *) malloc (sizeof(otdrNode ));
-        pre = (otdrNode *) malloc (sizeof(otdrNode ));
-	pre     = NULL;
+        otdrNode *current=NULL;
+        otdrNode *pre=NULL;
+
 	current = head;
         while(current!=NULL&&current->type <= newNode-> type){   
             pre = current;
@@ -70,6 +71,7 @@ otdrNode *link_creat()
         p1->type =0;
         p1->creat_time =0;
 	head = insert(head,p1);
+        
 	return(head);
 }
 
@@ -78,7 +80,7 @@ otdrNode *link_creat()
    (1)以光路号SNo为索引
 */
 otdrNode *delete(otdrNode *head,int SNo){
-	otdrNode *p1,*p2;
+	otdrNode *p1=NULL,*p2=NULL;
 	if(head==NULL){
 		printf("There don't have node in OTDR testLink!\n");
 		return(head);
@@ -98,6 +100,7 @@ otdrNode *delete(otdrNode *head,int SNo){
                  {
 			p2->next =p1->next;
 		        free(p1);
+                        p1=NULL;
                  }
 		n--;
 	}else
@@ -111,7 +114,7 @@ otdrNode *delete(otdrNode *head,int SNo){
 */
 otdrNode *findNode(otdrNode *head,int SNo)
 {
-	otdrNode * current;
+	otdrNode * current=NULL;
         current = head;
         while(current!=NULL){
             if(current->SNo == SNo)  return current;
@@ -133,16 +136,17 @@ int isEmpty(otdrNode *head)
 */
 otdrNode *deleteFirst(otdrNode *head )//O[1]
 {
-        if (isEmpty(head)){
+    otdrNode *temp=NULL;
+    if (isEmpty(head)){
             return NULL;
-        }
-        otdrNode *temp;
-        temp = (otdrNode *) malloc (sizeof(otdrNode ));
-        temp = head;
-        head = head->next;
-        n--;
-        return temp;
-    }
+     }
+     temp = head;
+     head = head->next;
+     free(temp);
+     temp=NULL;
+     n--;
+     return head;
+}
 
 
 /***输出头节点***/
@@ -151,7 +155,7 @@ otdrNode *deleteFirst(otdrNode *head )//O[1]
 */
 otdrNode * outFirstnode(otdrNode *head)
 {
-        otdrNode *p0;
+        otdrNode *p0=NULL;
 	if(head==NULL)
 	     return(head);                               
         p0 = (otdrNode *) malloc (sizeof(otdrNode )); 
@@ -163,7 +167,7 @@ otdrNode * outFirstnode(otdrNode *head)
 }
 /***遍历链表***/
 void outPutALL(otdrNode *head){
-	otdrNode *p;
+	otdrNode *p=NULL;
 
 	p= head;
 	if(p==NULL){
@@ -185,7 +189,7 @@ void outPutALL(otdrNode *head){
 */
 otdrNode * Init_CycleLink(void)
 {
-         otdrNode *head,*node;
+         otdrNode *head=NULL,*node=NULL;
          head = link_creat();
          head = delete(head,0);                                        
          return(head);
@@ -199,34 +203,37 @@ otdrNode * Init_CycleLink(void)
 */
 otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入数据库中状态为-1 的节点，并把状态修改为1
 {
-	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo;
-	 int rc;
-	 sql *mysql;
+	 sqlite3 *mydb=NULL;
+	 char *SNo=NULL;
+	 int rc=0;
+	 sql *mysql=NULL;
          char **result = NULL;
-         int    CM=0;
-         otdrNode *node;
+         int  rednum =0;
+         int  CM=0,i=0;
+         otdrNode *node=NULL;
 	 SNo = (char *) malloc(sizeof(char)*5);
          uint32tostring((uint32_t)intSNo,SNo);
          if(type!=1){
 		 mysql = SQL_Create();
 		 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 		 if( rc != SQLITE_OK ){
-			      printf( "Lookup SQL error: %s\n", zErrMsg);
-			      sqlite3_free(zErrMsg);
+			      printf( "Lookup SQL error\n");
+                              return ;
+
 			   }
 		 mysql->db = mydb;
 		 if(type==3)
 		    mysql->tableName     = "CycleTestSegnemtTable";
 		 if(type==2)
 		    mysql->tableName     = "AlarmTestSegmentTable";	   
-		 mysql->filedsName    = "rtuCM"; 
-		 mysql->mainKeyValue  = SNo;
-		 rc= SQL_lookup(mysql,&result);
+		 mysql->filedsName       = "rtuCM"; 
+		 mysql->mainKeyValue     = SNo;
+		 rc= SQL_lookupPar(mysql,&result,&rednum);
 		 CM =atoi(result[0]);
 		 printf("CM:%d\n",CM); 
 		 SQL_Destory(mysql);  
 		 sqlite3_close(mydb); 
+                 SQL_freeResult(&result,&rednum);
          }
 	 node=(otdrNode *)malloc(sizeof(otdrNode));
 	 node->SNo =intSNo;
@@ -234,24 +241,16 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入�
          if(type!=1)
             node->CM  =CM;
          else
-            node->CM  =0;                       
-         head=insert(head,node);   
-	 free(SNo);  
-	 if(result!= NULL)
-	   {
-	       if(result[0] != NULL)
-	          {
-		      free(result[0]);
-		      result[0] = NULL;
-		  }
-
-		free(result);
-		result = NULL;
-	   }                                  
+            node->CM  =0;            
+           
+         head=insert(head,node);     
+	 free(SNo);	
+              
          return(head);
 }
-void addNewtoLink(int signum,siginfo_t *info,void *myact);
 
+
+void addNewtoLink(int signum,siginfo_t *info,void *myact);
 
 /***otdr测试调度主进程***/
 /*
@@ -276,20 +275,35 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact);
 
 void main(void)
 {
-        otdrNode *p1;
+        otdrNode *p1=NULL;
         int SNo=0;
         int intCM=0;
         int type=0;
-        otdr * testPar;
-        
-        
+        int otdrSWFlag=-1;
+        otdr * testPar=NULL;
+        modbus_t * mb=NULL ;
+        sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+        modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
+         if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
+          {  
+            fprintf(stderr, "Failed to initialize semaphore\n");  
+            exit(EXIT_FAILURE);  
+          }  
+
+          if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
+          {  
+              fprintf(stderr, "Failed to initialize modbus_semaphore\n");  
+              exit(EXIT_FAILURE); 
+          } 
+
+        //initModbusPV();         //创建ModBus信号量Modbus  信号量 
         /*初始化测试链表*/
-        p1 =( otdrNode *) malloc (sizeof(otdrNode));
+        
         linkHead=Init_CycleLink();
         /*初始化信号机制（IPC）*/
         struct sigaction act;
         int sig;
-        sig=SIGUSR1;  
+        sig= SIGRTMIN;//SIGUSR1;  
         sigemptyset(&act.sa_mask);
         act.sa_sigaction=addNewtoLink;
         act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                               
@@ -298,12 +312,17 @@ void main(void)
         }
        /*执行调度程序*/
         while(1){
-	    p1=outFirstnode(linkHead);                            
+	    p1=outFirstnode(linkHead);  
+                         
                 if(p1!=NULL){
+
+                   sleep(1);  //减小信号嵌套的概率
+
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
                    type    = p1->type;
-                   testPar = OTDR_Create();                  
+    
+            
 		   testPar = lookupParm(SNo,type);                      
 	           printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
 	           printf("SNo-uint -[%d]\n",SNo);
@@ -314,19 +333,44 @@ void main(void)
 		   printf("P05-float-[%f]\n",testPar->n);
 		   printf("P06-float-[%f]\n",testPar->NonRelectThreshold);
 		   printf("P07-float-[%f]\n",testPar->EndThreshold);	
-		   OtdrTest(testPar);		  
-                   if(type == 1)
-                      sendMessageQueue_B("1-OK");  
-                   else
-                      upload(SNo,intCM,testPar,type);                                  
-                   printf("\n");
+
+                 
+                   if(!setModbus_P())                                                //P
+                         exit(EXIT_FAILURE); 
+                     otdrSWFlag=-1;
+                     mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+                     otdrSWFlag = doOtdrSwitch(mb,SNo);    
+                     freeModbus(mb);  
+                     usleep(100000);            
+                   if(!setModbus_V())                                                //V
+                         exit(EXIT_FAILURE); 
+
+                   if(otdrSWFlag==0)
+                   { 
+                     if(type==2)
+                        printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
+                     if(type==3)
+                        printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
+		     OtdrTest(testPar);
+                     printf("before OK\n");		  
+                       if(type == 1)
+                          sendMessageQueue_B("1-OK");  
+                       else
+                         upload(SNo,intCM,testPar,type);                                  
+                   printf("OK\n");
                    printf("-------OTDR--Test-------\n");
-                   OTDR_Destory(testPar);                          
-                   linkHead = delete(linkHead,SNo);                
-                   sleep(1);
-                   outPutALL(linkHead);
-                  
-                }    	
+                   linkHead = delete(linkHead,SNo); 
+                  }
+
+                  OTDR_Destory(testPar);   
+           
+                  outPutALL(linkHead);
+
+
+                }  
+
+   	    free(p1); 
+            p1=NULL;
         }
 }
 
@@ -355,13 +399,13 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
            case 2:{                                                
                     linkHead=insertTestNode(linkHead,type,SNo);                   
                     outPutALL(linkHead);
-                    sendMessageQueue_B("2-OK");
+                    sendMessageQueue_C("2-OK",2222);
 		    break;
                   }
            case 3:{                                                
                     linkHead=insertTestNode(linkHead,type,SNo);                   
                     outPutALL(linkHead);
-                    sendMessageQueue_B("3-OK");
+                    sendMessageQueue_C("3-OK",3333);
 
 		    break;
                   }

@@ -8,9 +8,8 @@
 #include <fcntl.h>
 #include <curl/curl.h>
 #include "otdr.h"
-//#define  TOMCAT_SERVER  "http://192.168.0.110:8080/Fiber/TomCat"
-//#define  TOMCAT_SERVER    "http://192.168.0.108:8080/fiberMonitor/TomCat"
-#define  TOMCAT_SERVER    "http://192.168.0.108:8080/fiberMonitor/TomCat"
+
+#define  TOMCAT_SERVER    "http://192.168.0.150:8080/fiberMonitor/TomCat"
 #define  BOA_SERVER       "http://192.168.0.107:5000/cgi-bin/BoaCom.cgi?value=SetNamedTestSegment" 
 #define  BACKFILE     "back.xml"  
 #define  RTUSENDFILE  "send.xml"

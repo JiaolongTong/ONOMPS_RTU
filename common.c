@@ -23,28 +23,28 @@ void uint32tostring(uint32_t lNum,char chWord[])
 // Access OTDR using TCP
 
 float htonf(float t)                      //主机浮点字节转换成网络浮点字节
-	{
-		uint32_t ux;
-		float x = t;
-		ux = *(uint32_t*)&x;
-		ux = htonl(ux);
-		return *(float*)&ux;
-	}
+{
+    uint32_t ux;
+    float x = t;
+    ux = *(uint32_t*)&x;
+    ux = htonl(ux);
+    return *(float*)&ux;
+}
 
 float ntohf(float t)                     //网络浮点字节转换成主机浮点字节
-	{
-		uint32_t ux;
-		float x = t;
-		ux = *(uint32_t*)&x;
-		ux = ntohl(ux);
-		return *(float*)&ux;
-	}
+{
+    uint32_t ux;
+    float x = t;
+    ux = *(uint32_t*)&x;
+    ux = ntohl(ux);
+    return *(float*)&ux;
+}
 
 time_t str2Timestamp(char *str)          // 字符串形式(str): 20160715210732
 {  
     struct tm* tmp_time = (struct tm*)malloc(sizeof(struct tm));  
     int i;
-    char * strTo;
+    char * strTo=NULL;
     char year[5],mouth[3],day[3],h[3],m[3],s[3];
     for(i=0;i<4;i++)
     {
@@ -137,6 +137,51 @@ time_t getLocalTimestamp()               // 获取本地时间戳
      return(timep);
 }
 
+
+int rtc_set_time(char * rtcDev, time_t setTime)   
+{
+	int retval;
+        int fd;
+	struct rtc_time rtc_tm;
+	struct tm *local;
+        struct timeval  tv;
+
+        local=localtime(&setTime);
+        
+	rtc_tm.tm_mday = local->tm_mday;
+	rtc_tm.tm_mon =  local->tm_mon;
+	rtc_tm.tm_year = local->tm_year;
+	rtc_tm.tm_hour = local->tm_hour;
+	rtc_tm.tm_min =  local->tm_min;
+	rtc_tm.tm_sec =  local->tm_sec;
+	rtc_tm.tm_wday = rtc_tm.tm_yday = rtc_tm.tm_isdst = 0;
+
+	/*set the RTC time/date*/
+        fd = open(rtcDev, O_RDWR);
+	if (fd ==  -1) {
+	   perror(rtcDev);
+	   return -1;
+	}
+	retval = ioctl(fd, RTC_SET_TIME, &rtc_tm);
+	if (retval == -1) {
+		perror("RTC_SET_TIME ioctl");
+		return -1;
+	}
+	close(fd);
+
+        tv.tv_sec=setTime;
+        tv.tv_usec = 0;
+	if(settimeofday(&tv, (struct timezone *) 0) < 0)
+        {
+        printf("Set system datetime error!\n");
+        return -1;
+        }   
+	fprintf(stderr, "\n\t\tdate/time is updated to:  %d-%d-%d, %02d:%02d:%02d.\n\n",
+		rtc_tm.tm_mday, rtc_tm.tm_mon , rtc_tm.tm_year + 1900,
+		rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec);
+
+       return 0;
+}
 
 
 

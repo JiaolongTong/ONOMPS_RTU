@@ -12,7 +12,7 @@ void OpticalProtect_Destory(opticalprotect *me){
 
 void getOpticalProtectParameter(mxml_node_t *root,mxml_node_t *tree,opticalprotect *protectmpar)
 {
-	    mxml_node_t *PX,*PN,*PNo,*SNoA,*SNoB;
+	    mxml_node_t *PX,*PN,*PNo,*SNoA,*SNoB,*SwitchPos;
 	    uint32_t  uint_a;
             int       intPN,i;
             char      strPX[3]="Px";
@@ -32,7 +32,11 @@ void getOpticalProtectParameter(mxml_node_t *root,mxml_node_t *tree,opticalprote
                       protectmpar->Group[i].SNoA=uint_a;
                       SNoB  = mxmlFindElement(PX,tree, "SNoB",NULL,NULL,MXML_DESCEND); 
                       uint_a =  strtoul(SNoB->child->value.text.string, NULL, 0);  
-                      protectmpar->Group[i].SNoB=uint_a;           
+                      protectmpar->Group[i].SNoB=uint_a;   
+                      SwitchPos  = mxmlFindElement(PX,tree, "SwitchPos",NULL,NULL,MXML_DESCEND); 
+                      uint_a =  strtoul(SwitchPos->child->value.text.string, NULL, 0);  
+                      protectmpar->Group[i].SwitchPos=uint_a;   
+                            
             }
 }
 
@@ -121,13 +125,15 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 /************************数据库存储***************************************/	
         for(i=0;i<PN;i++){                                                   
                      /*PNo,rtuCM,rtuCLP,SNoA,SNoB,Status*/
-	    sprintf(strSQL,"%d,%d,%d,%d,%d,%d\n"
+	    sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d\n"
                           ,protectmpar->Group[i].PNo                      //PNo
 		          ,intCM                                          //rtuCM
 		          ,intCLP                                         //rtuCLP
 		          ,protectmpar->Group[i].SNoA                     //SNoA
 		          ,protectmpar->Group[i].SNoB                     //SNoB
                           ,protectmpar->Action                            //Status
+                          ,protectmpar->Group[i].SwitchPos                //SwitchPos
+
                           );
 	    mysql->filedsValue = strSQL;
             if(!semaphore_p())  

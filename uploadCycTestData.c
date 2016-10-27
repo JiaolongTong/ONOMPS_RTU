@@ -1,24 +1,47 @@
 #include "uploadCycTestData.h"
 
 const char base[]  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+
+//////////////////////   for test
+/*
+int otdr_sem_id =0; 
 void main(void)
 {
-    int SNo =50,CM=1;
-    otdr *par;
-    upload(SNo,CM,par,1);
+    int SNo =3,CM=1;
+    otdr *testPar;
+    testPar = OTDR_Create();
+    testPar->MeasureLength_m=1000;
+    testPar->PulseWidth_ns=100;
+    testPar->Lambda_nm=10;
+    testPar->MeasureTime_ms=1;  
+    testPar->n=2.1;
+    testPar->NonRelectThreshold=2.2;
+    testPar->EndThreshold=2.3;
+    upload(SNo,CM,testPar,3);
 }
+**************************/
 
 int upload(int SNo,int CM,otdr *Par,int type)  
 {  
-   CURL   *curl;  
-   CURLM  *multi_handle; 
-   FILE   *fptr;  
-   int    still_running;    
+   CURL *curl=NULL;  
+   CURLM *multi_handle=NULL; 
+   FILE* fptr=NULL; 
+   int still_running;    
    struct curl_httppost *formpost=NULL;  
    struct curl_httppost *lastptr=NULL;  
-   struct curl_slist    *headerlist=NULL;
-   if(type ==1)XMLgenerOpticPowerWarming(RTUSENDFILE,SNo,CM,Par,type);
-    else       XMLgenerNewOTDRData(RTUSENDFILE,SNo,CM,Par,type);
+   struct curl_slist    *headerlist=NULL; 
+
+   switch(type)
+     {
+	   case 1: XMLgenerOpticPowerWarming(RTUSENDFILE,SNo,CM,Par,type);break;
+	   case 2: 
+           case 3: XMLgenerNewOTDRData(RTUSENDFILE,SNo,CM,Par,type);break;
+         //case 3: XMLgenerOpticPowerWarming(RTUSENDFILE,"OpticPowerWarming");break;
+         //case 4: XMLgenerStartCableProtection(RTUSENDFILE,"StartCableProtection");break;
+
+	   default: {printf("Input segment fault!\n");return -1;}break;
+     }
 
    curl_formadd(&formpost,  
                 &lastptr,  
@@ -28,7 +51,7 @@ int upload(int SNo,int CM,otdr *Par,int type)
 
     if ((fptr = fopen(BACKFILE,"w")) == NULL)  
     {  
-        fprintf(stderr,"fopen file error:%s\n",BACKFILE);  
+        printf("fopen BACKFILE file error\n");  
         return -1;  
     } 
     curl = curl_easy_init();  
@@ -40,7 +63,7 @@ int upload(int SNo,int CM,otdr *Par,int type)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,write_data); 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER,   headerlist);  
     curl_easy_setopt(curl, CURLOPT_HTTPPOST,     formpost);  
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA,    fptr);                        //callback file ptr
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA,    fptr);                  //callback file ptr
     curl_multi_add_handle(multi_handle, curl);  
     curl_multi_perform(multi_handle, &still_running);  
     do {  
@@ -60,9 +83,9 @@ int upload(int SNo,int CM,otdr *Par,int type)
 	      if(curl_timeo >= 0) {  
 		timeout.tv_sec = curl_timeo / 1000;  
 		if(timeout.tv_sec > 1)  
-		  timeout.tv_sec = 1;  
+		   timeout.tv_sec = 1;  
 		else  
-		  timeout.tv_usec = (curl_timeo % 1000) * 1000;  
+		   timeout.tv_usec = (curl_timeo % 1000) * 1000;  
 	      }  	       
 	      curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);     // get file descriptors from the transfers
 	      rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);    
@@ -70,18 +93,23 @@ int upload(int SNo,int CM,otdr *Par,int type)
 		      case -1:break;                                                               // select error        
 		      case  0:  
 		      default:curl_multi_perform(multi_handle, &still_running);  break;  
-	      } 
-
-        //printf(" Send Successful +1 \n") ;  
+	      }  
 	} while(still_running);  
 	curl_multi_cleanup(multi_handle);  
 	curl_easy_cleanup(curl);                                                   //always cleanup 
 	curl_formfree(formpost);                                                   // then cleanup the formpost chain  
 	curl_slist_free_all (headerlist);                                          // free slist 
-  }
-   
-  printf("XML_Send Successful\n") ; 
+        fclose(fptr);
+        fptr=NULL;
+        formpost=NULL;
+        headerlist=NULL;
+        lastptr  =NULL;
+        multi_handle=NULL;
+        curl=NULL;
+  }  
+  printf("XML_Send Sucessful URL:%s\n",TOMCAT_SERVER);
   return 0;  
+
 } 
 
 size_t write_data(void* buffer,size_t size,size_t nmemb,void *stream)  
@@ -135,8 +163,8 @@ int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type
     sprintf(str,"%d",SNo);
     strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
     strcat(sumStr,"	<WarmingLevel>2</WarmingLevel>\n");
-    strcat(sumStr,"	<Gate>4.99</Gate>\n");
-    strcat(sumStr,"	<PowerValue>3.23</PowerValue>\n");
+    strcat(sumStr,"	<Gate>-30</Gate>\n");
+    strcat(sumStr,"	<PowerValue>-33.23</PowerValue>\n");
     strcat(sumStr,"</OpticPowerWarming>\n");
     strcat(sumStr,"</AsynPush>\n");    
     if ((fd = fopen(filename,"w")) == NULL)  
@@ -178,7 +206,7 @@ int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
     *sumStr ='\0';
     char str[100];
         time_t rawtime;
-	struct tm * timeinfo;
+	struct tm * timeinfo=NULL;
 	time (&rawtime);
         char * timE =ctime(&rawtime);
    if(type==3){  //周期测试数据
@@ -208,7 +236,7 @@ int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
 	    strcat(sumStr,"		<P16>");strcat(sumStr,str);strcat(sumStr,"</P16>\n");
 	    sprintf(str,"%f",Par->NonRelectThreshold);
 	    strcat(sumStr,"		<P17>");strcat(sumStr,str);strcat(sumStr,"</P17>\n");
-	    sprintf(str,"%s",timE);
+	    sprintf(str,"%d",rawtime);
 	    strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9>\n");
 	    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
 	    strcat(sumStr,"		<TstDat>\n");
@@ -259,7 +287,7 @@ int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
 	    strcat(sumStr,"		<AT05>");strcat(sumStr,str);strcat(sumStr,"</AT05>\n");
 	    sprintf(str,"%f",Par->AT06);
 	    strcat(sumStr,"		<AT06>");strcat(sumStr,str);strcat(sumStr,"</AT06>\n");
-	    sprintf(str,"%s",timE);
+	    sprintf(str,"%d",rawtime);
 	    strcat(sumStr,"	        <T9>"); strcat(sumStr,str);strcat(sumStr,"</T9>\n");
 	    strcat(sumStr,"		<ExtraInformation>Information</ExtraInformation>\n");
 	    strcat(sumStr,"		<TstDat>\n");

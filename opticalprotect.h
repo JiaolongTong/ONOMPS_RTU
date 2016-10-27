@@ -13,7 +13,8 @@ typedef struct opticalprotect{
             uint32_t  PNo;
 	    uint32_t  SNoA;                             // for start and abort  action 
             uint32_t  SNoB;                             // for start and abort  action 
-   	}Group[MAX_OTDR_SN/2];                          //otdr   paramter[MAX_OTDR_SN];
+            uint32_t  SwitchPos;                        // Switch status   [16] or [96]
+    	}Group[MAX_OTDR_SN/2];                          //otdr   paramter[MAX_OTDR_SN];
 }opticalprotect;
 
 

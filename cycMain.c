@@ -28,7 +28,8 @@ struct testLinknode{
 };
 
 /*全局变量*/
-int sem_id=0;              //信号量ID（数据库互斥访问）                             
+int sem_id=0;              //信号量ID（数据库互斥访问）
+int otdr_sem_id=0;         //信号量ID（OTDR互斥访问）                             
 int flagNew=0;             //新节点插入标志
 testLinknode *linkHead;    //链表头
 int n =0;                  //链表节点数
@@ -45,7 +46,7 @@ testLinknode *insert(testLinknode *head,testLinknode *newNode)
         testLinknode *pre;
         current = (testLinknode *) malloc (sizeof(testLinknode ));
         pre = (testLinknode *) malloc (sizeof(testLinknode ));
-	pre     = NULL;
+        pre     = NULL;
 	current = head;
         while(current!=NULL&&current->nextTestTime < newNode->nextTestTime){
             pre = current;
@@ -235,7 +236,7 @@ testLinknode * Init_CycleLink(void)
          SN=SQL_findSNo(mysql,resultSNo);
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
-		    {
+		 {
 		       printf("SNo:%s",resultSNo[i]);
 		       strcpy(SNo,resultSNo[i]);
 
@@ -262,9 +263,9 @@ testLinknode * Init_CycleLink(void)
                         node->CM  =CM;
 			node->fristTestTime=T1;
 			node->nextTestTime =getLocalTimestamp();
-			node->timePeriod =  T2;  
+			node->timePeriod = T2;                    //for test  
 			head=insert(head,node);
-		    }
+		  }
          }
          free(SNo);
 	 SQL_Destory(mysql);  
@@ -355,7 +356,7 @@ testLinknode * insertWaitingNode(testLinknode *head)
 			    node->nextTestTime =getLocalTimestamp();
 			else
                             node->nextTestTime =getLocalTimestamp();  //T1;               //for test
-			node->timePeriod =  T2;                  
+			node->timePeriod =  2;//T2;                    //for test                    
                         find=findNode(head,node->SNo);                           // 查看链表中是否已经存在SNo光路
                         if(find ==NULL)
                         {
@@ -576,7 +577,8 @@ void main(void)
             exit(EXIT_FAILURE);  
         } 
         flushWaitingSNo();                                      //清理数据库中的等待状态（Status为"-1"，"-2"）
-        linkHead=Init_CycleLink();                              //初始化有序链表                                     
+        linkHead=Init_CycleLink();                              //初始化有序链表      
+                     
         if(linkHead !=NULL)
             outPutALL(linkHead);
         else
@@ -594,7 +596,7 @@ void main(void)
        int ret = 0;  
        int n;  
        pid_t cycPID[MAX_PID_NUM];  
-       char * recvStr; 
+       int recvInt; 
 
         /*初始化信号机制（与BOA通信）*/
        struct sigaction act;
@@ -608,12 +610,13 @@ void main(void)
               printf("install sigal error\n");
        }
         /*创建信号量 */
-       sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                
-       if(!set_semvalue())                                                               
+       sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);    
+       otdr_sem_id = semget((key_t)2468,1,4777 |IPC_CREAT);                            
+       /*if(!set_semvalue())                                                               
          {  
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
-          } 
+          } */
         /*周期调度主进程*/
         while(1)
         {
@@ -645,10 +648,12 @@ void main(void)
                             }
 		           printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
                                          /*向otdrMain发送启动信号*/
+		           if(!setOTDR_P())                                                //P
+                                 exit(EXIT_FAILURE);   
 			   process ="/web/cgi-bin/otdrMain";                        
 			   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 			   printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-			   signum=SIGUSR1;                                         
+			   signum=SIGRTMIN;//SIGUSR1;                                         
 			   mysigval.sival_int = SNo+300;                                                      
 			   for(n=0;n<ret;n++){                                      
 				printf("otdrMain PID:%u\n", cycPID[n]);                  
@@ -656,25 +661,36 @@ void main(void)
 				       printf("send signal error\n");
 			   }  
                                         /*等待信号的成功处理消息*/			    
-			   recvStr = (char *) malloc (sizeof (char)*10);
-			   recvStr = recvMessageQueue_B();
-			   if(strncmp(recvStr, "3-OK", 4) == 0)                    
-			       printf("Recv back message from otdrMain  sucessful!\n");
-			   else
-			       printf("Don't have any messges from otdrMain!\n");
-			   free(recvStr);
-                           sleep(1);
-                                        /*更新头节点参数，执行周期调度*/
-			   p1=outFirstnode(linkHead);        
-                           if(p1!=NULL){
-				SNo     = p1->SNo;
-                                intCM   = p1->CM; 
-				setTime = p1->nextTestTime;   
-				nowTime = getLocalTimestamp(); 
-                                printf("\n");
-			        linkHead= taskScheduler(linkHead,p1);              
-                                printf("\n");
+			   recvInt = recvMessageQueue_D("3-OK",3333);
+                           if(recvInt==0){
+                                printf("cycMain Recv back message from otdrMain  sucessful!");
+                           }else{
+                                printf("cycMain Recv back message from otdrMain  Faild:Time out!");
                            } 
+/*
+                           recvStr = recvMessageQueue_C();
+			   if(strncmp(recvStr, "3-OK", 4) == 0)                    
+			       printf("cycMain Recv back message from otdrMain  sucessful!:%s\n",recvStr);
+			   else
+			       printf("cycMain Don't have any messges from otdrMain!:%s\n",recvStr);
+			   free(recvStr);
+*/
+                           //sleep(1);               //确保信号被处理完 
+                           usleep(100000);
+		           if(!setOTDR_V())                                                //V
+                                 exit(EXIT_FAILURE);   
+                                        /*更新头节点参数，执行周期调度*/
+				   p1=outFirstnode(linkHead);        
+		                   if(p1!=NULL){
+					SNo     = p1->SNo;
+		                        intCM   = p1->CM; 
+					setTime = p1->nextTestTime;   
+					nowTime = getLocalTimestamp(); 
+		                        printf("\n");
+					linkHead= taskScheduler(linkHead,p1);              
+		                        printf("\n");
+		                   } 
+                
 
                            break;
                     }	
