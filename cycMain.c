@@ -173,15 +173,26 @@ void outPutALL(testLinknode *head){
 
 	p= head;
 	if(p==NULL){
-		printf("This is a void excel!\n");
+		printf("Don't have node in cycle test link!\n");
 		return ;
 	}
 	else
-		printf("There are %d lines on testing:\n",n);
+		printf("There are %d lines on cycle testing:\n",n);
 	while(p!=NULL){
 		printf("SNo:%d,rtuCM:%d,firstTime:%ld,nextTime%ld\n",p->SNo,p->CM,p->fristTestTime,p->nextTestTime);
 		p=p->next;
 	}
+}
+testLinknode * removeAllNode(testLinknode * head)
+{
+   testLinknode * p=NULL;
+   p=head;
+   if(p==NULL)
+      return p=NULL;  
+   else
+     while(p!=NULL)
+        p=delete(p,p->SNo);
+   return p;
 }
 
 time_t getSetTimestamp(testLinknode *head)
@@ -356,7 +367,7 @@ testLinknode * insertWaitingNode(testLinknode *head)
 			    node->nextTestTime =getLocalTimestamp();
 			else
                             node->nextTestTime =getLocalTimestamp();  //T1;               //for test
-			node->timePeriod =  2;//T2;                    //for test                    
+			node->timePeriod =  T2;                    //for test                    
                         find=findNode(head,node->SNo);                           // 查看链表中是否已经存在SNo光路
                         if(find ==NULL)
                         {
@@ -646,37 +657,30 @@ void main(void)
                                    break;
                                 }
                             }
-		           printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
-                                         /*向otdrMain发送启动信号*/
-		           if(!setOTDR_P())                                                //P
-                                 exit(EXIT_FAILURE);   
-			   process ="/web/cgi-bin/otdrMain";                        
-			   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-			   printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-			   signum=SIGRTMIN;//SIGUSR1;                                         
-			   mysigval.sival_int = SNo+300;                                                      
-			   for(n=0;n<ret;n++){                                      
-				printf("otdrMain PID:%u\n", cycPID[n]);                  
-				if(sigqueue(cycPID[n],signum,mysigval)==-1)
-				       printf("send signal error\n");
-			   }  
-                                        /*等待信号的成功处理消息*/			    
-			   recvInt = recvMessageQueue_D("3-OK",3333);
-                           if(recvInt==0){
-                                printf("cycMain Recv back message from otdrMain  sucessful!");
-                           }else{
-                                printf("cycMain Recv back message from otdrMain  Faild:Time out!");
-                           } 
-/*
-                           recvStr = recvMessageQueue_C();
-			   if(strncmp(recvStr, "3-OK", 4) == 0)                    
-			       printf("cycMain Recv back message from otdrMain  sucessful!:%s\n",recvStr);
-			   else
-			       printf("cycMain Don't have any messges from otdrMain!:%s\n",recvStr);
-			   free(recvStr);
-*/
-                           //sleep(1);               //确保信号被处理完 
-                           usleep(100000);
+                          if(p1!=NULL){
+				   printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
+		                                 /*向otdrMain发送启动信号*/
+				   if(!setOTDR_P())                                                //P
+		                         exit(EXIT_FAILURE);   
+				   process ="/web/cgi-bin/otdrMain";                        
+				   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+				   printf("cycMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
+				   signum=SIGRTMIN;//SIGUSR1;                                         
+				   mysigval.sival_int = SNo+300;                                                      
+				   for(n=0;n<ret;n++){                                      
+					printf("otdrMain PID:%u\n", cycPID[n]);                  
+					if(sigqueue(cycPID[n],signum,mysigval)==-1)
+					       printf("send signal error\n");
+				   }  
+		                                /*等待信号的成功处理消息*/			    
+				   recvInt = recvMessageQueue_D("3-OK",3333);
+		                   if(recvInt==0){
+		                        printf("cycMain Recv back message from otdrMain  sucessful!");
+		                   }else{
+		                        printf("cycMain Recv back message from otdrMain  Faild:Time out!");
+		                   } 
+                          }
+                           usleep(100000);           //确保信号被处理完 
 		           if(!setOTDR_V())                                                //V
                                  exit(EXIT_FAILURE);   
                                         /*更新头节点参数，执行周期调度*/
@@ -690,8 +694,6 @@ void main(void)
 					linkHead= taskScheduler(linkHead,p1);              
 		                        printf("\n");
 		                   } 
-                
-
                            break;
                     }	
                 }
@@ -700,7 +702,17 @@ void main(void)
 
 void addNewtoLink(int signum,siginfo_t *info,void *myact)
 {
-       printf("the int value is %d \n",info->si_int);
+       printf("cycMain(R)the int value is %d \n",info->si_int);
+
+       if(info->si_int>270 && info->si_int <370)              //最大一次删除99个节点
+       {
+           SNo = info->si_int%100;
+           linkHead = delete(linkHead,SNo);                   //删除节点
+           outPutALL(linkHead);
+           sendMessageQueue("270-OK");
+	   return;
+       }
+       
        switch(info->si_int){
            case 120:{                                         //启动周期测试
 		    linkHead=insertWaitingNode(linkHead);
@@ -716,6 +728,14 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
                     flagNew = 1;
 		    break;
                   }
+
+           case 260:{                                        //清除RTU模式
+                    linkHead = removeAllNode(linkHead);                   
+                    outPutALL(linkHead);
+                    sendMessageQueue("260-OK");
+                    flagNew = 1;
+		    break;    
+           }
           default:break;
             }
 }

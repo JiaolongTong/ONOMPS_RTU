@@ -203,11 +203,11 @@ void outPutALL_A(checkNode *head){
 	checkNode *p;
 	p= head;
 	if(p==NULL){
-		printf("This is a void excel!\n");
+		printf("Don't have node in alarm tese link!\n");
 		return ;
 	}
 	else
-		printf("There are %d lines on testing_A:\n",num_A);
+		printf("There are %d lines on alarm testing linkA:\n",num_A);
 	while(p!=NULL){
 		printf("SNo:%d,rtuCM:%d,ANo:%d,PowerGate:%f,protectFlag:%d,fristAlarmFlag:%d,nextAlarmTime:%ld,alarmClick:%ld\n"
                        ,p->SNo,p->CM,p->ANo,p->PowerGate,p->protectFlag,p->fristAlarmFlag,p->nextAlarmTime, p->alarmClick);
@@ -646,7 +646,7 @@ alarmNode * deleteALL_B(alarmNode *head){
                 printf("Send message to otdrMain! SNo=%d\n",p->SNo);
 		process ="/web/cgi-bin/otdrMain";                        
 		ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-		printf("process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
+		printf("alarmMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
 		signum=SIGRTMIN;//SIGUSR1;                                         
 		mysigval.sival_int = p->SNo+200;                                                      
 		for(n=0;n<ret;n++){                                      
@@ -660,19 +660,8 @@ alarmNode * deleteALL_B(alarmNode *head){
                       printf("alarmMain Recv back message from otdrMain  sucessful!");
                  }else{
                       printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
-                 } 		
-
-/*
-		recvStr = recvMessageQueue_B();
-		if(strncmp(recvStr, "2-OK", 4) == 0)                    
-			printf("alarmMain Recv back message from otdrMain  sucessful!%s\n",recvStr);
-		else
-			printf("alarmMain Don't have any messges from otdrMain!:%s\n",recvStr);
-		free(recvStr);
-*/
-                
-                //sleep(1);                                                         //确保信号被处理完
-                usleep(100000);
+                 } 		                                                      
+                usleep(100000);             //确保信号被处理完
                 if(!setOTDR_V())                                                //V
                    exit(EXIT_FAILURE); 
 
@@ -684,7 +673,17 @@ alarmNode * deleteALL_B(alarmNode *head){
        return p;
 }
 
-
+checkNode *removeAllNode(checkNode * head)
+{
+   checkNode * p=NULL;
+   p=head;
+   if(p==NULL)
+      return p=NULL; 
+   else
+     while(p!=NULL)
+        p=delete_A(p,p->SNo);
+  return p;
+}
 /***插入待启动节点***/
 /*
       (1) 查询光路时间表状态
@@ -903,6 +902,7 @@ checkNode * removeWaitingNode(checkNode *head)
 	 sqlite3_close(mydb);   
          return(head);
 }
+
 checkNode * removeProtectGroup(checkNode *head) 
 {
 	 sqlite3 *mydb;
@@ -1324,9 +1324,18 @@ void main(void)
 
 void addNewtoLink(int signum,siginfo_t *info,void *myact)
 {
-       printf("the int value is %d \n",info->si_int);
+       printf("alarmMain(R): the int value is %d \n",info->si_int);
        int SNo = info->si_int/100;
        int value =info->si_int %100;
+
+       if(info->si_int>270 && info->si_int <370)                                //最大一次删除99个节点
+       {
+           SNo = info->si_int%100;
+           linkHead_check_A = delete_A(linkHead_check_A,SNo);                   //删除节点
+           outPutALL_A(linkHead_check_A);
+           sendMessageQueue("270-OK");
+	   return;
+       }
        switch(info->si_int){
            case 130:{   
                     linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
@@ -1348,20 +1357,30 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
 		    break;
                   }
 
+            
+           case  260:{                                                           //清除RTU模式
+                    linkHead_check_A = removeAllNode(linkHead_check_A);                   
+                    outPutALL_A(linkHead_check_A);
+                    sendMessageQueue("260-OK");
+		    break;    
+           }
+
            case 370:{                                                            //请求光保护切换
                     linkHead_check_A=execOpticalSwich(linkHead_check_A);     
                     outPutALL_A(linkHead_check_A);                                                      
                     sendMessageQueue("370-OK");
 		    break;
                   }
-
+/*
            case 170:{                                                            //设置光保护配对(不考虑使用)
                     sendMessageQueue("170-OK");
 		    break;
                   }
+*/
+
 
           default:{                                                             //异步接收光功率异常(测试)
-                    realValue[SNo]=(float)value;
+                    //realValue[SNo]=(float)value;
                     break;
                   }
       }

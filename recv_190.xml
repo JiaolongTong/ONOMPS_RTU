@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SegmentCode>
+<SetRTUPort>
+<CMDcode>190</CMDcode>
+<R>*</R>
+<CM>1</CM>
+<CLP>11</CLP>
+<PN>2</PN>
+   <P1>
+        <SNo>1</SNo>
+	<Type>0</Type>
+    </P1>
+    <P2>
+	<SNo>2</SNo>
+	<Type>1</Type>
+    </P2>
+</SetRTUPort>
+</SegmentCode>

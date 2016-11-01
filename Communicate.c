@@ -1,5 +1,5 @@
 #include "Communicate.h"
-const char base[]  =   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+const char base[]  =  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 int saveRecvXML(char *data,int len)
 {
          int fd;
@@ -36,6 +36,8 @@ char *  getCommendString(int code)
           return str = "SetProtectGroup";
         if(code == 180)
           return str = "SetRTUMode";
+        if(code == 190)
+          return str = "SetRTUPort";
 	if(code == 220)
           return str = "CancelCycleTest";
 	if(code == 230)
@@ -44,6 +46,10 @@ char *  getCommendString(int code)
           return str = "CancelAlarm";
 	if(code == 250)
           return str = "CancelProtectGroup";
+	if(code == 260)
+          return str = "CancelRTUMode";
+	if(code == 270)
+          return str = "CancelRTUPort";
 	if(code == 300)
           return str = "RequestTestData";
         if(code == 320)
@@ -128,6 +134,14 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		}    
         }
 
+     if ((search = mxmlFindElement(root, tree, "SetRTUPort",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"SetRTUPort")==0)
+		{
+		   return 190;
+		}    
+        }
+
      if ((search = mxmlFindElement(root, tree, "CancelCycleTest",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"CancelCycleTest")==0)
@@ -157,6 +171,24 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		   return 250;
 		}    
         }
+
+     if ((search = mxmlFindElement(root, tree, "CancelRTUMode",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"CancelRTUMode")==0)
+		{
+		   return 260;
+		}    
+        }
+
+
+     if ((search = mxmlFindElement(root, tree, "CancelRTUPort",NULL, NULL,MXML_DESCEND))!=NULL)
+        {
+            if (strcmp(search->value.element.name,"CancelRTUPort")==0)
+		{
+		   return 270;
+		}    
+        }
+
      if ((search = mxmlFindElement(root, tree, "RequestTestData",NULL, NULL,MXML_DESCEND))!=NULL)
         {
             if (strcmp(search->value.element.name,"RequestTestData")==0)

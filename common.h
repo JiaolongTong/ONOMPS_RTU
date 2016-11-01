@@ -28,6 +28,17 @@
 
 #include <getopt.h>
 
+#include <linux/if.h>
+
+#include <arpa/inet.h>
+
+#include <linux/route.h>
+
+
+#define DEFAULT_ETH "eth0"
+#define FALSE    0
+#define TRUE     1
+
 
 #define  FILE_MODE_NAMED  1
 #define  FILE_MODE_CYCLE  2
@@ -50,8 +61,16 @@ float htonf(float t);                     //主机浮点字节转换成网络浮
 float ntohf(float t);                     //网络浮点字节转换成主机浮点字节
 void  uint32tostring(uint32_t lNum,char chWord[]);
 int rtc_set_time(char * rtcDev, time_t setTime) ;  //设置RTC时间并更新系统时间
-
 time_t rtc_read_time(char * rtcDev);       //获取RTC时间
+
+int get_ip(unsigned char ip[16]);
+int get_ip_netmask(unsigned char ip[16]);
+
+int set_ip(unsigned char ip[16]);
+int set_ip_netmask(unsigned char ip[16]);
+
+
+
 
 int Search_Keyword(char *dst_str,char *search_str); //KMP字符串匹配
 #endif

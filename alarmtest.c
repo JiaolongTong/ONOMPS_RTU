@@ -155,8 +155,11 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
    alarmpar = Alarm_Create();   
    resp   = Responed_Create();
 
+
    resp->RespondCode=0;        
    perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
+
+
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
@@ -175,6 +178,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
             int AN,ASN;
             AN=alarmpar->AN;
             alarmpar->Action = -1;  
+
             for (i=0;i<AN;i++){
                     printf("----------Cx:%d------------\n",alarmpar->levelGroup[i].ANo);              
                     ASN=alarmpar->levelGroup[i].ASN;            
@@ -212,6 +216,8 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                     }		    
             }
 /***************************数据库存储**************************/
+
+
 	sqlite3 *mydb;
 	char *zErrMsg = 0;
 	int rc;
@@ -439,7 +445,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
     if(resp->RespondCode != 0 ){
 	resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
      }
-
+   printf("There  4\n");
 /***************************向障碍告警测试守护进程发送启动障碍告警测试信号***************************
 (1)向障碍告警测试守护进程发送加入新节点信号   
 (2)注意一定要将发送程序和接收程序划到一个用户组，并且都具有root权限，否则信号发射会失败

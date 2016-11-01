@@ -262,7 +262,7 @@ int main(int argc,char **argv)
 				    }
 
 
-		              case  180:{
+		              case  180:{  //设置RTU模式
 				    ret=setRTUMode(root,tree,code);
 				    if(ret->RespondCode <0){
 		                        printf("</RespondMessage>");
@@ -274,6 +274,60 @@ int main(int argc,char **argv)
 				     free(ret);
 				     break;
 			            }
+
+
+		              case  260:{  //清除RTU模式
+				    ret=cancelRTUMode(root,tree,code);
+				    if(ret->RespondCode <0){
+		                        printf("</RespondMessage>");
+			                mxmlDelete(tree);
+			                exit(0);  
+				     }
+				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+			            else RespondMessage_Error(code,ret);
+				     free(ret);
+				     break;
+			            }
+
+		              case  190:{  //设置RTU端口占用
+				    ret=setRTUPort(root,tree,code);
+				    if(ret->RespondCode <0){
+		                        printf("</RespondMessage>");
+			                mxmlDelete(tree);
+			                exit(0);  
+				     }
+				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+			            else RespondMessage_Error(code,ret);
+				     free(ret);
+				     break;
+			            }
+
+		              case  270:{  //清除RTU端口占用
+				    ret=cancelRTUPort(root,tree,code);
+				    if(ret->RespondCode <0){
+		                        printf("</RespondMessage>");
+			                mxmlDelete(tree);
+			                exit(0);  
+				     }
+				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+			            else RespondMessage_Error(code,ret);
+				     free(ret);
+				     break;
+			            }
+
+		              case  330:{  //请求报告网络参数
+				    ret=requestNetwork(root,tree,code);
+				    if(ret->RespondCode <0){
+		                        printf("</RespondMessage>");
+			                mxmlDelete(tree);
+			                exit(0);  
+				     }
+				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+			            else RespondMessage_Error(code,ret);
+				     free(ret);
+				     break;
+			            }
+
 /******************************************加入功能块end****************************************************************/                                        
                                default  :  NullPossess();
 

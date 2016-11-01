@@ -16,14 +16,24 @@ char * getMainKeyname(sql* const me)
 	char * out;
 	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"NamedTestSegmentTable")) 
            ||(0==strcmp(me->tableName,"AlarmTestSegmentTable"))||(0==strcmp(me->tableName,"CycleTestSegnemtTable")) 
-           ||(0==strcmp(me->tableName,"OTDRTestDataTable")))
+           || (0==strcmp(me->tableName,"PortOccopyTable")))
           return  out = "SNo";
         else if(0==strcmp(me->tableName,"ProtectGroupTable"))
           return  out = "PNo";
+        else if (0==strcmp(me->tableName,"SubModuleTypeTable"))
+          return out ="ModuleNo";
         else
           return  out ="rtuCM";
 }
-
+/*
+Name	Declared Type	Type	Size	Precision	Not Null	Not Null On Conflict	Default Value	Collate	Position	Old Position
+ModuleNo	INT	INT	0	0	False	""	""	""	0	0
+rtuCM	INT	INT	0	0	False	""	""	""	1	1
+rtuCLP	INT	INT	0	0	False	""	""	""	2	2
+ModuleType	INT	INT	0	0	False	""	""	""	3	3
+ComAddr	INT	INT	0	0	False	""	""	""	4	4
+UseFlag	INT	INT	0	0	False	""	""	""	5	5
+*/
 
 char * getFieldsName(sql *const me)
 {
@@ -38,6 +48,10 @@ char * getFieldsName(sql *const me)
              return  out = "(SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status)";
         if(0==strcmp(me->tableName,"ProtectGroupTable"))
              return  out = "(PNo,rtuCM,rtuCLP,SNoA,SNoB,Status,SwitchPos)";
+        if(0==strcmp(me->tableName,"PortOccopyTable"))
+             return  out = "(SNo,ModuleNo,SubPort,FiberType)";
+        if(0==strcmp(me->tableName,"SubModuleTypeTable"))
+             return  out = "(ModuleNo,rtuCM,rtuCLP,ModuleType,ComAddr,UseFlag)";
 }
 /*周期测试表CycleTestSegnemtTable
 
@@ -82,7 +96,7 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName){
    int j = 0;
 /*
    for(j=0; j<recordnum; j++){
-      sprintf(lookup[j],"%s",argv[j] ? argv[j] : "NULL");
+      printf("%s",argv[j] ? argv[j] : "NULL");
    }
 */
 
@@ -104,7 +118,8 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName){
 		for(j=0; j<argc; j++)
 		{
                         p_first[j] = (char*)malloc(sizeof(char)*strlen(argv[j])+1);
-                        memset(p_first[j], 0, strlen(argv[j])+1);          
+                        memset(p_first[j], 0, strlen(argv[j])+1); 
+        
 		}	 
 	}
 
@@ -113,10 +128,12 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName){
 	for(j=0; j<argc; j++)
 	{
 		strncpy(p_first[j], argv[j],strlen(argv[j])+1);
+  
 	}
 
 	//将而极指针传给全局而极指针，供主程序调用.
 	lookup = p_first;
+                          
         
 
    return 0;
@@ -162,7 +179,7 @@ int  SQL_lookupPar(sql* const me,char ***result,int *rednum)
  
        rc = sqlite3_exec(me->db, sql_s,callback, (void*)dat, &zErrMsg);
        if( rc != SQLITE_OK ){
-        // fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        //fprintf(stderr, "SQL error: %s\n", zErrMsg);
          printf("SQL error: %s\n", zErrMsg); 
          sqlite3_free(zErrMsg);
          return rc;
@@ -258,6 +275,38 @@ int  SQL_findPNo(sql * const me,char result[][5])
      }
 }
 
+
+char  ModNo[64][5];
+int   ModNum=0;
+static int callbackModNo(void *NotUsed, int argc, char **argv, char **azColName){
+      sprintf(ModNo[ModNum],"%s",argv[0] ? argv[0] : "NULL");
+      ModNum++;
+   return 0;
+}
+int  SQL_findModNo(sql * const me,char result[][5])                 
+{
+      char *zErrMsg = 0;
+      int rc;
+      char sql_s[1024];  
+      sprintf(sql_s,"SELECT ModuleNo from %s where %s=%s;",me->tableName,me->filedsName,me->filedsValue);
+      rc = sqlite3_exec(me->db, sql_s,callbackModNo,NULL, &zErrMsg);
+      if( rc != SQLITE_OK ){
+       // fprintf(stderr, "SQL error: %s\n", zErrMsg);
+        printf("SQL error: %s\n", zErrMsg); 
+        sqlite3_free(zErrMsg);
+        return rc;
+       }else{
+
+         int i;
+         for (i= 0 ;i<ModNum ;i++){
+               strcpy(result[i],ModNo[i]);            
+           }
+         i=ModNum;
+         ModNum=0;
+         return i;
+
+     }
+}
 /*以整体的方式插入一条记录
 SQL语句:INSERT INTO  CycleTestSegnemtTable(SNo,rtuCM,rtuCLP,rtuSN,T1,T2,IP01,IP02,IP03,IP04,IP05,IP06,Status,PID) values (1,2,3,4,5,6,7,8,9,10,11,12,13,14);
 需要设置的结构体成员:  
@@ -276,7 +325,7 @@ int  SQL_add(sql * const me)
       char *mainKeyName = getMainKeyname(me); 
       sprintf(sql_s,"INSERT INTO %s%s values (%s);",me->tableName,Fileds,me->filedsValue);
       printf("No unique:%s\n",sql_s);
-      if((rc = sqlite3_exec(me->db,sql_s,callback,0, &zErrMsg)) != SQLITE_OK ){  
+      if((rc = sqlite3_exec(me->db,sql_s,NULL,0, &zErrMsg)) != SQLITE_OK ){  
       printf("INSERT_Error--%s\n",zErrMsg);    
       i=0;               
       while(me->filedsValue[i] !=',')
@@ -320,7 +369,7 @@ int  SQL_add(sql * const me)
 SQL语句:DELETE from CycleTestSegnemtTable where SNo=1;
 需要设置的结构体成员:  
    me-> tableName;            //需要操作的表
-   me-> mainKeyValue;         //需要删除的记录主键值（光路号SNo或者RTU编号CM）
+   me-> mainKeyValue;         //需要删除的记录主键值（光路号SNo或者RTU编号CM） (* delete all)
 */
 int  SQL_delete(sql * const me)
 {
@@ -328,12 +377,31 @@ int  SQL_delete(sql * const me)
       int rc;
       char sql_s[1024];  
       char *mainKeyName = getMainKeyname(me);
-      sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,me->mainKeyValue);
-      rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
+
+        sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,me->mainKeyValue);
+      rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
+      if( rc != SQLITE_OK ){
+	printf("SQL delete: %s\n", zErrMsg); 
+	sqlite3_free(zErrMsg);
+	return rc;
+      } 
       return rc;
 }
 
-
+int SQL_clearTable(sql *const me)
+{
+    char * zErrMsg=0;
+    int rc;
+    char sql_s[1024]; 
+    sprintf(sql_s,"DELETE from %s;",me->tableName);
+    
+     rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
+     if( rc != SQLITE_OK ){
+		 printf("SQL clear: %s\n", zErrMsg); 
+		 sqlite3_free(zErrMsg);
+		 return rc;
+	    }  
+}
 
 
 /*修改某个字段值
@@ -352,7 +420,7 @@ int SQL_modify(sql * const me)
      char *mainKeyName = getMainKeyname(me);
      sprintf(sql_s,"UPDATE %s set %s=%s where %s=%s;",me->tableName,me->filedsName,me->filedsValue,mainKeyName,me->mainKeyValue);
      printf("%s\n",sql_s);   
-     rc= sqlite3_exec(me->db, sql_s, callback, 0, &zErrMsg);
+     rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
      if( rc != SQLITE_OK ){
         // fprintf(stderr, "SQL error: %s\n", zErrMsg);
          printf("SQL error: %s\n", zErrMsg); 
