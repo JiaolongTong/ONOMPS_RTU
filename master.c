@@ -20,7 +20,7 @@ int main(int argc,char ** argv)
                               MODBUS_ERROR_RECOVERY_LINK |
                               MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-  modbus_set_slave(mb,1);//set slave address
+  modbus_set_slave(mb,2);//set slave address
 
   if(mode=modbus_rtu_get_serial_mode(mb)<0)
   {

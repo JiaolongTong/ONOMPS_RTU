@@ -1,25 +1,6 @@
-/* tests/unit-test.h.  Generated from unit-test.h.in by configure.  */
-/*
- * Copyright © 2008-2011 Stéphane Raimbault <stephane.raimbault@gmail.com>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+#ifndef _MODBUS_MSTER_H_
+#define _MODBUS_MSTER_H_
 
-#ifndef _UNIT_TEST_H_
-#define _UNIT_TEST_H_
-
-/* Constants defined by configure.ac */
 #define HAVE_INTTYPES_H 1
 #define HAVE_STDINT_H 1
 
@@ -34,7 +15,7 @@
 # endif
 #endif
 
-#define SERVER_ID         0
+
 #define INVALID_SERVER_ID 32
 
 const uint16_t MAX_REGISTERS =100;       //0x0064

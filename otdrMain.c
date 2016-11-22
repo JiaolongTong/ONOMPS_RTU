@@ -20,7 +20,8 @@ struct otdrNode{
 	int    SNo;                                 
         int    CM ;                                 
         int    type;                                	                                                                                       
-        time_t creat_time;                          
+        time_t creat_time;  
+        char   *backIP;                        
 	struct otdrNode *next;
 };
 
@@ -62,7 +63,7 @@ otdrNode *insert(otdrNode *head,otdrNode *newNode)
 /***创建新链表***/
 otdrNode *link_creat()
 {
-	otdrNode *head,*p1;
+	otdrNode *head=NULL,*p1=NULL;
         head =   (otdrNode *) malloc (sizeof(otdrNode ));
         p1   =   (otdrNode *) malloc (sizeof(otdrNode ));
 	head =   NULL;
@@ -70,6 +71,7 @@ otdrNode *link_creat()
         p1->CM   =0;
         p1->type =0;
         p1->creat_time =0;
+        p1->backIP = NULL;
 	head = insert(head,p1);
         
 	return(head);
@@ -163,6 +165,7 @@ otdrNode * outFirstnode(otdrNode *head)
         p0->CM            = head->CM ;
         p0->type          = head->type;
         p0->creat_time    = head->creat_time;
+        p0->backIP        = head->backIP;
 	return(p0);
 }
 /***遍历链表***/
@@ -177,7 +180,7 @@ void outPutALL(otdrNode *head){
 	else
 		printf("There are %d tests on working line.\n",n);
 	while(p!=NULL){
-		printf("SNo:%d,type:%d,CM:%d,creat_time:%ld\n",p->SNo,p->type,p->CM,p->creat_time);
+		printf("SNo:%d,type:%d,CM:%d,creat_time:%ld backIP:%s\n",p->SNo,p->type,p->CM,p->creat_time,p->backIP);
 		p=p->next;
 	}
 }
@@ -204,14 +207,20 @@ otdrNode * Init_CycleLink(void)
 otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入数据库中状态为-1 的节点，并把状态修改为1
 {
 	 sqlite3 *mydb=NULL;
-	 char *SNo=NULL;
-	 int rc=0;
 	 sql *mysql=NULL;
          char **result = NULL;
          int  rednum =0;
+	 int rc=0;
+	 char *SNo=NULL;
+
+
          int  CM=0,i=0;
          otdrNode *node=NULL;
+         char *IP=NULL;
 	 SNo = (char *) malloc(sizeof(char)*5);
+         IP  = (char *) malloc(sizeof(char)*16);
+         node=(otdrNode *)malloc(sizeof(otdrNode));
+         
          uint32tostring((uint32_t)intSNo,SNo);
          if(type!=1){
 		 mysql = SQL_Create();
@@ -219,29 +228,39 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入�
 		 if( rc != SQLITE_OK ){
 			      printf( "Lookup SQL error\n");
                               return ;
-
-			   }
+		}
 		 mysql->db = mydb;
 		 if(type==3)
 		    mysql->tableName     = "CycleTestSegnemtTable";
 		 if(type==2)
-		    mysql->tableName     = "AlarmTestSegmentTable";	   
+		    mysql->tableName     = "AlarmTestSegmentTable";
+	
+		 mysql->mainKeyValue     = SNo;   
 		 mysql->filedsName       = "rtuCM"; 
-		 mysql->mainKeyValue     = SNo;
-		 rc= SQL_lookupPar(mysql,&result,&rednum);
+		 SQL_lookupPar(mysql,&result,&rednum);
 		 CM =atoi(result[0]);
-		 printf("CM:%d\n",CM); 
+                 SQL_freeResult(&result,&rednum);
+                 node->CM  =CM;
+
+
+		 mysql->filedsName       = "IP01";
+                 SQL_lookupPar(mysql,&result,&rednum);
+                 strcpy(IP,result[0]);
+                 SQL_freeResult(&result,&rednum);          
+                 node->backIP =IP;
+                 
 		 SQL_Destory(mysql);  
 		 sqlite3_close(mydb); 
-                 SQL_freeResult(&result,&rednum);
+
+         }else{
+            node->CM  =0;
+            node->backIP=NULL;
          }
-	 node=(otdrNode *)malloc(sizeof(otdrNode));
+
+
 	 node->SNo =intSNo;
          node->type=type;
-         if(type!=1)
-            node->CM  =CM;
-         else
-            node->CM  =0;            
+           
            
          head=insert(head,node);     
 	 free(SNo);	
@@ -282,6 +301,8 @@ void main(void)
         int otdrSWFlag=-1;
         otdr * testPar=NULL;
         modbus_t * mb=NULL ;
+        backData *bData=NULL; 
+  
         sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
         modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
          if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
@@ -321,7 +342,7 @@ void main(void)
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
                    type    = p1->type;
-    
+                   
             
 		   testPar = lookupParm(SNo,type);                      
 	           printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
@@ -337,16 +358,16 @@ void main(void)
                  
                    if(!setModbus_P())                                                //P
                          exit(EXIT_FAILURE); 
+                     usleep(50000); 
                      otdrSWFlag=-1;
                      mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
                      otdrSWFlag = doOtdrSwitch(mb,SNo);    
                      freeModbus(mb);  
-                     usleep(100000);            
+                     usleep(50000);            
                    if(!setModbus_V())                                                //V
                          exit(EXIT_FAILURE); 
 
-                   if(otdrSWFlag==0)
-                   { 
+                   if(otdrSWFlag==0){ 
                      if(type==2)
                         printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
                      if(type==3)
@@ -355,8 +376,15 @@ void main(void)
                      printf("before OK\n");		  
                        if(type == 1)
                           sendMessageQueue_B("1-OK");  
-                       else
-                         upload(SNo,intCM,testPar,type);                                  
+                       else{
+                          bData=backData_Create();
+                          bData->otdrPar =testPar;
+                          strcpy(bData->backIP,p1->backIP);
+                          upload(bData,SNo,intCM,type);
+                          backData_Destory(bData); 
+                          //free(p1->backIP);
+                          //p1->backIP=NULL;
+                       }                               
                    printf("OK\n");
                    printf("-------OTDR--Test-------\n");
                    linkHead = delete(linkHead,SNo); 
@@ -366,9 +394,7 @@ void main(void)
            
                   outPutALL(linkHead);
 
-
                 }  
-
    	    free(p1); 
             p1=NULL;
         }

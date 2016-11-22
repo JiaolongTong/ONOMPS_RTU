@@ -35,6 +35,17 @@ void delModbusPV()
 }  
 int setModbus_P()
 {
+    struct sembuf sem_b;  
+    sem_b.sem_num = 0;  
+    sem_b.sem_op = -1;//P()  
+    sem_b.sem_flg = SEM_UNDO;  
+    if(semop(modbus_sem_id, &sem_b, 1) == -1)  
+    {  
+        fprintf(stderr, "semaphore_p failed\n");  
+        return 0;  
+    }  
+    return 1;  
+/*
     int ret=0;
     struct sembuf sem_b;  
     sem_b.sem_num = 0;  
@@ -54,11 +65,23 @@ int setModbus_P()
              ret=1; break; 
         } 
     }
+*/
     
 }
 int setModbus_V()
 {
     //这是一个释放操作，它使信号量变为可用，即发送信号V（sv）
+    struct sembuf sem_b;  
+    sem_b.sem_num = 0;  
+    sem_b.sem_op = 1;//V()  
+    sem_b.sem_flg = SEM_UNDO;  
+    if(semop(modbus_sem_id, &sem_b, 1) == -1)  
+    {  
+        fprintf(stderr, "semaphore_v failed\n");  
+        return 0;  
+    }  
+    return 1;  
+/*
     int ret=0;  
     struct sembuf sem_b;  
     sem_b.sem_num = 0;  
@@ -79,6 +102,7 @@ int setModbus_V()
         } 
     }
     return ret;  
+*/
 }
 
 modbus_t *newModbus(char *dev, int buad)

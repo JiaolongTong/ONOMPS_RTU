@@ -171,7 +171,7 @@ char * recvMessageQueue_A(void)                                         //阻塞
              }      
         } 
 
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                          //删除消息队列 
+        if(msgctl(msgid, IPC_RMID, 0) == -1)                           //删除消息队列 
         {  
             printf("msgctl(IPC_RMID) failed\n");  
             return "MSG Error";    
@@ -251,7 +251,7 @@ char * recvMessageQueue_C(void)                                      //非阻塞
         char * str;        
         signal(SIGVTALRM, sigOutime);
         value.it_value.tv_sec = 0;
-        value.it_value.tv_usec = 100000;
+        value.it_value.tv_usec = 400000;
         value.it_interval.tv_sec = 0;
         value.it_interval.tv_usec = 400000;
         setitimer(ITIMER_VIRTUAL, &value, &ovalue);

@@ -680,7 +680,7 @@ void main(void)
 		                        printf("cycMain Recv back message from otdrMain  Faild:Time out!");
 		                   } 
                           }
-                           usleep(100000);           //确保信号被处理完 
+                           usleep(10000);           //确保信号被处理完 
 		           if(!setOTDR_V())                                                //V
                                  exit(EXIT_FAILURE);   
                                         /*更新头节点参数，执行周期调度*/
@@ -703,10 +703,10 @@ void main(void)
 void addNewtoLink(int signum,siginfo_t *info,void *myact)
 {
        printf("cycMain(R)the int value is %d \n",info->si_int);
-
+       int SNo =0;
        if(info->si_int>270 && info->si_int <370)              //最大一次删除99个节点
        {
-           SNo = info->si_int%100;
+           SNo = info->si_int%270;
            linkHead = delete(linkHead,SNo);                   //删除节点
            outPutALL(linkHead);
            sendMessageQueue("270-OK");
@@ -714,18 +714,18 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
        }
        
        switch(info->si_int){
-           case 120:{                                         //启动周期测试
+           case 120:{                                        //启动周期测试
 		    linkHead=insertWaitingNode(linkHead);
 		    outPutALL(linkHead);
                     sendMessageQueue("120-OK");
 		    flagNew = 1;
 		    break;
                   }
-           case 220:{                                         //终止周期测试
+           case 220:{                                        //终止周期测试
                     linkHead=removeWaitingNode(linkHead);                   
                     outPutALL(linkHead);
                     sendMessageQueue("220-OK");
-                    flagNew = 1;
+                    flagNew = 1; 
 		    break;
                   }
 

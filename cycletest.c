@@ -2,8 +2,6 @@
 #include  "sql.h"
 #include  "process.h"
 #include   <signal.h>
-
-
 cycletest * Cycle_Create()
 {
 	cycletest * me = (cycletest *) malloc(sizeof(cycletest));
@@ -16,26 +14,14 @@ void Cycle_Destory(cycletest *me)
 responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 {
     mxml_node_t *BX,*SNo,*CM,*CLP,*SN,*T1,*T2,*IP01,*IP02,*IP03,*IP04,*IP05,*IP06;
-    uint32_t  uint_a;
+    uint32_t  uint_a,i=0,intSN = 0,rtuCM =0,rtuCLP=0;
     char srttmp[3]="Bx";
-    char i=0;
-    uint32_t  intSN = 0,rtuCM =0,rtuCLP=0;
-
     responed *resp;    
     resp = Responed_Create();
     resp->RespondCode=0;                                                         // default Sucessful 
 
     SN =mxmlFindElement(root, tree, "SN",NULL, NULL,MXML_DESCEND);
     intSN =  strtoul(SN->child->value.text.string, NULL, 0);
-    if(intSN==0) 
-      {
-        resp->RespondCode = 1 ;                                                 // 通信参数错误（时间表、IP地址）
-        resp->ErrorSN     = 1 ;
-        resp->Group[0].Error_inform = "Error: SN";
-        return resp;                                                            // SN 
-      }
-    //Responed_Destory(resp);
-
     cycfpar->SN = intSN;
     cycfpar->Action = -1;                                                                          //将状态设置为-1，等待插入周期测试链表
     CM =mxmlFindElement(root, tree, "CM",NULL, NULL,MXML_DESCEND);
@@ -81,148 +67,174 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
               if(cycfpar->Group[i].SNo == 0) break; 
     }
 /*****************************数据库同步检查*********************************/  
- cycletest *cycTemp;
- sqlite3 *mydb;
- char *zErrMsg = 0;
- int rc;
- sql *mysql;
- char **result = NULL;
- char *s;
- s = (char *) malloc(sizeof(char)*10);
- cycTemp = Cycle_Create();
- mysql = SQL_Create();
- rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
- if( rc != SQLITE_OK ){
-	      printf( "Open SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	   }
- mysql->db =mydb;
- mysql->tableName    = "DefaultTsetSegmentTable";
- int flag=-1;
- int j=0,ErrorSNo =0;
- intSN=i;
-     for(i=0,j=0;i<intSN;i++)
-          {                   
-	   uint32tostring(cycfpar->Group[i].SNo,s);
-	   mysql->mainKeyValue =  s;
-           mysql->filedsName   = "SNo";
-           flag = SQL_existIN_db(mysql);                                              // 检查SNo对应的测试参数是否与本地数据库同步
-	   if(flag==0){
-	       printf("This is NULL:SNo=%d",cycfpar->Group[i].SNo);                   // 若不同步 把不存在的光路号记录下来.ErrorSN++  , resp->Group[0].SNo=cycfpar->Group[i].SNo
-               resp->RespondCode = 14 ;                                               // 通信参数错误（时间表、IP地址）
-               resp->Group[ErrorSNo].SNo = cycfpar->Group[i].SNo;
-               resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match\n";
-               ErrorSNo++;          
-	    }else{                                                                    // 若同步i>=j
+    cycletest *cycTemp;
+    sqlite3 *mydb;
+    char *zErrMsg = 0;
+    int rc;
+    sql *mysql;
+    char **result = NULL;
+    char *strNo;
+    int PortFlag=0,UseFlag=0,existFlag=-1,rednum=0,ModuleNo=0;
+    strNo = (char *) malloc(sizeof(char)*10);
+    cycTemp = Cycle_Create();
+    mysql = SQL_Create();
+    rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+    if( rc != SQLITE_OK )
+        printf( "Open SQL error\n");
+     mysql->db =mydb;
+ 
+     int j=0,ErrorSNo =0;
+     intSN=i;
+     for(i=0,j=0;i<intSN;i++){ 
+           mysql->tableName ="SubModuleTypeTable";                 //检查子单元模块是否存在
+           ModuleNo = ((cycfpar->Group[i].SNo-1)/8)+1;
+           uint32tostring(ModuleNo,strNo);
+           mysql->mainKeyValue = strNo;
+           mysql->filedsName   = "UseFlag";
+           SQL_lookupPar(mysql,&result,&rednum);
+           UseFlag=atoi(result[0]);  
+           mysql->tableName ="PortOccopyTable";                    //检查子端口是否占用
+	   uint32tostring(cycfpar->Group[i].SNo,strNo);
+	   mysql->mainKeyValue = strNo;
+           PortFlag = SQL_existIN_db(mysql);    
+           SQL_freeResult(&result,&rednum);
+           if(UseFlag!=1){
+                   resp->RespondCode  = 14;
+                   resp->ErrorSN      = 1;                     
+                   resp->SNorPN       = TYPE_SNo;
+                   resp->Group[ErrorSNo].SNo =  cycfpar->Group[i].SNo;
+                   resp->Group[ErrorSNo].Main_inform  = "模块未激活";
+		   resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Module\n";
+                   ErrorSNo++;                           
+           }else if(PortFlag!=1){
+                   resp->RespondCode  = 14;
+                   resp->ErrorSN      = 1;                     
+                   resp->SNorPN       = TYPE_SNo;
+                   resp->Group[ErrorSNo].SNo =  cycfpar->Group[i].SNo;
+                   resp->Group[ErrorSNo].Main_inform  = "端口未配置";
+		   resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Module\n";
+                   ErrorSNo++;                                                           
+           }else{
+                   mysql->tableName    = "DefaultTsetSegmentTable";		          
+		   uint32tostring(cycfpar->Group[i].SNo,strNo);
+		   mysql->mainKeyValue =  strNo;
+		   mysql->filedsName   = "SNo";
+		   existFlag = SQL_existIN_db(mysql);                                              // 检查SNo对应的测试参数是否与本地数据库同步
+		   if(existFlag==0){
+		       printf("This is NULL:SNo=%d",cycfpar->Group[i].SNo);                   // 若不同步 把不存在的光路号记录下来.ErrorSN++  , resp->Group[0].SNo=cycfpar->Group[i].SNo
+		       resp->RespondCode = 14 ;                                                // 通信参数错误（时间表、IP地址）
+		       resp->Group[ErrorSNo].SNo = cycfpar->Group[i].SNo;
+                       resp->Group[ErrorSNo].Main_inform  = "没有优化测试参数";
+		       resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match\n";
+		       ErrorSNo++;          
+		    }else{                                                                    // 若同步i>=j
+			   cycTemp->Group[j].SNo   = cycfpar->Group[i].SNo ;
+		           cycTemp->Group[j].beginTime  = cycfpar->Group[i].beginTime;
+		           cycTemp->Group[j].period =cycfpar->Group[i].period ;
+		           cycTemp->Group[j].IP01 = cycfpar->Group[i].IP01;
+		           cycTemp->Group[j].IP02 = cycfpar->Group[i].IP02;
+		           cycTemp->Group[j].IP03 = cycfpar->Group[i].IP03;
+		           cycTemp->Group[j].IP04 = cycfpar->Group[i].IP04;
+		           cycTemp->Group[j].IP05 = cycfpar->Group[i].IP05;
+		           cycTemp->Group[j].IP06 = cycfpar->Group[i].IP06;                   //(1)更新数据库中存在的光路时间表
 
-
-		   cycTemp->Group[j].SNo   = cycfpar->Group[i].SNo ;
-                   cycTemp->Group[j].beginTime  = cycfpar->Group[i].beginTime;
-                   cycTemp->Group[j].period =cycfpar->Group[i].period ;
-                   cycTemp->Group[j].IP01 = cycfpar->Group[i].IP01;
-                   cycTemp->Group[j].IP02 = cycfpar->Group[i].IP02;
-                   cycTemp->Group[j].IP03 = cycfpar->Group[i].IP03;
-                   cycTemp->Group[j].IP04 = cycfpar->Group[i].IP04;
-                   cycTemp->Group[j].IP05 = cycfpar->Group[i].IP05;
-                   cycTemp->Group[j].IP06 = cycfpar->Group[i].IP06;                  //(1)更新数据库中存在的光路时间表
-
-		   mysql->filedsName   = "P01";                                      //(2)更新查询数据库中存在的测试参数
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.MeasureLength_m =atoi(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %d",cycTemp->Group[j].paramter.MeasureLength_m);
-		   }
+			   mysql->filedsName   = "P01";                                       //(2)更新查询数据库中存在的测试参数
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P01 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.MeasureLength_m =atoi(result[0]);
+		           printf("P01=%d",cycTemp->Group[j].paramter.MeasureLength_m);
+			   }
+                           SQL_freeResult(&result,&rednum);	
 	 
-		   mysql->filedsName   = "P02";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.PulseWidth_ns=atoi(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %d",cycTemp->Group[j].paramter.PulseWidth_ns);
-		   }
+			   mysql->filedsName   = "P02";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P02 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.PulseWidth_ns=atoi(result[0]);
+		           printf("P02=%d",cycTemp->Group[j].paramter.PulseWidth_ns);
+			   }
+                           SQL_freeResult(&result,&rednum);
 
-		   mysql->filedsName   = "P03";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.Lambda_nm  = atoi(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %d",cycTemp->Group[j].paramter.Lambda_nm);
-		   }
+			   mysql->filedsName   = "P03";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P03 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.Lambda_nm  = atoi(result[0]);
+		           printf("P03=%d",cycTemp->Group[j].paramter.Lambda_nm);
+			   }
+                           SQL_freeResult(&result,&rednum);
 
-		   mysql->filedsName   = "P04";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.MeasureTime_ms=atoi(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %d",cycTemp->Group[j].paramter.MeasureTime_ms);
-		   }
+			   mysql->filedsName   = "P04";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P04 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.MeasureTime_ms=atoi(result[0]);
+		           printf("P04=%d",cycTemp->Group[j].paramter.MeasureTime_ms);
+			   }
+                           SQL_freeResult(&result,&rednum);
 
-		   mysql->filedsName   = "P05";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.n=atof(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %f", cycTemp->Group[j].paramter.n);
-		   }
+			   mysql->filedsName   = "P05";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P05 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.n=atof(result[0]);
+		           printf("P05=%f", cycTemp->Group[j].paramter.n);
+			   }
+                           SQL_freeResult(&result,&rednum);
 
-		   mysql->filedsName   = "P06";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.NonRelectThreshold =atof(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %f",cycTemp->Group[j].paramter.NonRelectThreshold);
-		   }
+			   mysql->filedsName   = "P06";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P06 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.NonRelectThreshold =atof(result[0]);
+		           printf("P06=%f",cycTemp->Group[j].paramter.NonRelectThreshold);
+			   }
+                           SQL_freeResult(&result,&rednum);
 
-		   mysql->filedsName   = "P07";
-		   rc= SQL_lookup(mysql,&result);
-		   if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }else{
-		   cycTemp->Group[j].paramter.EndThreshold=atof(result[0]);
-                   printf(" %s",result[0]);
-                   printf(" %f",cycTemp->Group[j].paramter.EndThreshold);
-		   }
-                   printf("\n");
-                   j++;
+			   mysql->filedsName   = "P07";
+			   rc= SQL_lookupPar(mysql,&result,&rednum);
+			   if( rc != SQLITE_OK ){
+			      printf( "Lookup P07 SQL error\n");
+			   }else{
+			   cycTemp->Group[j].paramter.EndThreshold=atof(result[0]);
+		           printf("P07=%f",cycTemp->Group[j].paramter.EndThreshold);
+                           SQL_freeResult(&result,&rednum);
+
+		           printf("\n");
+		           j++;
+		  }
+                          
            }
+  }
 	  
-   }
-
+}
+    if(resp->RespondCode != 0 ){
+         Cycle_Destory(cycTemp);
+         SQL_Destory(mysql);  
+         sqlite3_close(mydb);
+         resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
+         return resp;
+    }
 /***************************存储已同步光路的时间表到数据库**************************/
 //对测试参数已经存在的光路更新其时间表
-    intSN=j;                            //正确的光路条数
+    intSN=j;                                             //正确的光路条数
     cycTemp->SN=  cycfpar->SN;  
     cycTemp->Action = cycfpar->Action;                                               
-    char * str;
+    char * strSQL;
     int PID =100;
-    str   = (char *) malloc(sizeof(char)*200);
+    strSQL   = (char *) malloc(sizeof(char)*200);
     mysql->tableName   = "CycleTestSegnemtTable"; 
    
-    for(i=0 ;i<intSN;i++)
-    {                
-                 
+    for(i=0 ;i<intSN;i++){                                
                            /*SNo CM CLP SN bg   pd  IP1  IP2  IP3  IP4  IP5  IP6  Ac PID*/
-		 sprintf(str,"%d,%d,%d,%d,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d\n",cycTemp->Group[i].SNo
+		 sprintf(strSQL,"%d,%d,%d,%d,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d\n",cycTemp->Group[i].SNo
 		                                                          ,rtuCM
 		                                                          ,rtuCLP
 		                                                          ,cycTemp->SN
@@ -236,7 +248,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
                                                                           ,cycTemp->Group[i].IP06
 		                                                          ,cycTemp->Action
                                                                           ,PID);
-		  mysql->filedsValue =  str;
+		  mysql->filedsValue =  strSQL;
 
                   if(!semaphore_p())  
                             exit(EXIT_FAILURE);                                //P
@@ -245,16 +257,13 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 		      printf( "Save SQL error\n");
 		      sqlite3_free(zErrMsg);
 		  }else
-                  printf("%s",str);
+                  printf("%s",strSQL);
                   if(!semaphore_v())                                           //V
                            exit(EXIT_FAILURE);
      }
 
-    SQL_Destory(mysql);  
-    sqlite3_close(mydb);
 /********************************打印已同步的光路*******************************************/
-    for(i=0 ;i<intSN;i++)
-    { 
+    for(i=0 ;i<intSN;i++){ 
 		printf("------B%c--------\n"       ,i+0x31);
 		printf("B%c-Action-uint -[%d]\n"   ,i+0x31,cycTemp->Action);
 		printf("B%c-SNo-uint -[%d]\n"      ,i+0x31,cycTemp->Group[i].SNo);
@@ -274,17 +283,13 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 		printf("B%c-P05-float-[%f]\n"      ,i+0x31,cycTemp->Group[i].paramter.n);
 		printf("B%c-P06-float-[%f]\n"      ,i+0x31,cycTemp->Group[i].paramter.EndThreshold);
 		printf("B%c-P07-float-[%f]\n"      ,i+0x31,cycTemp->Group[i].paramter.NonRelectThreshold);
-
 		printf("\n");
     }
 
-    if(resp->RespondCode != 0 ){
-         resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
-         Cycle_Destory(cycTemp);   
-         return  resp;                                   //保存所有正确的光路，一旦有错误就拒绝执行周期测试启动，并返回错误的光路号
-        }
-
-       Cycle_Destory(cycTemp);
+    free(strSQL);
+    SQL_Destory(mysql);  
+    sqlite3_close(mydb);
+    Cycle_Destory(cycTemp);
  
 
 /***************************向周期测试守护进程发送启动周期测试信号**********************************
@@ -298,34 +303,43 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
        int signum;
        union sigval mysigval;
        char* process;  
-       int ret = 0;  
+       int retProcess = 0;  
        int n;  
        pid_t cycPID[MAX_PID_NUM];  
       
        process ="/web/cgi-bin/cycMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-       mysigval.sival_int = 120;                               //设置信号的附加信息 (启动周期测试)                               
-       for(n=0;n<ret;n++){  
-        printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-        if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
-      }  
+       retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
+       if(retProcess>0){
+	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 120;                               //设置信号的附加信息 (启动周期测试)                               
+	       for(n=0;n<retProcess;n++){  
+		printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+		if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
+	      }  
+	             /*等待启动周期测试成功信号*/
+	      char * recvStr;  
+	      recvStr = (char *) malloc (sizeof (char)*10);
 
+	      recvStr = recvMessageQueue_C();
+	      if(strncmp(recvStr, "120-OK", 6) == 0)                 //遇"120-OK"结束
+		 printf("SetCycleSegment sucessful!\n");
+	      else{
+		    resp->RespondCode=3;
+		    resp->Group[0].Main_inform  = "周期测试设置失败-->未收到回复消息";
+		    resp->Group[0].Error_inform = "Error:Don't get back massgae![周期测试设置失败-->未收到回复消息]";
+                    free(recvStr);
+		    return resp;
+              }
+              free(recvStr);
+      }else{
 
-/******************************等待启动周期测试成功信号**************************************/
-
-    char * recvStr;  
-    recvStr = (char *) malloc (sizeof (char)*10);
-
-    recvStr = recvMessageQueue_C();
-   if(strncmp(recvStr, "120-OK", 6) == 0)                 //遇"120-OK"结束
-     printf("SetCycleSegment sucessful!\n");
-   else
-     printf("SetCycleSegment failed!\n");
-     free(recvStr);
-
+		    resp->RespondCode=3;
+		    resp->Group[0].Main_inform  = "周期测试设置失败-->未找到后台进程";
+		    resp->Group[0].Error_inform = "Error:Don't get back massgae![周期测试设置失败-->未找到后台进程]";
+		    return resp;
+      }
    return resp;
 }
 
@@ -334,21 +348,21 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 
 responed *setCycletestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
-      cycletest *cy_p;  
-      responed *ret=NULL;
-      cy_p = Cycle_Create();  
+     cycletest *cy_p;  
+     responed *ret=NULL;
+     cy_p = Cycle_Create();  
 
      mxml_node_t *node,*perCMDcode;
+     ret    = Responed_Create();
+
+     ret->RespondCode=0;
      perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
-      if(atoi(perCMDcode->child->value.text.string) !=cmdCode) 
-       {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;
-            
-       }
-      else
-      {
+     if(atoi(perCMDcode->child->value.text.string) !=cmdCode){
+            ret->RespondCode=3;
+	    ret->Group[0].Main_inform  = "指令号错误";
+	    ret->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
+            return ret;            
+      }else{
             ret=getCycletestParameter(cmd,tree,cy_p);
             Cycle_Destory(cy_p);
             return ret;
@@ -358,17 +372,21 @@ responed *setCycletestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 responed *endCycletestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
-      cycletest *cy_p;  
+      cycletest *cy_p=NULL;  
 
       cy_p = Cycle_Create();  
       responed *ret=NULL;
-      mxml_node_t *node,*perCMDcode;
+      mxml_node_t *node=NULL,*perCMDcode=NULL;
+      ret    = Responed_Create();
+      
+      ret->RespondCode=0;    
       perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) 
        {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            return (responed *)-1;
+            ret->RespondCode=3;
+	    ret->Group[0].Main_inform  = "指令号错误";
+	    ret->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
+            return ret;  
             
        }
       else
@@ -414,40 +432,33 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 
 /*************************************************************************/
 
- sqlite3 *mydb;
- char *zErrMsg = 0;
- int rc;
- sql *mysql;
- char result[100];char *s;
- s = (char *) malloc(sizeof(char)*10);
- mysql = SQL_Create();
- rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
- if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	   }
- mysql->db =mydb;
- mysql->tableName   = "CycleTestSegnemtTable"; 
- mysql->filedsValue  =  "-2";                                    // 更新光路状态为“-2” 待启动   itoa(cycfpar->Action)
- mysql->filedsName   =  "Status";
+   sqlite3 *mydb;
+   int rc;
+   sql *mysql;
+   char result[100];char *strSNo = NULL;
+   strSNo = (char *) malloc(sizeof(char)*10);
+   mysql = SQL_Create();
+   rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+   if( rc != SQLITE_OK )
+       printf( "Open SQL error\n");
+   mysql->db =mydb;
+   mysql->tableName    = "CycleTestSegnemtTable"; 
+   mysql->filedsValue  =  "-2";                                    // 更新光路状态为“-2” 待启动   itoa(cycfpar->Action)
+   mysql->filedsName   =  "Status";
 
    for(i=0;i<intSN;i++)
    {
-         uint32tostring(cycfpar->Group[i].SNo,s);
-         mysql->mainKeyValue = s;   
+         uint32tostring(cycfpar->Group[i].SNo,strSNo);
+         mysql->mainKeyValue = strSNo;   
          if(!semaphore_p())  
               exit(EXIT_FAILURE);                                //P
-         rc=SQL_modify(mysql);
-         if( rc != SQLITE_OK ){
-	     printf( "Modify SQL error\n");
-	     sqlite3_free(zErrMsg);
-	  }
-          if(!semaphore_v())                                     //V
+         SQL_modify(mysql);
+         if(!semaphore_v())                                      //V
                exit(EXIT_FAILURE);
 	printf("The SNo = %d is canceled! Action:%d \n",cycfpar->Group[i].SNo,cycfpar->Action);
 
    }
-    free(s);
+    free(strSNo);
     SQL_Destory(mysql);  
     sqlite3_close(mydb);
 /*******Send Signal to cycMain*******
@@ -456,38 +467,45 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 (3)程可以通过sigqueue函数向包括它本身在内的其他进程发送一个信号，如果程序没有发送这个信号的权限，对sigqueue函数的调用就将失败，而失败的常见原因是目标进程由另一个用户所拥有
 (4)现阶段使用的是不可靠信号,不支持排队，信号可能丢失。
 ************************************/
-       int   signum;
+       int signum;
        union sigval mysigval;
-       char* process;  
-       int ret = 0;  
-       int n;  
+       char  *process=NULL,*recvStr=NULL;  
+       int retProcess = 0,n=0;  
        pid_t cycPID[MAX_PID_NUM];  
-      
+
        process ="/web/cgi-bin/cycMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改或取消周期测试链表节点值
-       mysigval.sival_int = 220;                               //设置信号的附加信息 (取消周期测试)                               
-       for(n=0;n<ret;n++){  
-        printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-        if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
-      }  
+       retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+       if(retProcess>0){
+	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
+	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 220;                               //设置信号的附加信息 (启动障碍告警测试)                               
+	       for(n=0;n<retProcess;n++){  
+	       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
+	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
+	      }  
+	           /*等待启动障碍告警测试成功信号*/
 
-/*************************************************************/
-       char * recvStr;
-       recvStr = (char *) malloc (sizeof (char)*10);
-       recvStr = recvMessageQueue_C();
-       if(strncmp(recvStr, "220-OK", 6) == 0){                 //遇"220-OK"结束
-           printf("Cancel cycletest sucessful!\n");
-           }
-           else{
-                printf("Cancel cycletest failed!\n");
-               }
 
-       free(recvStr);
-
-       return resp;
-
+	    recvStr = (char *) malloc (sizeof (char)*10);
+	    recvStr = recvMessageQueue_C();
+	    if(strncmp(recvStr, "220-OK", 6) == 0)                     //遇"130-OK"结束
+	       printf("Set Alarmtest sucessful!\n");
+	    else{
+                    printf("SetCycleSegment failed!\n");
+		    resp->RespondCode=3;
+		    resp->Group[0].Main_inform  = "周期测试取消失败-->未收到回复消息";
+		    resp->Group[0].Error_inform = "Error:Don't get back massage![周期测试取消失败-->未收到回复消息]";
+	            free(recvStr);
+		    return resp;  
+            }
+	    free(recvStr);   
+      }else{
+	      resp->RespondCode=3;
+	      resp->Group[0].Main_inform  = "周期测试取消失败-->未找到后台进程";
+	      resp->Group[0].Error_inform = "Error:Don't have back process![周期测试取消失败-->未找到后台进程]";
+	      return resp;  
+      }
+      return resp;
 }
 

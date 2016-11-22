@@ -3,6 +3,7 @@
 #include "otdr.h"
 #include "common.h"
 #include  <mxml.h> 
+#include  "responed.h"
 
 typedef struct defaulttest
 {    
@@ -16,7 +17,7 @@ typedef struct defaulttest
 }defaulttest;
 
 void  getDefaultParameter(mxml_node_t *root,mxml_node_t *tree,defaulttest *defpar);
-int   setDefaultTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);  
+responed * setDefaultTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode); 
 
 defaulttest * DefaultP_Create();
 void DefaultP_Destory(defaulttest *me);

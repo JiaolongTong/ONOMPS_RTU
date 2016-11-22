@@ -20,7 +20,7 @@ typedef struct rtuInform
     uint32_t sumPort;
     char     rtuMode[MAXSUBMODULE];            //模块类型有五种：0，不存在，1，在纤（不带光功率），2备纤，3混合，4在纤（带光功率）,  一个模块对应一个数组下标
     char     rtuPort[MAXRTUPORT];
-}rtuInform;                                    //
+}rtuInform;                                    //光纤类型+1（备纤：0+1，在线纤：1+1）。默认0+1
 
 
 responed * setReferenceTime(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);

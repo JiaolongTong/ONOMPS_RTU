@@ -1,7 +1,10 @@
 #include <stdio.h>
-
-void main()
+#include <math.h>
+int main ()
 {
-   int *ptr=(int *)0;
-   *ptr =100;
+ double param, result;
+ param = 5.5;
+ result = log (param);
+ printf ("log(%f) = %f\n", param, result );
+ return 0;
 }

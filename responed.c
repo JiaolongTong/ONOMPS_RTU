@@ -31,48 +31,62 @@ void RespondMessage_Error(int code ,responed * res)
     str1 = getCommendString(code);
     str = (char *) malloc (sizeof(char)*5);
 	printf("<RespondCode>%d</RespondCode>\n",res->RespondCode);
-        printf("<Data>\n");
-        ErrorSN=res->ErrorSN;
-        printf("<ErrorSN>%d</ErrorSN>\n",ErrorSN);
-        if(res->SNorPN==TYPE_PNo){
-		printf("<PNo>");
-		for(i=0;i<ErrorSN;i++){
-		   uint32tostring((uint32_t)i,str);
-		   printf("%d,",res->Group[i].PNo);                   //i>10待修改  
-		}
-		printf("</PNo>\n");
+        switch (res->RespondCode){
+	   case 14:{	printf("<Data>\n");
+			ErrorSN=res->ErrorSN;
+			printf("<ErrorSN>%d</ErrorSN>\n",ErrorSN);
+			if(res->SNorPN==TYPE_PNo){
+				printf("<PNo>");
+				for(i=0;i<ErrorSN;i++){
+				   uint32tostring((uint32_t)i,str);
+				   printf("%d,",res->Group[i].PNo);                   //i>10待修改  
+				}
+				printf("</PNo>\n");
 
-		printf("<Infor>");
-                for(i=0;i<ErrorSN;i++)
-                {
-                   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
-                }
- 		printf("</Infor>");  
+				printf("<Infor>");
+				for(i=0;i<ErrorSN;i++)
+				{
+				   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
+				}
+		 		printf("</Infor>\n");  
 
-		for(i=0;i<ErrorSN;i++){
-		 printf("%s PNo:%d %s[SNo:%d]\n",str1,res->Group[i].PNo,res->Group[i].Error_inform,res->Group[i].SNo);
-		}
-        }else{
-		printf("<SNo>");
-		for(i=0;i<ErrorSN;i++){
-		   uint32tostring((uint32_t)i,str);
-		   printf("%d,",res->Group[i].SNo);                   //i>10待修改  
-		  
-		}
-		printf("</SNo>\n");
-		printf("<Infor>");
-                for(i=0;i<ErrorSN;i++)
-                {
-                   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
-                }
- 		printf("</Infor>");               
-		for(i=0;i<ErrorSN;i++){
+				for(i=0;i<ErrorSN;i++){
+				 printf("%s PNo:%d %s[SNo:%d]\n",str1,res->Group[i].PNo,res->Group[i].Error_inform,res->Group[i].SNo);
+				}
+			}else if(res->SNorPN==TYPE_SNo){
+				printf("<SNo>");
+				for(i=0;i<ErrorSN;i++){
+				   uint32tostring((uint32_t)i,str);
+				   printf("%d,",res->Group[i].SNo);                   //i>10待修改  
+				  
+				}
+				printf("</SNo>\n");
+				printf("<Infor>");
+				for(i=0;i<ErrorSN;i++)
+				{
+				   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
+				}
+		 		printf("</Infor>\n");               
+				for(i=0;i<ErrorSN;i++){
 
-		 printf("%s SNo:%d %s\n",str1,res->Group[i].SNo,res->Group[i].Error_inform);
-                }	
+				 printf("%s SNo:%d %s\n",str1,res->Group[i].SNo,res->Group[i].Error_inform);
+				}	
+			}
+			printf("</Data>\n");
+                       }break;
+            case 3: { 
+			printf("<Data>\n");
+                        printf("	<Infor>%s</Infor>\n",res->Group[0].Main_inform);	
+			printf("</Data>\n");	
+                    }break;
+            case 1: {
+                    }break;
+            case 2: {
+                    }break;
+            case 4: {
+                    }break;
+            default:break;
         }
-        printf("</Data>\n");
-        
 }
 
 void RespondMessage_NetworkSegment(void)

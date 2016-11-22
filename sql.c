@@ -16,7 +16,7 @@ char * getMainKeyname(sql* const me)
 	char * out;
 	if((0==strcmp(me->tableName,"DefaultTsetSegmentTable"))||(0==strcmp(me->tableName,"NamedTestSegmentTable")) 
            ||(0==strcmp(me->tableName,"AlarmTestSegmentTable"))||(0==strcmp(me->tableName,"CycleTestSegnemtTable")) 
-           || (0==strcmp(me->tableName,"PortOccopyTable")))
+           ||(0==strcmp(me->tableName,"PortOccopyTable")))
           return  out = "SNo";
         else if(0==strcmp(me->tableName,"ProtectGroupTable"))
           return  out = "PNo";
@@ -176,7 +176,7 @@ int  SQL_lookupPar(sql* const me,char ***result,int *rednum)
       else
          sprintf(sql_s,"SELECT %s from %s where %s=%s;",me->filedsName,me->tableName,mainKeyName,me->mainKeyValue);
 
- 
+       printf("SQL:%s\n",sql_s);
        rc = sqlite3_exec(me->db, sql_s,callback, (void*)dat, &zErrMsg);
        if( rc != SQLITE_OK ){
         //fprintf(stderr, "SQL error: %s\n", zErrMsg);

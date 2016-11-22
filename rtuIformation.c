@@ -1,6 +1,7 @@
 #include "rtuIformation.h"
 #include "sql.h"
 #include "process.h"
+#include "checkip.h"
 
 rtuInform * RTU_Create()
 {
@@ -78,11 +79,13 @@ responed * requestReferenceTime(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             char * timE =ctime(&rawtime);
  	    printf("<RespondCode>11</RespondCode>\n");
             printf("<Data>\n");
+            printf("<ReferenceTime>\n");
             printf("<CMDcode>514</CMDcode>\n");
             printf("	<R>*</R>\n");
             printf("	<CM>%d</CM>\n",rtuReferenceTime->rtuCM);
-            printf("	<T8>%ld<T8>\n" ,rawtime);
-            printf("</Data>\n");	
+            printf("	<T8>%ld</T8>\n" ,rawtime);
+            printf("</ReferenceTime>\n");
+            printf("</Data>\n");
             printf("System Time:%s\n",timE);
        }  
    RTU_Destory(rtuReferenceTime);
@@ -327,6 +330,8 @@ responed * cancelRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
          mysql->filedsValue =  "0";
          if(!semaphore_p())
              exit(EXIT_FAILURE);                                //P
+
+
          for(i=0;i<resultModNum;i++){
             mysql->mainKeyValue  = resultModNo[i];
             SQL_modify(mysql);
@@ -413,7 +418,7 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
                 Type  = mxmlFindElement(PX,tree,"Type",NULL, NULL,MXML_DESCEND); 
                 intType =  strtoul(Type->child->value.text.string, NULL, 0);  
 
-                 rtuMode->rtuPort[intSNo-1]=intType+1;                          
+                rtuMode->rtuPort[intSNo-1]=intType+1;                          
          }
 
             printf("--------RTU局站号:%d-------\n",rtuMode->rtuCM);
@@ -551,7 +556,7 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 	       recvStr = recvMessageQueue_C();
 	       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
-		  printf("alarmMain: CancelRTUPort failed!\n");
+		  printf("alarmMain: CancelRTUPort failed!:%s\n",recvStr);
 		  printf("<RespondCode>3</RespondCode>\n");
 		  resp->RespondCode=-1;
 	       return resp;
@@ -660,6 +665,7 @@ responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             printf("<RespondCode>3</RespondCode>\n");
 	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
             resp->RespondCode=-1;
+            RTU_Destory(rtuReferenceTime);
             return resp;   
        }
       else{
@@ -671,9 +677,24 @@ responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 	    IP = mxmlFindElement(cmd, tree, "IP",NULL, NULL,MXML_DESCEND);
 	    Netmask = mxmlFindElement(cmd, tree,"Netmask",NULL, NULL,MXML_DESCEND);
 	   // Gateway = mxmlFindElement(cmd, tree,"Gateway",NULL, NULL,MXML_DESCEND);
-            set_ip(IP->child->value.text.string);
-            set_ip_netmask(Netmask->child->value.text.string);
-           // set_gateway(Gateway->child->value.text.string);
+
+            int canUSE=-1;
+            char *interface = "eth0";
+            char * ipaddr =IP->child->value.text.string;
+            canUSE=PM_Check_IP(interface,ipaddr);
+            if(!canUSE){
+               set_ip(IP->child->value.text.string);
+               set_ip_netmask(Netmask->child->value.text.string);
+               //set_gateway(Gateway->child->value.text.string);
+            }
+            else{
+
+               printf("<RespondCode>3</RespondCode>\n");
+	       printf("<Data> IP conflict [%s] can't use!\n</Data>\n",IP->child->value.text.string);
+               resp->RespondCode=-1;
+               RTU_Destory(rtuReferenceTime);
+               return resp;  
+             }
 	
        }  
    RTU_Destory(rtuReferenceTime);
@@ -710,6 +731,7 @@ responed * requestNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
  	    printf("<RespondCode>12</RespondCode>\n");
             printf("<Data>\n");
+            printf("<NetworkSegment>\n");
             printf("<CMDcode>513</CMDcode>\n");
             printf("	<R>*</R>\n");
             printf("	<CM>%d</CM>\n",rtuReferenceTime->rtuCM);
@@ -717,6 +739,7 @@ responed * requestNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             printf("	<IP>%s</IP>\n" ,IP);
             printf("	<Netmask>%s</Netmask>\n",Netmask);
             printf("	<Gateway>192.168.0.1</Gateway>\n");
+            printf("</NetworkSegment>\n");
             printf("</Data>\n");	
        }  
    RTU_Destory(rtuReferenceTime);

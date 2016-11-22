@@ -73,23 +73,16 @@ int main(int argc,char **argv)
         (3) "4"   通信参数非法: 起始时间、时间间隔格式错误,回传IP地址错误
         (4) "14"  数据库不同步: 设置时间表时，检查优化参数是否存在，如果不存在报告数据库不同步错误，并回传未同步的光路号(SNo)。
 */     		               case 100 :{   //设置优化参数                                   
-                                    if (setDefaultTestSegment(root,tree,code)<0){
-                                            printf("</RespondMessage>");
-                                            mxmlDelete(tree);
-			                    exit(0);   
-                                        }
-                                        RespondMessage_OK(code); 
-                                        break;    
+                                     ret=setDefaultTestSegment(root,tree,code);                                        
+                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                     else RespondMessage_Error(code,ret);
+                                     free(ret);
+                                     break;     
                                 }   
                          
                                case 110 :{  //执行点名测试任务
                                      ret=setNamedTestSegment(root,tree,code);                                        
-                                     if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
-                                     if (ret->RespondCode == 0);//RespondMessage_OK(code);
+                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                      else RespondMessage_Error(code,ret);
                                      free(ret);
                                      break; 
@@ -97,11 +90,6 @@ int main(int argc,char **argv)
            
                                case 120:{   //执行周期测试任务
                                     ret=setCycletestSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -110,11 +98,6 @@ int main(int argc,char **argv)
 
                                case 220:{   //结束周期测试任务  
                                     ret=endCycletestSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     free(ret);
                                     break;
@@ -122,11 +105,6 @@ int main(int argc,char **argv)
 
                                case 130:{   //执行障碍告警测试任务     
                                     ret=setAlarmtestSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -135,11 +113,6 @@ int main(int argc,char **argv)
 
                                case 170:{   //设置保护光路组     
                                     ret=setOpticalProtectSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -150,11 +123,6 @@ int main(int argc,char **argv)
 
                                case 250:{   //取消光保护配对     
                                     ret=endOpticalProtectSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                        }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -162,11 +130,6 @@ int main(int argc,char **argv)
 				    }
                                case 370:{   //请求光保护切换   
                                     ret=requestProtectSwitch(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                    }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -175,11 +138,6 @@ int main(int argc,char **argv)
 
                                case 140:{   //设置告警信息     
                                     ret=setAlarmInformation(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                    }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     free(ret);
                                     break;
@@ -225,11 +183,6 @@ int main(int argc,char **argv)
 
                                case 230:{   //取消障碍告警测试     
                                     ret=endAlarmtestSegment(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                    }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
@@ -238,11 +191,6 @@ int main(int argc,char **argv)
 
                                case 240:{   //取消告警信息    
                                     ret=endAlarmInfo(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                    }
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     free(ret);
                                     break;
@@ -250,11 +198,6 @@ int main(int argc,char **argv)
 
                                case 360:{   //获取光功率值    
                                     ret=getOpticPowerParameter(root,tree,code);
-                                    if(ret->RespondCode <0){
-                                        printf("</RespondMessage>");
-                                        mxmlDelete(tree);
-                                        exit(0);  
-                                    }
                                     if (ret->RespondCode == 0);//RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);

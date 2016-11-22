@@ -16,11 +16,29 @@
 #define  en_ORDRDATA  "OtdrAllData.hex"
 #define  en_MAXSIZE    1024*100
 
+
+typedef struct backData backData;
+struct backData {
+
+	/***测试参数****/
+        otdr * otdrPar;
+        char  backIP[16];
+       /***门限***/
+        float    powerValue;
+        float    powerGate;
+        int      level;
+};
+
+backData * backData_Create();
+void backData_Destory(backData *me);
+
 size_t write_data(void* buffer,size_t size,size_t nmemb,void *stream);
-int upload(int SNo,int CM,otdr *Par,int type);
-int XMLgenerLineFaultWarming(char * filename,int type);
-int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type);
-int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type);
+char * setBackAddr(char * backIP);
+
+int upload(backData *bData,int SNo,int CM,int type);
+
+int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,int level,int SNo,int CM,int type);
+int XMLgenerNewOTDRData       (char * filename,otdr *Par,int SNo,int CM,int type);
 
 char* base64_encode(const char* data, int data_len); 
 char *base64_decode(const char* data, int data_len); 

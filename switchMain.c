@@ -139,7 +139,6 @@ int main(int argc, char *argv[])
 		                        regs=modbus_read_registers(mb, 0x0001,1, tab_reg);
 		                        for(i=0;i<regs;i++)
 		                           printf("异常光路:[%d]=%d\n",i,tab_reg[i]);
-		                      
 		                     }
 		                     break;
 		               default:

@@ -144,29 +144,20 @@ void getAlarmtestParameter(mxml_node_t *root,mxml_node_t *tree,alarmtest *alarmp
 
 responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)      //130
 {	
-   mxml_node_t *CM,*CLP,*perCMDcode;
-   alarmtest * alarmpar; 
-   otdr * test_p;
-   responed *resp;   
-   int intCM,intCLP;
-   int PS; 
-
-   test_p   = OTDR_Create();
+   mxml_node_t *CM=NULL,*CLP=NULL,*perCMDcode=NULL;
+   alarmtest *alarmpar=NULL; 
+   responed *resp=NULL;   
+   int intCM=0,intCLP=0,PS=0;
    alarmpar = Alarm_Create();   
-   resp   = Responed_Create();
-
-
+   resp     = Responed_Create();
    resp->RespondCode=0;        
    perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
-
-
-      if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            resp->RespondCode=-1;
-            return resp;    
-       }
-      else{
+   if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
+        resp->RespondCode=3;
+	resp->Group[0].Main_inform  = "指令号错误";
+	resp->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
+        return resp;    
+   }else{
 /**************************解析XML消息***************************************/
             getAlarmtestParameter(cmd,tree,alarmpar);
 	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
@@ -196,10 +187,10 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                             printf("AT05-float -[%f]\n",alarmpar->levelGroup[i].portGroup[j].alarmGate.AT05);
                             printf("AT05-float -[%f]\n",alarmpar->levelGroup[i].portGroup[j].alarmGate.AT06);
  
-                            printf("P21-uint -[%d]\n",alarmpar->levelGroup[i].portGroup[j].paramter.MeasureLength_m);            //测试参数
-                            printf("P22-uint -[%d]\n",alarmpar->levelGroup[i].portGroup[j].paramter.PulseWidth_ns);
-                            printf("P23-uint -[%d]\n",alarmpar->levelGroup[i].portGroup[j].paramter.Lambda_nm);
-                            printf("P24-uint -[%d]\n",alarmpar->levelGroup[i].portGroup[j].paramter.MeasureTime_ms);
+                            printf("P21-uint -[%d]\n" ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureLength_m);            //测试参数
+                            printf("P22-uint -[%d]\n" ,alarmpar->levelGroup[i].portGroup[j].paramter.PulseWidth_ns);
+                            printf("P23-uint -[%d]\n" ,alarmpar->levelGroup[i].portGroup[j].paramter.Lambda_nm);
+                            printf("P24-uint -[%d]\n" ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureTime_ms);
                             printf("P25-float -[%f]\n",alarmpar->levelGroup[i].portGroup[j].paramter.n);
                             printf("P26-float -[%f]\n",alarmpar->levelGroup[i].portGroup[j].paramter.NonRelectThreshold);                  
                             printf("P27-float -[%f]\n",alarmpar->levelGroup[i].portGroup[j].paramter.EndThreshold);   
@@ -215,237 +206,480 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
  
                     }		    
             }
-/***************************数据库存储**************************/
 
-
-	sqlite3 *mydb;
-	char *zErrMsg = 0;
-	int rc;
-	sql *mysql;                                    
-	char * strSQL;
-	mysql = SQL_Create();
-	strSQL   = (char *) malloc(sizeof(char)*400);
-	rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	if( rc != SQLITE_OK ){
-	      printf( "Open SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	}
-	mysql->db =mydb;
-	mysql->tableName   = "AlarmTestSegmentTable";   
-        for(i=0;i<AN;i++){                        
-            ASN=alarmpar->levelGroup[i].ASN;            
-            for(j=0;j<ASN;j++){                             
-                           //SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status
-		 sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d\n"
-                               ,alarmpar->levelGroup[i].portGroup[j].ASNo                               //SNo
-		               ,intCM                                                                   //rtuCM
-		               ,intCLP                                                                  //rtuCLP
-		               ,alarmpar->levelGroup[i].ANo                                             //Level
-		               ,alarmpar->levelGroup[i].portGroup[j].PS                                 //PS
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureLength_m           //P21
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.PulseWidth_ns             //P22
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.Lambda_nm                 //P23
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureTime_ms            //P24
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.n                         //P25
-		               ,alarmpar->levelGroup[i].portGroup[j].paramter.NonRelectThreshold        //P26
-                               ,alarmpar->levelGroup[i].portGroup[j].paramter.EndThreshold              //P27
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT01                     //AT01
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT02                     //AT02
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT03                     //AT03
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT04                     //AT04
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT05                     //AT05
-		               ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT06                     //AT06
-		               ,alarmpar->levelGroup[i].portGroup[j].IP01                               //IP01
-		               ,alarmpar->levelGroup[i].portGroup[j].IP02                               //IP02
-		               ,alarmpar->levelGroup[i].portGroup[j].IP03                               //IP03
-		               ,alarmpar->levelGroup[i].portGroup[j].IP04                               //IP04
-		               ,alarmpar->levelGroup[i].portGroup[j].IP05                               //IP05
-		               ,alarmpar->levelGroup[i].portGroup[j].IP06                               //IP06
-		               ,alarmpar->levelGroup[i].portGroup[j].T3                                 //T3
-		               ,alarmpar->levelGroup[i].portGroup[j].T4                                 //T4
-                               ,alarmpar->levelGroup[i].portGroup[j].fibreType                          //fiberType
-                               ,alarmpar->levelGroup[i].portGroup[j].protectFlag                        //protectFlag
-                               ,alarmpar->Action                                                        //Status
-                               );
-		  mysql->filedsValue = strSQL;
-                  if(!semaphore_p())  
-                            exit(EXIT_FAILURE);                                //P
-		  rc = SQL_add(mysql);                                         //更新或者插入新的纪录
-		  if( rc != SQLITE_OK ){
-		      printf( "Save SQL error\n");
-		      sqlite3_free(zErrMsg);
-		  }else
-                  printf("%s",strSQL);
-                  if(!semaphore_v())                                           //V
-                           exit(EXIT_FAILURE);
-           }
-
-       }
 
 /****************************数据库校验*****************************************/
+/*
+(1) 检查模块是否存在，若存在则取出模块类型  
+(2) 检查端口是否被占用
+(3) 查看光路是否存在配对
+(3) 对存在配对的光路验证是否为一个在纤一个备纤
+(4) 对没有配对的光纤，检查是否光纤类型是否满足要求(备纤类型、带光功率的在纤类型),与所属模块的类型相关
+(5) 剔除不符合要求光纤，保证下发给alarmMain的光纤只有三种类型(模块2 模块3 模块4 )
+         ----->模块2:只存在备纤
+         ----->模块3:一个备纤和一个在纤形成保护组
+         ----->模块4:可进行光功率采集的在纤
+(6) 向alarmMain发送更新测试链表请求
+*/
+    sqlite3 *mydb=NULL;
+    sql *mysql=NULL; 
+    char * strSQL=NULL; 	                               
     char resultPNo[64][5];
     char **result;
-    char *value;
+    char *strSNo=NULL,*strMNo=NULL;
     char *dbSNoA,*dbSNoB;
-    int  fiberTypeA,fiberTypeB;
-    int  resPN,ErrorSNo=0,flag=0,flagStut;
-    int  protectFlag=0,intStatus;
-    value    = (char *) malloc(sizeof(char)*10);
+    int  rc=0,m=0,n=0;
+    int  fiberType,fiberTypeA,fiberTypeB;
+    int  resPN,ModuleNo,ErrorSNo=0,existProtect=0,flagStut=0,existPS=0,rednum=0;
+    int  checkFlag=0,saveFlag=0,UseFlag=0,PortFlag=0,ModType=0,intStatus=0;
+    strSNo   = (char *) malloc(sizeof(char)*10);
+    strMNo   = (char *) malloc(sizeof(char)*10);    
     dbSNoA   = (char *) malloc(sizeof(char)*10);
     dbSNoB   = (char *) malloc(sizeof(char)*10);
+    mysql = SQL_Create();
+    rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+    if( rc != SQLITE_OK )
+	printf( "Open Database error.\n");
+
+
+    mysql->db =mydb;
     for(i=0;i<AN;i++){                        
-       ASN=alarmpar->levelGroup[i].ASN;            
+            ASN=alarmpar->levelGroup[i].ASN;         
             for(j=0;j<ASN;j++){
-               flag=0;
-               resPN=0;
-               flagStut=0;
-               protectFlag = 0;
-               uint32tostring(alarmpar->levelGroup[i].portGroup[j].ASNo,value);
-               printf("SNo=%s\n",value);
-               mysql->filedsValue  =  value;
-               mysql->tableName    = "ProtectGroupTable";
-               mysql->filedsName   = "SNoA";
-               resPN=SQL_findPNo(mysql,resultPNo);               //在配对表中查看是否存在，Status =0 or Status=1
-               mysql->filedsName   =  "Status";
-               if(resPN==1){
-                 mysql->mainKeyValue = resultPNo[0];    //PNo
-                 rc= SQL_lookup(mysql,&result);
-	         if( rc != SQLITE_OK ){
-		   printf( "Lookup SQL error.\n");
-	         }else{
-		   intStatus =atoi(result[0]);
-                  
-                   if((intStatus==1) || (intStatus ==0))flagStut=1;
-                   
-	         } 
-               }
-               if(resPN==1 && flagStut ==1)flag=1;
-               else{
+                   existProtect=0;
+                   resPN=0;
+                   flagStut=0;
+                   checkFlag = 0;
+                   ModType =0;
+                   UseFlag =0;
+                   PortFlag=0;
+                   existPS =0;
+                   ModType =0;
+                             /*查看模块设置和端口占用*/
+		   mysql->tableName ="SubModuleTypeTable";                  //检查子单元模块是否存在
+		   uint32tostring(alarmpar->levelGroup[i].portGroup[j].ASNo,strSNo);
+		   ModuleNo = ((alarmpar->levelGroup[i].portGroup[j].ASNo-1)/8)+1;
+		   uint32tostring(ModuleNo,strMNo);
+		   mysql->mainKeyValue = strMNo;
+		   mysql->filedsName   = "UseFlag";
+		   SQL_lookupPar(mysql,&result,&rednum);
+		   UseFlag=atoi(result[0]); 
+                   SQL_freeResult(&result,&rednum);
+                   if(UseFlag==1){
+			   mysql->mainKeyValue = strMNo;
+			   mysql->filedsName   = "ModuleType";
+			   SQL_lookupPar(mysql,&result,&rednum);
+                           ModType=atoi(result[0]); 
+                           SQL_freeResult(&result,&rednum);
+                   } 
+		   mysql->tableName ="PortOccopyTable";                    //检查子端口是否占用
+		   mysql->mainKeyValue = strSNo;
+		   PortFlag = SQL_existIN_db(mysql);    
+
+		   if(UseFlag!=1)  
+		   {
+		      resp->RespondCode  =14;
+                      if(resp->SNorPN!=TYPE_PNo){
+		          resp->ErrorSN      = 1;                     
+		          resp->SNorPN       = TYPE_SNo;
+		          resp->Group[ErrorSNo].SNo =  alarmpar->levelGroup[i].portGroup[j].ASNo;
+		          resp->Group[ErrorSNo].Main_inform  = "模块未激活";
+			  resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Module\n";
+		          ErrorSNo++;
+                      }                           
+		   }else if(PortFlag!=1)
+		   {
+		      resp->RespondCode  = 14;
+                      if(resp->SNorPN!=TYPE_PNo){
+		          resp->ErrorSN      = 1;                     
+		          resp->SNorPN       = TYPE_SNo;
+		          resp->Group[ErrorSNo].SNo =  alarmpar->levelGroup[i].portGroup[j].ASNo;
+		          resp->Group[ErrorSNo].Main_inform  = "端口未配置";
+			  resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Port\n";
+		          ErrorSNo++;  
+                      }                                                         
+		   }else if(UseFlag==1 && PortFlag==1 ){   
+                       printf("存在模块%d和端口%d: ---，模块类型为：%d  端口类型为:%d \n",ModuleNo,alarmpar->levelGroup[i].portGroup[j].ASNo,ModType,alarmpar->levelGroup[i].portGroup[j].fibreType);
+                       if(ModType==1){        //一般在纤模式 
+ 				checkFlag =0;
+				resp->RespondCode = 14 ;                                               
+				if(resp->SNorPN!=TYPE_PNo){
+					resp->SNorPN              = TYPE_SNo;
+					resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+					resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+					resp->Group[ErrorSNo].Main_inform  = "在纤模式(一般):无法进行障碍告警测试";
+					resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[在纤模式(一般):无法进行障碍告警测试]";
+					ErrorSNo++; 
+				}  
+                       }//end if(ModType=1) 
+
+                       if(ModType==2){        //备纤模式  
+				   mysql->tableName    = "PortOccopyTable";     //端口表中获取当前SNo的fiberType
+				   mysql->filedsName   = "FiberType";
+                         	   mysql->mainKeyValue = strSNo;        
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   fiberType=atoi(result[0])-1;
+				   printf("PortTable SNo=%s,fiberType=%d\n",strSNo,fiberType);
+                                   printf("Segment   SNo=%s,fiberType=%d\n",strSNo,alarmpar->levelGroup[i].portGroup[j].fibreType);
+				   SQL_freeResult(&result,&rednum);
+                                   if(alarmpar->levelGroup[i].portGroup[j].fibreType==0 && fiberType==0) checkFlag=1;
+                                   else if(alarmpar->levelGroup[i].portGroup[j].fibreType==0 && fiberType==1){
+ 						checkFlag =0;
+						resp->RespondCode = 14 ;                                               
+						if(resp->SNorPN!=TYPE_PNo){
+							 resp->SNorPN              = TYPE_SNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "备纤模式:指令为备纤但端口表为在纤";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[备纤模式:指令为备纤但端口表为在纤]";
+							 ErrorSNo++; 
+						}
+                                   }else{
+ 						checkFlag =0;
+						resp->RespondCode = 14 ;                                               
+						if(resp->SNorPN!=TYPE_PNo){
+							 resp->SNorPN              = TYPE_SNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "备纤模式:指令为在纤";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[备纤模式:指令为在纤]";
+							 ErrorSNo++; 
+						}                                          
+                                   }
+                       } //end if(ModType=2) 
+
+                       if(ModType==3){         //保护模式            
+		                               /*查看是否存在配对*/
+			       uint32tostring(alarmpar->levelGroup[i].portGroup[j].ASNo,strSNo);
+			       mysql->tableName    = "ProtectGroupTable";
+			       mysql->filedsValue  =  strSNo;
+			       mysql->filedsName   = "SNoA";
+			       resPN=SQL_findPNo(mysql,resultPNo);                     
+			       if(resPN==1){
+			               mysql->filedsName   = "Status";
+				       mysql->mainKeyValue = resultPNo[0];             
+				       SQL_lookupPar(mysql,&result,&rednum);
+				       intStatus =atoi(result[0]); 
+		                       SQL_freeResult(&result,&rednum);
+				       if((intStatus==1) || (intStatus ==0))existProtect=1;
+                                       else{
+				               existProtect =0;
+					       resp->RespondCode = 14 ;                                                
+					       if(resp->SNorPN!=TYPE_SNo){
+						       resp->SNorPN              = TYPE_PNo;
+						       resp->Group[ErrorSNo].PNo = atoi(resultPNo[0])+1; 
+						       resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+						       resp->Group[ErrorSNo].Main_inform  = "保护模式:未设置配对组";
+						       resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Don't have protect group[保护模式:未设置配对组]";
+						       ErrorSNo++; 
+					       }
+                                       }
+			       }else if(resPN==0){
+		                       mysql->filedsName   = "SNoB";
+				       resPN=SQL_findPNo(mysql,resultPNo);              
+				       if(resPN==1){
+					       mysql->filedsName   =  "Status";
+					       mysql->mainKeyValue = resultPNo[0];     
+					       SQL_lookupPar(mysql,&result,&rednum);
+					       intStatus =atoi(result[0]);	
+					       SQL_freeResult(&result,&rednum);	                     
+					       if((intStatus==1) || (intStatus ==0))existProtect=1;
+		                               else{
+		                                    existProtect =0;
+					            resp->RespondCode = 14 ;                                                
+						    if(resp->SNorPN!=TYPE_SNo){
+							    resp->SNorPN              = TYPE_PNo;
+						            resp->Group[ErrorSNo].PNo = atoi(resultPNo[0])+1; 
+							    resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							    resp->Group[ErrorSNo].Main_inform  = "保护模式:未设置保护组";
+							    resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Don't have protect group[保护模式:未设置保护组]";
+							    ErrorSNo++; 
+						    }
+                                               }		                             
+		                       }else if(resPN==0){
+				                existProtect =0;
+						resp->RespondCode = 14 ;                                                
+						if(resp->SNorPN!=TYPE_SNo){
+							resp->SNorPN              = TYPE_PNo;
+							resp->Group[ErrorSNo].PNo = atoi(resultPNo[0])+1; 
+							resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							resp->Group[ErrorSNo].Main_inform  = "保护模式:未设置保护组";
+							resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Don't have protect group[保护模式:未设置保护组]";
+							ErrorSNo++; 
+		                                }
+		                        }else{
+		                          	resp->SNorPN              = TYPE_PNo;
+						resp->Group[ErrorSNo].PNo = atoi(resultPNo[0])+1; 
+						resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+						resp->Group[ErrorSNo].Main_inform  = "保护模式:该光路存在多个保护组";
+						resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Don't have mutli-group[保护模式:该光路存在多个保护组]";
+						ErrorSNo++;       
+		                       }
+                                }else{
+                                      existProtect =0;
+				      resp->RespondCode = 14 ;                                                
+				      if(resp->SNorPN!=TYPE_SNo){
+					    resp->SNorPN              = TYPE_PNo;
+					    resp->Group[ErrorSNo].PNo = atoi(resultPNo[0])+1; 
+					    resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+					    resp->Group[ErrorSNo].Main_inform  = "保护模式:该光路存在多个保护组";
+					    resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Don't have mutli-group[该光路存在多个保护组]";
+					    ErrorSNo++; 
+				      }
+                                }
+
+		                            /*查看光纤类型是否符合要求*/
+			       if(existProtect==1){
+
+                                   mysql->tableName    = "ProtectGroupTable";
+				   mysql->mainKeyValue = resultPNo[0];    //PNo
+				   mysql->filedsName   = "SNoA";          //配对表中获取 SNoA
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   strcpy(dbSNoA,result[0]);
+				   printf("PNo=%s,SNoA=%s\n",mysql->mainKeyValue,dbSNoA);
+				   SQL_freeResult(&result,&rednum);
+                                      
+                                  
+				   mysql->filedsName   = "SNoB";          //配对表中获取 SNoB
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   strcpy(dbSNoB,result[0]);
+				   printf("PNo=%s,SNoB=%s\n",mysql->mainKeyValue,dbSNoB);
+	
+
+				   mysql->tableName    = "PortOccopyTable";
+				   mysql->filedsName   = "FiberType";
+                                   mysql->mainKeyValue = dbSNoA;         //端口表中获取SNoB的fiberType
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   fiberTypeA=atoi(result[0])-1;
+				   printf("SNo=%s,fiberTypeA=%d\n",dbSNoA,fiberTypeA);
+				   SQL_freeResult(&result,&rednum);
+
+				   mysql->mainKeyValue = dbSNoB;         //端口表中获取SNoB的fiberType
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   fiberTypeB=atoi(result[0])-1;
+				   printf("SNo=%s,fiberTypeB=%d\n",dbSNoB,fiberTypeB);
+				   SQL_freeResult(&result,&rednum);
+
+				   mysql->mainKeyValue = strSNo;         //端口表中获取当前SNo的fiberType
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   fiberType=atoi(result[0])-1;
+				   printf("PortTable SNo=%s,fiberType=%d\n",strSNo,fiberType);
+                                   printf("Segment   SNo=%s,fiberType=%d\n",strSNo,alarmpar->levelGroup[i].portGroup[j].fibreType);
+				   SQL_freeResult(&result,&rednum);
+
+                                   if(fiberType == alarmpar->levelGroup[i].portGroup[j].fibreType){    
+					   if(fiberTypeA==0 && fiberTypeB==1) checkFlag = 1;
+					   else if(fiberTypeA==1 && fiberTypeB==0) checkFlag =1;
+					   else{
+						checkFlag =0;
+						resp->RespondCode = 14 ;                                                
+						if(resp->SNorPN!=TYPE_SNo){
+							 resp->SNorPN              = TYPE_PNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "保护模式:存在配对组但光纤类型相同";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->same fiberType[保护模式:存在配对组但光纤类型相同]";
+							 ErrorSNo++; 
+						}
+					  }
+                                  }else{
+						checkFlag =0;
+						resp->RespondCode = 14 ;                                               
+						if(resp->SNorPN!=TYPE_PNo){
+							 resp->SNorPN              = TYPE_SNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "保护模式:存在配对但与指令中光纤类型不同";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[保护模式:存在配对但与指令中光纤类型不同]";
+							 ErrorSNo++; 
+						}
+                                  }
+                                  printf("checkFlag=%d",checkFlag);
+			       }     
+                       }//end if(ModType=3) 
+
+ 
+                       if(ModType==4){  //带光功率采集的在纤模式
+				   mysql->tableName    = "PortOccopyTable";     //端口表中获取当前SNo的fiberType
+				   mysql->filedsName   = "FiberType";
+                         	   mysql->mainKeyValue = strSNo;        
+				   SQL_lookupPar(mysql,&result,&rednum);
+				   fiberType=atoi(result[0])-1;
+				   printf("PortTable SNo=%s,fiberType=%d\n",strSNo,fiberType);
+                                   printf("Segment   SNo=%s,fiberType=%d\n",strSNo,alarmpar->levelGroup[i].portGroup[j].fibreType);
+				   SQL_freeResult(&result,&rednum);
+                                   if(alarmpar->levelGroup[i].portGroup[j].fibreType==1 && fiberType==1 ) checkFlag=1;
+                                   else if(alarmpar->levelGroup[i].portGroup[j].fibreType==1 && fiberType==0){
+ 						checkFlag =0;
+						resp->RespondCode = 14 ;                                               
+						if(resp->SNorPN!=TYPE_PNo){
+							 resp->SNorPN              = TYPE_SNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "在纤模式（OPM）:指令为在纤但端口表为备纤";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[在纤模式（OPM）:指令为在纤但端口表为备纤]";
+							 ErrorSNo++; 
+						}
+                                   }else{
+ 						checkFlag =0;
+						resp->RespondCode = 14 ;                                               
+						if(resp->SNorPN!=TYPE_PNo){
+							 resp->SNorPN              = TYPE_SNo;
+							 resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
+							 resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+							 resp->Group[ErrorSNo].Main_inform  = "在纤模式（OPM）:指令为备纤";
+							 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[在纤模式（OPM）:指令为备纤]";
+							 ErrorSNo++; 
+						}                                          
+                                   }
                       
-                      mysql->filedsName   = "SNoB";
-                      resPN=SQL_findPNo(mysql,resultPNo);         //在配对表中查看是否存在，Status =0 or Status=1
-                      mysql->filedsName   =  "Status";
-                      if(resPN==1){
-                          mysql->mainKeyValue = resultPNo[0];    //PNo
-                          rc= SQL_lookup(mysql,&result);
-	                  if( rc != SQLITE_OK ){
-		            printf( "Lookup SQL error.\n");
-	                  }else{
-		            intStatus =atoi(result[0]);
-                             
-                           if((intStatus==1) || (intStatus ==0))flagStut=1;
-	                  } 
-                      }
-                     if(resPN==1 && flagStut==1)flag=1;
-               }
+                       }//end if(ModType=4) 
+
+                                          /*检查是否使用优化参数*/
+		       if(alarmpar->levelGroup[i].portGroup[j].PS ==0){
+		       mysql->tableName    = "DefaultTsetSegmentTable";
+		       mysql->mainKeyValue =  strSNo; 
+		       mysql->filedsName   = "SNo";
+		       existPS=SQL_existIN_db(mysql);
+		       if(existPS==0){
+		             resp->RespondCode = 3 ;                                                 // 参数错误
+			     if(resp->SNorPN!=TYPE_PNo){
+					resp->SNorPN      = TYPE_SNo;
+					resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
+					resp->Group[ErrorSNo].Main_inform  = "没有优化测试参数";
+					resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Error SNo [没有优化测试参数]";
+					ErrorSNo++; 
+			     } 
+		         }
+		      }	
 
 
+                     if(ModType==3 && checkFlag==1 ){ saveFlag=1; alarmpar->levelGroup[i].portGroup[j].protectFlag=1;}                        
+                     else if (ModType==2 && checkFlag==1 ) {saveFlag=1;alarmpar->levelGroup[i].portGroup[j].protectFlag=0;}
+                     else if (ModType==4 && checkFlag==1 ) {saveFlag=1;alarmpar->levelGroup[i].portGroup[j].protectFlag=0;}
+                     else saveFlag=0;
+                                          /*数据库存储有效光路*/             
+                     if(saveFlag==1){ 
+                          if(alarmpar->levelGroup[i].portGroup[j].PS ==0 && existPS==1){
+				     strSQL   = (char *) malloc(sizeof(char)*400);
+				     mysql->tableName   = "AlarmTestSegmentTable";   
+				           //SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status
+				     sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d\n"
+				               ,alarmpar->levelGroup[i].portGroup[j].ASNo                               //SNo
+					       ,intCM                                                                   //rtuCM
+					       ,intCLP                                                                  //rtuCLP
+					       ,alarmpar->levelGroup[i].ANo                                             //Level
+					       ,alarmpar->levelGroup[i].portGroup[j].PS                                 //PS
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureLength_m           //P21
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.PulseWidth_ns             //P22
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.Lambda_nm                 //P23
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureTime_ms            //P24
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.n                         //P25
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.NonRelectThreshold        //P26
+				               ,alarmpar->levelGroup[i].portGroup[j].paramter.EndThreshold              //P27
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT01                     //AT01
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT02                     //AT02
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT03                     //AT03
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT04                     //AT04
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT05                     //AT05
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT06                     //AT06
+					       ,alarmpar->levelGroup[i].portGroup[j].IP01                               //IP01
+					       ,alarmpar->levelGroup[i].portGroup[j].IP02                               //IP02
+					       ,alarmpar->levelGroup[i].portGroup[j].IP03                               //IP03
+					       ,alarmpar->levelGroup[i].portGroup[j].IP04                               //IP04
+					       ,alarmpar->levelGroup[i].portGroup[j].IP05                               //IP05
+					       ,alarmpar->levelGroup[i].portGroup[j].IP06                               //IP06
+					       ,alarmpar->levelGroup[i].portGroup[j].T3                                 //T3
+					       ,alarmpar->levelGroup[i].portGroup[j].T4                                 //T4
+				               ,alarmpar->levelGroup[i].portGroup[j].fibreType                          //fiberType
+				               ,alarmpar->levelGroup[i].portGroup[j].protectFlag                        //protectFlag
+				               ,alarmpar->Action                                                        //Status
+				     );
+				     mysql->filedsValue = strSQL;
+				     if(!semaphore_p())  
+				            exit(EXIT_FAILURE);                                //P
+				     rc = SQL_add(mysql);                                         //更新或者插入新的纪录
+				     if( rc != SQLITE_OK ){
+				      printf( "Save SQL error\n");
+				     }else
+				     printf("%s",strSQL);
+				     if(!semaphore_v())                                           //V
+				           exit(EXIT_FAILURE);
+		                     free(strSQL);
+		                     strSQL=NULL;      
+                          }else if( alarmpar->levelGroup[i].portGroup[j].PS ==1){
+				     strSQL   = (char *) malloc(sizeof(char)*400);
+				     mysql->tableName   = "AlarmTestSegmentTable";   
+				           //SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status
+				     sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,'%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d\n"
+				               ,alarmpar->levelGroup[i].portGroup[j].ASNo                               //SNo
+					       ,intCM                                                                   //rtuCM
+					       ,intCLP                                                                  //rtuCLP
+					       ,alarmpar->levelGroup[i].ANo                                             //Level
+					       ,alarmpar->levelGroup[i].portGroup[j].PS                                 //PS
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureLength_m           //P21
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.PulseWidth_ns             //P22
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.Lambda_nm                 //P23
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.MeasureTime_ms            //P24
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.n                         //P25
+					       ,alarmpar->levelGroup[i].portGroup[j].paramter.NonRelectThreshold        //P26
+				               ,alarmpar->levelGroup[i].portGroup[j].paramter.EndThreshold              //P27
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT01                     //AT01
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT02                     //AT02
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT03                     //AT03
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT04                     //AT04
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT05                     //AT05
+					       ,alarmpar->levelGroup[i].portGroup[j].alarmGate.AT06                     //AT06
+					       ,alarmpar->levelGroup[i].portGroup[j].IP01                               //IP01
+					       ,alarmpar->levelGroup[i].portGroup[j].IP02                               //IP02
+					       ,alarmpar->levelGroup[i].portGroup[j].IP03                               //IP03
+					       ,alarmpar->levelGroup[i].portGroup[j].IP04                               //IP04
+					       ,alarmpar->levelGroup[i].portGroup[j].IP05                               //IP05
+					       ,alarmpar->levelGroup[i].portGroup[j].IP06                               //IP06
+					       ,alarmpar->levelGroup[i].portGroup[j].T3                                 //T3
+					       ,alarmpar->levelGroup[i].portGroup[j].T4                                 //T4
+				               ,alarmpar->levelGroup[i].portGroup[j].fibreType                          //fiberType
+				               ,alarmpar->levelGroup[i].portGroup[j].protectFlag                        //protectFlag
+				               ,alarmpar->Action                                                        //Status
+				     );
+				     mysql->filedsValue = strSQL;
+				     if(!semaphore_p())  
+				            exit(EXIT_FAILURE);                                //P
+				     rc = SQL_add(mysql);                                         //更新或者插入新的纪录
+				     if( rc != SQLITE_OK ){
+				      printf( "Save SQL error\n");
+				     }else
+				     printf("%s",strSQL);
+				     if(!semaphore_v())                                           //V
+				           exit(EXIT_FAILURE);
+		                     free(strSQL);
+		                     strSQL=NULL;
+                           }    
+                       }//end if (ModType=3)
+                }//end if (UseFlag && portFlag)
+            }//end for
+          
+    }  //end for
 
-               if(flag==1){
-                   mysql->mainKeyValue = resultPNo[0];    //PNo
-                   mysql->filedsName   = "SNoA";          //配对表中获取 SNoA
-                   rc= SQL_lookup(mysql,&result);
-	           if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: SNoA\n");
-                   }else{
-		      dbSNoA=result[0];
-                      printf("PNo=%s,SNoA=%s\n",mysql->mainKeyValue,dbSNoA);
-	           }
-
-                   mysql->filedsName   = "SNoB";          //配对表中获取 SNoB
-                   rc= SQL_lookup(mysql,&result);
-	           if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: SNoB\n");
-                   }else{
-		      dbSNoB=result[0];
-                      printf("PNo=%s,SNoB=%s\n",mysql->mainKeyValue,dbSNoB);
-	           }
-
-                   mysql->tableName    = "AlarmTestSegmentTable";
-                   mysql->filedsName   = "fiberType";
-
-                   mysql->mainKeyValue = dbSNoA;         //参数表中获取SNoA的fiberType
-                   rc= SQL_lookup(mysql,&result);
-	           if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: fiberType\n");
-                   }else{
-		      fiberTypeA=atoi(result[0]);
-                      printf("SNo=%s,fiberTypeA=%d\n",dbSNoA,fiberTypeA);
-	           }
-
-                   mysql->mainKeyValue = dbSNoB;        //参数表中获取SNoB的fiberType
-                   rc= SQL_lookup(mysql,&result);
-	           if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: fiberType\n");
-                   }else{
-		      fiberTypeB=atoi(result[0]);
-                      printf("SNo=%s,fiberTypeB=%d\n",dbSNoB,fiberTypeB);
-	           }
-
-                  if(fiberTypeA==0 && fiberTypeB==1) protectFlag = 1;
-                  else if(fiberTypeA==1 && fiberTypeB==0) protectFlag =1;
-                  else{
-                       protectFlag =0;
-                       resp->RespondCode = 14 ;                                                         // 参数错误
-                       if(resp->SNorPN!=TYPE_SNo){
-                         resp->SNorPN      = TYPE_PNo;
-                         resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
-		         resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
-                         resp->Group[ErrorSNo].Main_inform  = "[存在配对组 但 光纤类型相同]";
-                         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->same fiberType[存在配对组 但 光纤类型相同]";
-                         ErrorSNo++; 
-                       }
-                  }
-               }else{
-
-                    if(alarmpar->levelGroup[i].portGroup[j].fibreType ==1){
-		       resp->RespondCode = 14 ;                                                 // 参数错误
-                       if(resp->SNorPN!=TYPE_PNo){
-		         resp->SNorPN      = TYPE_SNo;
-		         resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
-                         resp->Group[ErrorSNo].Main_inform  = "[不存在配对组 但 光纤类型为在纤]";
-		         resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->Error SNo [不存在配对组 但 光纤类型为在纤]";
-		         ErrorSNo++; 
-                       }
-                    }  
-                                    
-               }
-                                
-               mysql->tableName    = "AlarmTestSegmentTable";
-               mysql->mainKeyValue =  value;  
-               if(!semaphore_p())  
-                  exit(EXIT_FAILURE);                                  //P                 
-               if(protectFlag ==1 && flag ==1){ 
-
-                 mysql->filedsName   =  "protectFlag";
-                 mysql->filedsValue  =  "1";                           // 更新光路状态为“1”   
-                 rc=SQL_modify(mysql);
-                 if( rc != SQLITE_OK )
-	            printf( "Modify SQL error\n");
-               }else if(protectFlag ==0 && flag ==1){ 
-                 rc=SQL_delete(mysql);
-                 if( rc != SQLITE_OK )
-	            printf( "Modify SQL error\n");
-               }else if(flag ==0 && alarmpar->levelGroup[i].portGroup[j].fibreType ==1){ 
-             
-                 rc=SQL_delete(mysql);
-                 if( rc != SQLITE_OK )
-	            printf( "Modify SQL error\n");
-               }
-               if(!semaphore_v())                                      //V
-                 exit(EXIT_FAILURE);  
-  
-            }
-    }
-    free(strSQL);
-    free(value);
-    Alarm_Destory(alarmpar);
-    SQL_Destory(mysql);  
-    sqlite3_close(mydb);
-    if(resp->RespondCode != 0 ){
+     if(resp->RespondCode != 0 ){
 	resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
+        free(strSNo);
+        free(strMNo);
+        free(dbSNoB);
+        free(dbSNoA);
+        SQL_Destory(mysql);  
+        sqlite3_close(mydb);
+        Alarm_Destory(alarmpar);
+        return resp;
      }
-   printf("There  4\n");
+  
+     free(strSNo);
+     free(strMNo);
+     free(dbSNoB);
+     free(dbSNoA);
+     SQL_Destory(mysql);  
+     sqlite3_close(mydb);
+     Alarm_Destory(alarmpar);
 /***************************向障碍告警测试守护进程发送启动障碍告警测试信号***************************
 (1)向障碍告警测试守护进程发送加入新节点信号   
 (2)注意一定要将发送程序和接收程序划到一个用户组，并且都具有root权限，否则信号发射会失败
@@ -457,66 +691,77 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
        int signum;
        union sigval mysigval;
        char* process;  
-       int ret = 0;  
-       int n;  
+       int retProcess = 0;  
        pid_t cycPID[MAX_PID_NUM];  
       
        process ="/web/cgi-bin/alarmMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-       mysigval.sival_int = 130;                               //设置信号的附加信息 (启动障碍告警测试)                               
-       for(n=0;n<ret;n++){  
-       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
-       if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
-      }  
-/***************************等待启动障碍告警测试成功信号**************************************/
+       retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+       if(retProcess>0){
+	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
+	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 130;                               //设置信号的附加信息 (启动障碍告警测试)                               
+	       for(n=0;n<retProcess;n++){  
+	       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
+	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
+	      }  
+	           /*等待启动障碍告警测试成功信号*/
 
-    char * recvStr;  
-    recvStr = (char *) malloc (sizeof (char)*10);
-    recvStr = recvMessageQueue_C();
-    if(strncmp(recvStr, "130-OK", 6) == 0)                     //遇"130-OK"结束
-       printf("Set Alarmtest sucessful!\n");
-    else
-       printf("Set Alarmtest failed!:%s\n",recvStr);
-       free(recvStr);
-   }  
+	    char * recvStr;  
+	    recvStr = (char *) malloc (sizeof (char)*10);
+	    recvStr = recvMessageQueue_C();
+	    if(strncmp(recvStr, "130-OK", 6) == 0)                     //遇"130-OK"结束
+	            printf("Set Alarmtest sucessful!\n");
+	    else{
+                    printf("SetCycleSegment failed!\n");
+		    resp->RespondCode=3;
+		    resp->Group[0].Main_inform  = "障碍告警测试设置失败-->未收到回复消息";
+		    resp->Group[0].Error_inform = "Error:Don't get back massgae![障碍告警测试设置失败-->未收到回复消息]";
+		    return resp;   
+            }
+	       free(recvStr);
+	   
+      }else{
+	      resp->RespondCode=3;
+	      resp->Group[0].Main_inform  = "障碍告警测试设置失败-->未找到后台进程";
+	      resp->Group[0].Error_inform = "Error:Don't have back process![障碍告警测试设置失败-->未找到后台进程]";
+	      return resp; 
+      }
+ }
    return resp;
+
 }
-
-
 
 
 responed *  setAlarmInformation(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode){
 
    mxml_node_t    *CM,*AI,*perCMDcode;
-   alarminfom *alarm_param;
+   alarminfom *alarmPar;
    responed *resp; 
    int intCM;
   
-   alarm_param = AlarmInfo_Create();   
-   resp   = Responed_Create();
+   alarmPar = AlarmInfo_Create();   
+   resp     = Responed_Create();
    resp->RespondCode=0;  
       
    perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
-      if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            resp->RespondCode=-1;
-            return resp;   
-       }
-      else{
+   if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
+            resp->RespondCode=3;
+	    resp->Group[0].Main_inform  = "指令号错误";
+	    resp->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
+            return resp;    
+   }
+   else{
 /**************************解析XML消息***************************************/
 	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
-	    alarm_param->CM = strtoul (CM->child->value.text.string, NULL, 0); 	
+	    alarmPar->CM = strtoul (CM->child->value.text.string, NULL, 0); 	
 	    AI = mxmlFindElement(cmd, tree, "AI",NULL, NULL,MXML_DESCEND);
-	    alarm_param->AI = strtoul (AI->child->value.text.string, NULL, 0); 	  
+	    alarmPar->AI = strtoul (AI->child->value.text.string, NULL, 0); 	  
             printf("------setAlarm------\n");    
-            printf("CM=%d\n",alarm_param->CM); 
-            printf("AI=%d\n",alarm_param->AI);  
-       }  
-   AlarmInfo_Destory(alarm_param);
+            printf("CM=%d\n",alarmPar->CM); 
+            printf("AI=%d\n",alarmPar->AI);  
+   }  
+   AlarmInfo_Destory(alarmPar);
    return resp;
 
 }
@@ -524,7 +769,7 @@ responed *  setAlarmInformation(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode){
 
 responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)        //230
 {
-   mxml_node_t  *SN,*CM,*CLP,*FX,*perCMDcode;
+   mxml_node_t  *SN=NULL,*CM=NULL,*CLP=NULL,*FX=NULL,*perCMDcode=NULL;
    responed *resp; 
    int rtuCM,rtuCLP,intSN,i,uint_a;
    char strFX[3]="Fx";
@@ -536,9 +781,9 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
       
    perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            resp->RespondCode=-1;
+            resp->RespondCode=3;
+	    resp->Group[0].Main_inform  = "指令号错误";
+	    resp->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
             return resp;  
        }
       else{
@@ -563,34 +808,29 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 
 /*****************************修改光路状态********************************************/
 
- sqlite3 *mydb;
- char *zErrMsg = 0;
- int rc,flag=-1;
- int intStatus,ErrorSNo=0;
- sql *mysql;
- char **result;char *value;
- value = (char *) malloc(sizeof(char)*10);
+ sqlite3 *mydb=NULL;
+ sql     *mysql=NULL;
+ int rc=0,rednum=0,existFlag=-1;
+ int ErrorSNo=0;
+ char **result=NULL,*strSNo=NULL;
+
+ strSNo = (char *) malloc(sizeof(char)*10);
  mysql = SQL_Create();
  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
- if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error: %s\n", zErrMsg);
-	      sqlite3_free(zErrMsg);
-	   }
+ if( rc != SQLITE_OK )
+	      printf( "Open Database error.\n");
  mysql->db =mydb;
- mysql->tableName   = "AlarmTestSegmentTable"; 
- mysql->filedsName   =  "Status";
+
  for(i=0;i<intSN;i++)
-   {
-         uint32tostring(alarmEndpar->Group[i].SNo,value);
-	 mysql->mainKeyValue = value;  
-         flag=SQL_existIN_db(mysql);
-         rc= SQL_lookup(mysql,&result);
-         if( rc != SQLITE_OK ){
-	      printf( "Lookup SQL error.\n");
-	 }else{
-	      intStatus =atoi(result[0]);
-	 }
-        if((flag==1) && (intStatus==1)){
+ {
+         uint32tostring(alarmEndpar->Group[i].SNo,strSNo);
+	 mysql->tableName    =  "AlarmTestSegmentTable"; 
+	 mysql->filedsName   =  "Status";
+	 mysql->mainKeyValue = strSNo;  
+         existFlag=SQL_existIN_db(mysql);
+
+
+        if(existFlag==1){
             mysql->filedsValue  =  "-2";                            // 更新光路状态为“-2”   
             if(!semaphore_p())  
                 exit(EXIT_FAILURE);                                 //P
@@ -598,20 +838,18 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
             if( rc != SQLITE_OK ){
 	       printf( "Modify SQL error\n");
 	     }
-             if(!semaphore_v())                                     //V
+            if(!semaphore_v())                                     //V
                exit(EXIT_FAILURE);
         }else{
              resp->RespondCode = 14 ;                                                         // 参数错误
              resp->SNorPN      = TYPE_SNo;
              resp->Group[ErrorSNo].SNo = alarmEndpar->Group[i].SNo;
-             if(intStatus!=1)
-                resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->ready Cancel [Status!=1]\n";
-             if(flag!=1)
+             if(existFlag!=1)
                 resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->lack of SNo\n";
-              ErrorSNo++;  
+             ErrorSNo++;  
         }
-   }
-    free(value);
+ }
+    free(strSNo);
     SQL_Destory(mysql);  
     sqlite3_close(mydb);
 
@@ -624,38 +862,45 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 (3)程可以通过sigqueue函数向包括它本身在内的其他进程发送一个信号，如果程序没有发送这个信号的权限，对sigqueue函数的调用就将失败，而失败的常见原因是目标进程由另一个用户所拥有
 (4)现阶段使用的是不可靠信号,不支持排队，信号可能丢失。
 ***********************************************************************/
-       int   signum;
+       int signum;
        union sigval mysigval;
        char* process;  
-       int ret = 0;  
-       int n;  
+       int retProcess = 0,n=0;  
        pid_t cycPID[MAX_PID_NUM];  
       
        process ="/web/cgi-bin/alarmMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改或取消周期测试链表节点值
-       mysigval.sival_int = 230;                               //设置信号的附加信息 (取消周期测试)                               
-       for(n=0;n<ret;n++){  
-        printf("alarmPID:%u\n", cycPID[n]);                    //获取障碍告警测试进程PID
-        if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
-      }  
-/*************************等待取消成功********************************/
-       char * recvStr;
-       recvStr = (char *) malloc (sizeof (char)*10);
-       recvStr = recvMessageQueue_C();
-       if(strncmp(recvStr, "230-OK", 6) == 0){                 //遇"230-OK"结束
-           printf("Cancel alarmtest sucessful!\n");
-           }
-           else{
-                printf("Cancel alarmtest failed!\n");
-               }
-
-       free(recvStr);
-
-
-/*******************************************************************/
+       retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+       if(retProcess>0){
+	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
+	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 230;                               //设置信号的附加信息 (启动障碍告警测试)                               
+	       for(n=0;n<retProcess;n++){  
+	       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
+	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
+	      }  
+	           /*等待启动障碍告警测试成功信号*/
+	    char * recvStr;  
+	    recvStr = (char *) malloc (sizeof (char)*10);
+	    recvStr = recvMessageQueue_C();
+	    if(strncmp(recvStr, "230-OK", 6) == 0)                     //遇"130-OK"结束
+	       printf("Set Alarmtest sucessful!\n");
+	    else{
+                    printf("SetCycleSegment failed!\n");
+		    resp->RespondCode=3;
+		    resp->Group[0].Main_inform  = "障碍告警测试取消失败-->未收到回复消息";
+		    resp->Group[0].Error_inform = "Error:Don't get back massgae![障碍告警测试取消失败-->未收到回复消息]";
+	            free(recvStr);
+		    return resp;  
+            }
+	       free(recvStr);
+	   
+      }else{
+	      resp->RespondCode=3;
+	      resp->Group[0].Main_inform  = "障碍告警测试取消失败-->未找到后台进程";
+	      resp->Group[0].Error_inform = "Error:Don't have back process![障碍告警测试取消失败-->未找到后台进程]";
+	      return resp;  
+      }
    endAlarm_Destory(alarmEndpar);
    return resp;
 }
@@ -664,28 +909,28 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 responed * endAlarmInfo(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
    mxml_node_t    *CM,*AI,*perCMDcode;
-   alarminfom *alarm_param;
+   alarminfom *alarmPar;
    responed *resp; 
    int intCM;
   
-   alarm_param = AlarmInfo_Create();   
+   alarmPar = AlarmInfo_Create();   
    resp   = Responed_Create();
    resp->RespondCode=0;        
    perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
       if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
-            printf("<RespondCode>3</RespondCode>\n");
-	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
-            resp->RespondCode=-1;
-            return resp;      
+            resp->RespondCode=3;
+	    resp->Group[0].Main_inform  = "指令号错误";
+	    resp->Group[0].Error_inform = "Error:CMDcode Error[指令号错误]";
+            return resp;        
        }
       else{
 /**************************解析XML消息******************************/
 	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
-	    alarm_param->CM = strtoul (CM->child->value.text.string, NULL, 0); 	
+	    alarmPar->CM = strtoul (CM->child->value.text.string, NULL, 0); 	
             printf("------cancelAlarm------\n");
-            printf("CM=%d\n",alarm_param->CM); 
+            printf("CM=%d\n",alarmPar->CM); 
        }  
-   AlarmInfo_Destory(alarm_param);
+   AlarmInfo_Destory(alarmPar);
    return resp;
 }
 

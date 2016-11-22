@@ -21,8 +21,18 @@ void main(void)
     upload(SNo,CM,testPar,3);
 }
 **************************/
+backData * backData_Create()
+{
+	backData * me = (backData *) malloc(sizeof(backData));
+    return me;
+}
+void backData_Destory(backData *me)
+{
+	free(me);	
+}
 
-int upload(int SNo,int CM,otdr *Par,int type)  
+
+int upload(backData *bData,int SNo,int CM,int type)
 {  
    CURL *curl=NULL;  
    CURLM *multi_handle=NULL; 
@@ -31,17 +41,23 @@ int upload(int SNo,int CM,otdr *Par,int type)
    struct curl_httppost *formpost=NULL;  
    struct curl_httppost *lastptr=NULL;  
    struct curl_slist    *headerlist=NULL; 
-
+   char *backIP=NULL;
    switch(type)
      {
-	   case 1: XMLgenerOpticPowerWarming(RTUSENDFILE,SNo,CM,Par,type);break;
+	   case 1: 
+                 {
+                   XMLgenerOpticPowerWarming(RTUSENDFILE,bData->powerValue,bData->powerGate,bData->level,SNo,CM,type);break;
+                 }
 	   case 2: 
-           case 3: XMLgenerNewOTDRData(RTUSENDFILE,SNo,CM,Par,type);break;
-         //case 3: XMLgenerOpticPowerWarming(RTUSENDFILE,"OpticPowerWarming");break;
-         //case 4: XMLgenerStartCableProtection(RTUSENDFILE,"StartCableProtection");break;
+           case 3:
+                 {   
+                   XMLgenerNewOTDRData(RTUSENDFILE,bData->otdrPar,SNo,CM,type);break;
+                 }
 
 	   default: {printf("Input segment fault!\n");return -1;}break;
      }
+
+   backIP=setBackAddr(bData->backIP);
 
    curl_formadd(&formpost,  
                 &lastptr,  
@@ -59,7 +75,7 @@ int upload(int SNo,int CM,otdr *Par,int type)
     //headerlist = curl_slist_append(headerlist, "Content-type:text/xml"); 
     headerlist = curl_slist_append(headerlist, "Expect:");
     if(curl && multi_handle) {     
-    curl_easy_setopt(curl, CURLOPT_URL, TOMCAT_SERVER);                         // what URL that receives this POST
+    curl_easy_setopt(curl, CURLOPT_URL, backIP);                         // what URL that receives this POST
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,write_data); 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER,   headerlist);  
     curl_easy_setopt(curl, CURLOPT_HTTPPOST,     formpost);  
@@ -107,7 +123,8 @@ int upload(int SNo,int CM,otdr *Par,int type)
         multi_handle=NULL;
         curl=NULL;
   }  
-  printf("XML_Send Sucessful URL:%s\n",TOMCAT_SERVER);
+  printf("XML_Send Sucessful URL:%s\n",backIP);
+  free(backIP);
   return 0;  
 
 } 
@@ -119,33 +136,18 @@ size_t write_data(void* buffer,size_t size,size_t nmemb,void *stream)
 	    return size*nmemb;  
 	} 
 
-int XMLgenerLineFaultWarming(char * filename,int type)
+char * setBackAddr(char * backIP)
 {
-    FILE * fd;
-    char * sumStr;
-    sumStr  =(char *)malloc(sizeof(char)*1024*8);
-    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
-    strcat(sumStr,"<AsynPush>\n");
-    strcat(sumStr,"<LineFaultWarming>\n");
-    strcat(sumStr,"	<CMDcode>521</CMDcode>\n");
-    strcat(sumStr,"	<R></R >\n");
-    strcat(sumStr,"	<CM>3</CM>\n");
-    strcat(sumStr,"	<CLP>2</CLP>\n");
-    strcat(sumStr,"	<WarmingLevel>1</WarmingLevel>\n");
-    strcat(sumStr,"</LineFaultWarming >\n");
-    strcat(sumStr,"</AsynPush>\n");    
-    if ((fd = fopen(filename,"w")) == NULL)  
-    {  
-        fprintf(stderr,"fopen file error:%s\n",filename);  
-        return -1;  
-    } 
-    fwrite(sumStr,strlen(sumStr),1,fd);    
-    fclose(fd);
-    free(sumStr); 
-    return 0; 
+     char *backAddr=NULL;
+     backAddr=(char *)malloc(sizeof(char)* 100);
+     *backAddr ='\0';
+     strcat(backAddr,"http://");
+     strcat(backAddr,backIP);
+     strcat(backAddr,":8080/fiberMonitor/TomCat");
+     return backAddr;
 }
 
-int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type)
+int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,int level,int SNo,int CM,int type)
 {
     FILE * fd;
     char str[100];
@@ -159,12 +161,15 @@ int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type
     strcat(sumStr,"	<R></R >\n");
     sprintf(str,"%d",CM);
     strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
-    strcat(sumStr,"	<CLP>2</CLP>\n");
+    strcat(sumStr,"	<CLP>*</CLP>\n");
     sprintf(str,"%d",SNo);
     strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
-    strcat(sumStr,"	<WarmingLevel>2</WarmingLevel>\n");
-    strcat(sumStr,"	<Gate>-30</Gate>\n");
-    strcat(sumStr,"	<PowerValue>-33.23</PowerValue>\n");
+    sprintf(str,"%d",level);
+    strcat(sumStr,"	<WarmingLevel>"); strcat(sumStr,str);strcat(sumStr,"</WarmingLevel>\n");
+    sprintf(str,"%f",powerGate);
+    strcat(sumStr,"	<Gate>"); strcat(sumStr,str);strcat(sumStr,"</Gate>\n");
+    sprintf(str,"%f",powerValue);
+    strcat(sumStr,"	<PowerValue>"); strcat(sumStr,str);strcat(sumStr,"</PowerValue>\n");
     strcat(sumStr,"</OpticPowerWarming>\n");
     strcat(sumStr,"</AsynPush>\n");    
     if ((fd = fopen(filename,"w")) == NULL)  
@@ -179,7 +184,7 @@ int XMLgenerOpticPowerWarming (char * filename,int SNo,int CM,otdr *Par,int type
 }
 
 
-int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
+int XMLgenerNewOTDRData (char * filename,otdr *Par,int SNo,int CM,int type)
 {
     char    *sumStr;
     sumStr  =(char *)malloc(sizeof(char)*1024*100);
@@ -217,7 +222,7 @@ int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
 	    strcat(sumStr,"	<R>*</R>\n");
 	    sprintf(str,"%d",CM);
 	    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
-	    strcat(sumStr,"	<CLP>2</CLP>\n");
+	    strcat(sumStr,"	<CLP>*</CLP>\n");
 	    sprintf(str,"%d",SNo);
 	    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
 	    strcat(sumStr,"	<Type>1</Type>\n");
@@ -254,7 +259,7 @@ int XMLgenerNewOTDRData (char * filename,int SNo,int CM,otdr *Par,int type)
 	    strcat(sumStr,"	<R>*</R>\n");
 	    sprintf(str,"%d",CM);
 	    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
-	    strcat(sumStr,"	<CLP>2</CLP>\n");
+	    strcat(sumStr,"	<CLP>*</CLP>\n");
 	    sprintf(str,"%d",SNo);
 	    strcat(sumStr,"	<SNo>"); strcat(sumStr,str);strcat(sumStr,"</SNo>\n");
 	    strcat(sumStr,"	<Type>2</Type>\n");
