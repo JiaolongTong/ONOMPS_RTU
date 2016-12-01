@@ -26,6 +26,8 @@ typedef struct rtuInform
 responed * setReferenceTime(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);
 responed * requestReferenceTime(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);
 
+responed * requestRebootRTU(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);
+
 responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);
 responed * requestNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode);
 

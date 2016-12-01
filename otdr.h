@@ -8,6 +8,8 @@
 #define OTDR_IP           "192.168.1.180"
 typedef struct otdr otdr;
 struct otdr {
+        int      haveParm;                        //是否存在测试参数
+        pid_t    masterPID;                       //下发测试任务的控制程序PID
 	/***测试参数****/
 	uint32_t MeasureLength_m;                 // 测量长度，单位 m
 	uint32_t PulseWidth_ns;                   // 光脉冲宽度，单位 ns
@@ -23,8 +25,7 @@ struct otdr {
         float    AT03;
         float    AT04;
         float    AT05;
-        float    AT06;
-    
+        float    AT06;    
 };
 
 /*********构造和析构函数************/

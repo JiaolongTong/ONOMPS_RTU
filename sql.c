@@ -39,7 +39,7 @@ char * getFieldsName(sql *const me)
 {
 	char * out;
         if(0==strcmp(me->tableName,"NamedTestSegmentTable"))
-             return  out = "(SNo,PS,P11,P12,P13,P14,P15,P16,P17)";
+             return  out = "(SNo,PS,P11,P12,P13,P14,P15,P16,P17,masterPID)";
 	if(0==strcmp(me->tableName,"DefaultTsetSegmentTable"))
              return  out = "(SNo,rtuCM,rtuCLP,rtuSN,P01,P02,P03,P04,P05,P06,P07)";
 	if(0==strcmp(me->tableName,"CycleTestSegnemtTable"))
@@ -378,7 +378,7 @@ int  SQL_delete(sql * const me)
       char sql_s[1024];  
       char *mainKeyName = getMainKeyname(me);
 
-        sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,me->mainKeyValue);
+      sprintf(sql_s,"DELETE from %s where %s=%s;",me->tableName,mainKeyName,me->mainKeyValue);
       rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
       if( rc != SQLITE_OK ){
 	printf("SQL delete: %s\n", zErrMsg); 
@@ -390,20 +390,45 @@ int  SQL_delete(sql * const me)
 
 int SQL_clearTable(sql *const me)
 {
+
     char * zErrMsg=0;
     int rc;
     char sql_s[1024]; 
     sprintf(sql_s,"DELETE from %s;",me->tableName);
-    
-     rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
-     if( rc != SQLITE_OK ){
+    rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
+    if( rc != SQLITE_OK ){
 		 printf("SQL clear: %s\n", zErrMsg); 
 		 sqlite3_free(zErrMsg);
 		 return rc;
-	    }  
+    }
+    return rc;
+  
 }
 
 
+/*
+
+*/
+int deleteSNoRecord(char * tableName,int mainKeyValue, int masterPID)
+{
+     char * zErrMsg=NULL;
+     int rc=0;
+     char sql_s[1024]; 
+     sprintf(sql_s,"DELETE from %s where SNo=%d and masterPID=%d;",SNo,masterPID);
+     sqlite3 *mydb=NULL;
+     rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+     if( rc != SQLITE_OK ){
+	      printf( "OPEN SQL error \n");
+     }
+     rc= sqlite3_exec(mydb, sql_s, NULL, 0, &zErrMsg);
+     if( rc != SQLITE_OK ){
+		 printf("SQL delete by two information: %s\n", zErrMsg); 
+		 sqlite3_free(zErrMsg);
+		 return rc;
+     }  
+     sqlite3_close(mydb);
+     return rc;
+}
 /*修改某个字段值
 SQL语句:UPDATE CycleTestSegnemtTable set Status=1 where SNo=1;
 需要设置的结构体成员:  

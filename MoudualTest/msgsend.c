@@ -12,7 +12,7 @@
         char text[MAX_TEXT];  
     };  
       
-    int main()  
+    int main(int argc,char **argv)  
     {  
         int running = 1;  
         struct msg_st data;  
@@ -20,7 +20,7 @@
         int msgid = -1;  
       
         //建立消息队列  
-        msgid = msgget((key_t)444, 0666 | IPC_CREAT);  
+        msgid = msgget((key_t)444, 4777 | IPC_CREAT);  
         if(msgid == -1)  
         {  
             fprintf(stderr, "msgget failed with error: %d\n", errno);  
@@ -33,7 +33,7 @@
             //输入数据  
             printf("Enter some text: ");  
             fgets(buffer, BUFSIZ, stdin);  
-            data.msg_type = 1;    //注意2  
+            data.msg_type = atoi(argv[1]);    //发送给特定类型的接收程序
             strcpy(data.text, buffer);  
             //向队列发送数据  
             if(msgsnd(msgid, (void*)&data, MAX_TEXT, 0) == -1)  

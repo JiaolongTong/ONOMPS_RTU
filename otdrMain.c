@@ -21,7 +21,8 @@ struct otdrNode{
         int    CM ;                                 
         int    type;                                	                                                                                       
         time_t creat_time;  
-        char   *backIP;                        
+        char   *backIP;
+        pid_t  masterPID;                        
 	struct otdrNode *next;
 };
 
@@ -72,6 +73,7 @@ otdrNode *link_creat()
         p1->type =0;
         p1->creat_time =0;
         p1->backIP = NULL;
+        p1->masterPID=getpid();
 	head = insert(head,p1);
         
 	return(head);
@@ -166,6 +168,7 @@ otdrNode * outFirstnode(otdrNode *head)
         p0->type          = head->type;
         p0->creat_time    = head->creat_time;
         p0->backIP        = head->backIP;
+        p0->masterPID     = head->masterPID;
 	return(p0);
 }
 /***遍历链表***/
@@ -180,7 +183,7 @@ void outPutALL(otdrNode *head){
 	else
 		printf("There are %d tests on working line.\n",n);
 	while(p!=NULL){
-		printf("SNo:%d,type:%d,CM:%d,creat_time:%ld backIP:%s\n",p->SNo,p->type,p->CM,p->creat_time,p->backIP);
+		printf("SNo:%d,type:%d,CM:%d,creat_time:%ld backIP:%s masterPID=%d\n",p->SNo,p->type,p->CM,p->creat_time,p->backIP,p->masterPID);
 		p=p->next;
 	}
 }
@@ -248,13 +251,31 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入�
                  strcpy(IP,result[0]);
                  SQL_freeResult(&result,&rednum);          
                  node->backIP =IP;
-                 
+                 node->masterPID=getpid();
 		 SQL_Destory(mysql);  
 		 sqlite3_close(mydb); 
 
          }else{
-            node->CM  =0;
-            node->backIP=NULL;
+		 mysql = SQL_Create();
+		 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+		 if( rc != SQLITE_OK ){
+			      printf( "Lookup SQL error\n");
+                              return ;
+		}
+
+		 mysql->db = mydb;
+		 mysql->tableName        = "NamedTestSegmentTable";
+		 mysql->mainKeyValue     = SNo;   
+		 mysql->filedsName       = "masterPID"; 
+		 SQL_lookupPar(mysql,&result,&rednum);
+		 node->masterPID =atoi(result[0]);
+                 SQL_freeResult(&result,&rednum);               
+                 
+		 SQL_Destory(mysql);  
+		 sqlite3_close(mydb); 
+            
+                 node->CM  =0;
+                 node->backIP=NULL;
          }
 
 
@@ -299,10 +320,11 @@ void main(void)
         int intCM=0;
         int type=0;
         int otdrSWFlag=-1;
+        pid_t masterPID;
         otdr * testPar=NULL;
         modbus_t * mb=NULL ;
         backData *bData=NULL; 
-  
+        char *SMQstr=NULL;
         sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
         modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
          if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
@@ -342,56 +364,68 @@ void main(void)
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
                    type    = p1->type;
-                   
+                   masterPID = p1->masterPID;
             
-		   testPar = lookupParm(SNo,type);                      
-	           printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
-	           printf("SNo-uint -[%d]\n",SNo);
-	           printf("P01-uint -[%d]\n",testPar->MeasureLength_m);
-	           printf("P02-uint -[%d]\n",testPar->PulseWidth_ns);
-		   printf("P03-uint -[%d]\n",testPar->Lambda_nm);
-		   printf("P04-uint -[%d]\n",testPar->MeasureTime_ms);
-		   printf("P05-float-[%f]\n",testPar->n);
-		   printf("P06-float-[%f]\n",testPar->NonRelectThreshold);
-		   printf("P07-float-[%f]\n",testPar->EndThreshold);	
+		   testPar = lookupParm(SNo,type); 
+                   if(testPar->haveParm == 1){                     
+			   printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
+			   printf("SNo      -uint -[%d]\n",SNo);
+			   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
+			   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
+			   printf("P03      -uint -[%d]\n",testPar->Lambda_nm);
+			   printf("P04      -uint -[%d]\n",testPar->MeasureTime_ms);
+			   printf("P05      -float-[%f]\n",testPar->n);
+			   printf("P06      -float-[%f]\n",testPar->NonRelectThreshold);
+			   printf("P07      -float-[%f]\n",testPar->EndThreshold);
+                           printf("masterPID-short-[%d]\n",masterPID);	
 
-                 
-                   if(!setModbus_P())                                                //P
-                         exit(EXIT_FAILURE); 
-                     usleep(50000); 
-                     otdrSWFlag=-1;
-                     mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
-                     otdrSWFlag = doOtdrSwitch(mb,SNo);    
-                     freeModbus(mb);  
-                     usleep(50000);            
-                   if(!setModbus_V())                                                //V
-                         exit(EXIT_FAILURE); 
+		         
+		           if(!setModbus_P())                                                //P
+		                 exit(EXIT_FAILURE); 
+		             usleep(50000); 
+		             otdrSWFlag=-1;
+		             mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+		             otdrSWFlag = doOtdrSwitch(mb,SNo);    
+		             freeModbus(mb);  
+		             usleep(50000);            
+		           if(!setModbus_V())                                                //V
+		                 exit(EXIT_FAILURE); 
 
-                   if(otdrSWFlag==0){ 
-                     if(type==2)
-                        printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
-                     if(type==3)
-                        printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
-		     OtdrTest(testPar);
-                     printf("before OK\n");		  
-                       if(type == 1)
-                          sendMessageQueue_B("1-OK");  
-                       else{
-                          bData=backData_Create();
-                          bData->otdrPar =testPar;
-                          strcpy(bData->backIP,p1->backIP);
-                          upload(bData,SNo,intCM,type);
-                          backData_Destory(bData); 
-                          //free(p1->backIP);
-                          //p1->backIP=NULL;
-                       }                               
-                   printf("OK\n");
-                   printf("-------OTDR--Test-------\n");
-                   linkHead = delete(linkHead,SNo); 
+		           if(otdrSWFlag==0){ 
+		             if(type==2)
+		                printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
+		             if(type==3)
+		                printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
+		             if(type==1)
+		                printf("Excess OTDR Test ------------------------------------------------------------------>点名测试       SNo=%d masterPID:%d\n",SNo,masterPID);
+			     OtdrTest(testPar);
+		             printf("before OK\n");		  
+		               if(type == 1){
+                                  SMQstr = (char*)malloc(sizeof(char)*20);
+                                  sprintf(SMQstr,"1-OK-%d",masterPID);
+		                  sendMessageQueue_B(SMQstr,masterPID);                //根据主控进程进程号区分消息类型
+                                  //deleteSNoRecord("NamedTestSegmentTable",SNo,testPar->masterPID);
+                                  free(SMQstr);
+                                  SMQstr=NULL;
+                               }  
+		               else{
+		                  bData=backData_Create();
+		                  bData->otdrPar =testPar;
+		                  strcpy(bData->backIP,p1->backIP);
+		                  upload(bData,SNo,intCM,type);
+		                  backData_Destory(bData); 
+		                  //free(p1->backIP);
+		                  //p1->backIP=NULL;
+		               }                               
+		           printf("OK\n");
+		           printf("-------OTDR--Test-------\n");
+		           linkHead = delete(linkHead,SNo); 
+		          }
+                  }else{
+                  	linkHead = delete(linkHead,SNo); 
                   }
-
                   OTDR_Destory(testPar);   
-           
+         
                   outPutALL(linkHead);
 
                 }  

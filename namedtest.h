@@ -8,7 +8,8 @@
 typedef struct namedtest
 {
     uint32_t SNo;
-    uint32_t PS;	 
+    uint32_t PS;
+    pid_t    masterPID;	 
     otdr     paramter;
 }namedtest;
 

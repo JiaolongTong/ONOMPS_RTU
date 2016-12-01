@@ -188,16 +188,16 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 				DoSwitchCounter=5;
 				if(!setModbus_P())                                              //ModBus总线保护
 					exit(EXIT_FAILURE);    
-				usleep(40000);
+				//usleep(40000);
 				while(DoSwitchCounter>0){
-		                        usleep(2000);
+		                        //usleep(2000);
 					modbus_t * mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
 					flagSW= doOpticalProtectSwitch(mb,protectmpar->Group[i].PNo,protectmpar->Group[i].SwitchPos);
 				        if(flagSW==0)break;
 				        else DoSwitchCounter--;
 					freeModbus(mb);   
 				} 
-				usleep(50000);            
+				//usleep(50000);            
 				if(!setModbus_V())                                              //解除ModBus总线保护                  
 					exit(EXIT_FAILURE);
 

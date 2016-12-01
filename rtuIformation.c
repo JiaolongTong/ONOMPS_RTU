@@ -650,6 +650,43 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 }
 
+responed * requestRebootRTU(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
+{
+   mxml_node_t    *CM,*CLP,*Time,*perCMDcode;
+   responed *resp; 
+   pid_t pid;  
+
+   resp   = Responed_Create();
+   resp  -> RespondCode=0;  
+      
+   perCMDcode = mxmlFindElement(cmd, tree, "CMDcode",NULL, NULL,MXML_DESCEND);
+      if(atoi(perCMDcode->child->value.text.string) !=cmdCode) {
+            printf("<RespondCode>3</RespondCode>\n");
+	    printf("<Data>CMDcode Error [ %s:%s]</Data>\n",perCMDcode->value.element.name,perCMDcode->child->value.text.string);
+            resp->RespondCode=-1;
+            return resp;   
+       }
+      else{
+/**************************解析XML消息***************************************/
+	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);	
+	    CLP = mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
+	    Time = mxmlFindElement(cmd, tree, "Time",NULL, NULL,MXML_DESCEND);            
+	    if((pid = fork())==0) { 
+                int flag; 
+                char  argv[10];
+                strcpy(argv,Time->child->value.text.string);
+		printf("Start Reboot System......\n");    
+		flag = execl("/etc/boa/reboot.sh","reboot.sh",argv); 
+		if(flag == -1)  
+		    printf("exec error!\n");  
+		
+	    } 
+	
+       }  
+
+   return resp;   
+
+}
 responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
    mxml_node_t    *CM,*CLP,*IP,*Netmask,*Gateway,*perCMDcode;
@@ -701,6 +738,7 @@ responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
    return resp;   
 
 }
+
 responed * requestNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
    mxml_node_t    *CM,*CLP,*perCMDcode;

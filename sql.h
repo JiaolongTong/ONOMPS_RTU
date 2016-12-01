@@ -37,4 +37,6 @@ int  SQL_modify(sql * const me);
 int  SQL_existIN_db(sql * const me);
 int  SQL_Unique(sql * const me);
 
+int deleteSNoRecord(char * tableName,int mainKeyValue, int masterPID);
+
 #endif

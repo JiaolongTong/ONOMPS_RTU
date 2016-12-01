@@ -357,7 +357,13 @@ int main(void)
 				     free(ret);
 				     break;
 			            }
-
+                              case 380:{   //请求重启RTU
+                                    ret=requestRebootRTU(root,tree,code);
+                                    if (ret->RespondCode == 0)RespondMessage_OK(code);
+                                    else RespondMessage_Error(code,ret);
+                                    free(ret);
+                                    break;
+				    }
 /******************************************加入功能块end****************************************************************/                                        
                                default  :  NullPossess();
 

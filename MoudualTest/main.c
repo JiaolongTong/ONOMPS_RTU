@@ -1,10 +1,15 @@
 #include <stdio.h>
-#include <math.h>
+#include <unistd.h>
 int main ()
 {
- double param, result;
- param = 5.5;
- result = log (param);
- printf ("log(%f) = %f\n", param, result );
- return 0;
+    int flag;  
+    pid_t pid;  
+    if((pid = fork())==0) {  
+        printf("Start Reboot System......\n");    
+        flag = execl("/etc/boa/reboot.sh","reboot.sh","5"); 
+        if(flag == -1)  
+            printf("exec error!\n");  
+        
+    }  
+    return 0;
 }

@@ -80,7 +80,7 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
          char **result = NULL;
          int  rednum=0;
          char *strSNo=NULL;
-         int PS=0;
+         int PS=0,existFlag=0;
          strSNo = (char *) malloc(sizeof(char)*10);
          char PX1[4] ="PX1",PX2[4] ="PX2",PX3[4] ="PX3",PX4[4] ="PX4",PX5[4] ="PX5",PX6[4] ="PX6",PX7[4] ="PX7";
 
@@ -98,56 +98,84 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
             uint32tostring(SNo,strSNo);
             mysql->tableName     =  "NamedTestSegmentTable";    
 	    mysql->mainKeyValue  =  strSNo;
-            mysql->filedsName    =  "PS";
-            rc= SQL_lookupPar(mysql,&result,&rednum);
-            if( rc != SQLITE_OK ){
-	       printf( "Lookup SQL error\n");
+            existFlag = SQL_existIN_db(mysql);
+            if(existFlag==1){
+                    myotdr->haveParm = 1; 
 
-	    }else{
-               uint_a = strtoul (result[0], NULL, 0);  
-	       PS = uint_a; 
-               myotdr->PS =PS;    
-            }
-            if(PS==0){
-               mysql->tableName     =  "DefaultTsetSegmentTable";
-               PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';     
-             }
-            else{
-               mysql->tableName     =  "NamedTestSegmentTable";
-               PX1[1]='1';PX2[1]='1';PX3[1]='1';PX4[1]='1';PX5[1]='1';PX6[1]='1';PX7[1]='1';                     
-             }
-           SQL_freeResult(&result,&rednum); 
+                    mysql->filedsName    =  "masterPID";
+                    SQL_lookupPar(mysql,&result,&rednum);
+                    myotdr->masterPID = atoi(result[0]); 
+                    SQL_freeResult(&result,&rednum);
+
+		    mysql->filedsName    =  "PS";
+		    rc= SQL_lookupPar(mysql,&result,&rednum);
+		    if( rc != SQLITE_OK ){
+		       printf( "Lookup SQL error\n");
+
+		    }else{
+		       uint_a = strtoul (result[0], NULL, 0);  
+		       PS = uint_a; 
+		       myotdr->PS =PS;    
+		    }
+		    if(PS==0){
+		       mysql->tableName     =  "DefaultTsetSegmentTable";
+		       PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';     
+		     }
+		    else{
+		       mysql->tableName     =  "NamedTestSegmentTable";
+		       PX1[1]='1';PX2[1]='1';PX3[1]='1';PX4[1]='1';PX5[1]='1';PX6[1]='1';PX7[1]='1';                     
+		     }
+		   SQL_freeResult(&result,&rednum);
+            }else{
+                    myotdr->haveParm = 0;
+                    return myotdr;
+            } 
          }
          if(type==2){                                                                     //障碍告警测试                                          
             uint32tostring(SNo,strSNo);
             mysql->tableName     =  "AlarmTestSegmentTable";    
 	    mysql->mainKeyValue  =  strSNo;
-            mysql->filedsName    =  "PS";
-            rc= SQL_lookupPar(mysql,&result,&rednum);
-            if( rc != SQLITE_OK ){
-	       printf( "Lookup SQL error\n");
+            existFlag = SQL_existIN_db(mysql);
+            if(existFlag==1){
+                    myotdr->haveParm = 1;
+		    mysql->filedsName    =  "PS";
+		    rc= SQL_lookupPar(mysql,&result,&rednum);
+		    if( rc != SQLITE_OK ){
+		       printf( "Lookup SQL error\n");
 
-	    }else{
-               uint_a = strtoul (result[0], NULL, 0);  
-	       PS = uint_a; 
-               myotdr->PS =PS;   
+		    }else{
+		       uint_a = strtoul (result[0], NULL, 0);  
+		       PS = uint_a; 
+		       myotdr->PS =PS;   
+		    }
+		    if(PS==0){
+		       mysql->tableName     =  "DefaultTsetSegmentTable";
+		       PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';     
+		     }
+		    else{
+		       mysql->tableName     =  "AlarmTestSegmentTable";
+		       PX1[1]='2';PX2[1]='2';PX3[1]='2';PX4[1]='2';PX5[1]='2';PX6[1]='2';PX7[1]='2';
+		     }
+		    SQL_freeResult(&result,&rednum); 
+            }else{
+                    myotdr->haveParm = 0;
+                    return myotdr;
             }
-            if(PS==0){
-               mysql->tableName     =  "DefaultTsetSegmentTable";
-               PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';     
-             }
-            else{
-               mysql->tableName     =  "AlarmTestSegmentTable";
-               PX1[1]='2';PX2[1]='2';PX3[1]='2';PX4[1]='2';PX5[1]='2';PX6[1]='2';PX7[1]='2';
-             }
-            SQL_freeResult(&result,&rednum); 
          }
          if(type==3){                                      
             uint32tostring(SNo,strSNo);
-	    mysql->mainKeyValue  =  strSNo;
-            printf("cycleTest Task--->SNo=%s\n",strSNo);                                  //周期测试
             mysql->tableName     =  "DefaultTsetSegmentTable";
-            PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0';  
+	    mysql->mainKeyValue  =  strSNo;
+            existFlag = SQL_existIN_db(mysql);
+            if(existFlag==1){
+                    myotdr->haveParm = 1;
+		    printf("cycleTest Task--->SNo=%s\n",strSNo);                                  //周期测试
+		    mysql->tableName     =  "DefaultTsetSegmentTable";
+		    PX1[1]='0';PX2[1]='0';PX3[1]='0';PX4[1]='0';PX5[1]='0';PX6[1]='0';PX7[1]='0'; 
+           }else{
+                    myotdr->haveParm = 0;
+                    return myotdr;
+           } 
          } 
  
 

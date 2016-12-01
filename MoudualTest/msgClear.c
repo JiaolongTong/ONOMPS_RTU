@@ -20,14 +20,14 @@
 
 
 
-    int main(int argc ,char**argv)  
+    int main()  
     {  
         int msgid = -1;  
         int running = 1;  
         struct msg_st data;  
-        long int msgtype = atoi(argv[2]);        //获取类型为argv[1]的第一个消息
+        long int msgtype = 0;       
         int rflags;
-       // struct itimerval value, ovalue, value2;          //(1)
+     
         //建立消息队列  
         msgid = msgget((key_t)444, 4777 | IPC_CREAT);  
         if(msgid == -1)  
@@ -38,7 +38,7 @@
 
         rflags=IPC_NOWAIT|MSG_NOERROR;
         //从队列中获取消息，直到遇到end消息为止  
-/*
+
         while(running)  
         {  
             msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT);
@@ -50,22 +50,8 @@
             strcpy(data.text,"");
                
         }  
-*/
 
-        while(running)  
-        {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype,IPC_NOWAIT|MSG_NOERROR);
-            if(strlen(data.text) !=0){  
-               printf("MyName:Msgrecv-%s\n",argv[1]);
-               printf("Distory RecvMessage: %s\n",data.text);                     
-               if(strncmp(data.text, argv[1], strlen(argv[1])) == 0){
-                     printf("Useful RecvMessage: %s\n",data.text);                      
-                     running = 0;                                       //遇到1-OK结束 
-                     break;
-                }
-               strcpy(data.text,"");
-             }      
-        } 
+
         //删除消息队列  
         if(msgctl(msgid, IPC_RMID, 0) == -1)  
         {  

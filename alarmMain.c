@@ -848,7 +848,7 @@ alarmNode * deleteALL_B(alarmNode *head){
        return p;
 }
 
-checkNode *removeAllNode(checkNode * head)
+checkNode *removeAllNode_A(checkNode * head)
 {
    checkNode * p=NULL;
    p=head;
@@ -857,6 +857,18 @@ checkNode *removeAllNode(checkNode * head)
    else
      while(p!=NULL)
         p=delete_A(p,p->SNo);
+  return p;
+}
+
+alarmNode *removeAllNode_B(alarmNode * head)
+{
+   alarmNode * p=NULL;
+   p=head;
+   if(p==NULL)
+      return p=NULL; 
+   else
+     while(p!=NULL)
+        p=delete_B(p,p->SNo);
   return p;
 }
 /***插入待启动节点***/
@@ -1440,7 +1452,9 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
        {
            SNo = info->si_int%270;
            linkHead_check_A = delete_A(linkHead_check_A,SNo);                   //删除节点
+           linkHead_alarm_B = delete_B(linkHead_alarm_B,SNo);
            outPutALL_A(linkHead_check_A);
+           outPutALL_B(linkHead_alarm_B); 
            sendMessageQueue("270-OK");
 	   return;
        }
@@ -1471,8 +1485,10 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
             
            case  260:{                                                           //清除RTU模式
                     flagNew = 1;
-                    linkHead_check_A = removeAllNode(linkHead_check_A);                   
+                    linkHead_check_A = removeAllNode_A(linkHead_check_A); 
+                    linkHead_alarm_B = removeAllNode_B(linkHead_alarm_B);                  
                     outPutALL_A(linkHead_check_A);
+                    outPutALL_B(linkHead_alarm_B); 
                     sendMessageQueue("260-OK");
 		    break;    
            }

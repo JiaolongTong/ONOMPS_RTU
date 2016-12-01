@@ -25,6 +25,8 @@ void  getNamedParameter(mxml_node_t *root,mxml_node_t *tree, namedtest *namedpar
 	    uint_a = strtoul (SNo->child->value.text.string, NULL, 0);
 	    namedpar->SNo = uint_a;
 
+            namedpar->masterPID = getpid();
+
 	    P01 = mxmlFindElement(root, tree, "P11",NULL, NULL,MXML_DESCEND);
 	    uint_a = strtoul (P01->child->value.text.string, NULL, 0);  
 	    namedpar->paramter.MeasureLength_m = uint_a;
@@ -96,6 +98,8 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             printf("PS -uint -[%d]\n",  nmdpar->PS);
 
             printf("SNo-uint -[%d]\n",  nmdpar->SNo);
+
+            printf("masterPID-short-[%d]", nmdpar->masterPID);
 
 	    printf("P11-uint -[%d]\n",  nmdpar->paramter.MeasureLength_m);
 
@@ -205,6 +209,7 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 	    }else{
 		   namedTemp->SNo                           =nmdpar->SNo;
 	           namedTemp->PS                            =nmdpar->PS;
+                   namedTemp->masterPID                     =nmdpar->masterPID;
 	      	   namedTemp->paramter.MeasureLength_m      =nmdpar->paramter.MeasureLength_m;
 		   namedTemp->paramter.PulseWidth_ns        =nmdpar->paramter.PulseWidth_ns;
 		   namedTemp->paramter.Lambda_nm            =nmdpar->paramter.Lambda_nm;
@@ -224,15 +229,16 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 /******************************向数据库写入点名测试参数*******************************/
          uint32tostring(SNo,strSNO);
-         sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%f,%f,%f\n",namedTemp->SNo                        //SNo PS P11 P12 P13 P14 P15 P16 P17
-		                                   ,namedTemp->PS
-		                                   ,namedTemp->paramter.MeasureLength_m
-		                                   ,namedTemp->paramter.PulseWidth_ns
-		                                   ,namedTemp->paramter.Lambda_nm
-		                                   ,namedTemp->paramter.MeasureTime_ms
-		                                   ,namedTemp->paramter.n
-		                                   ,namedTemp->paramter.NonRelectThreshold
-		                                   ,namedTemp->paramter.EndThreshold);
+         sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%f,%f,%f,%d\n"  ,namedTemp->SNo                        //SNo PS P11 P12 P13 P14 P15 P16 P17 masterPID
+				                           ,namedTemp->PS
+				                           ,namedTemp->paramter.MeasureLength_m
+				                           ,namedTemp->paramter.PulseWidth_ns
+				                           ,namedTemp->paramter.Lambda_nm
+				                           ,namedTemp->paramter.MeasureTime_ms
+				                           ,namedTemp->paramter.n
+				                           ,namedTemp->paramter.NonRelectThreshold
+				                           ,namedTemp->paramter.EndThreshold
+		                                           ,namedTemp->masterPID);
          mysql->tableName    =  "NamedTestSegmentTable";  
          mysql->mainKeyValue =  strSNO;                
          mysql->filedsValue  =  strSQL;
@@ -252,10 +258,10 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 /***************************向OTDR测试进程发送消息，并等待测试完成*****************/
         int signum=0,retProcess = 0,n=0;
-        char* process=NULL,*recvStr=NULL;  
+        char* process=NULL,*recvStr=NULL,*constStr=NULL;  
         pid_t cycPID[MAX_PID_NUM];
         union sigval mysigval;  
-                                    /*向otdrMain发送启动信号*/
+        long  msgType = 0;                            /*向otdrMain发送启动信号*/
         process ="/web/cgi-bin/otdrMain";                        
         retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 	printf("process '%s' is existed? (%d): %c ", process, retProcess, (retProcess > 0)?'y':'n');  
@@ -268,9 +274,12 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 			 printf("send signal error\n");
 		}	 
 		                    /*等待信号的成功处理消息*/			    
-		recvStr = (char *) malloc (sizeof (char)*10);
-		recvStr = recvMessageQueue_A();                          //阻塞等待测试执行完毕             
-		if(strncmp(recvStr, "1-OK", 4) == 0){                    //遇"1-OK"结束		      
+		recvStr = (char *) malloc (sizeof (char)*20);
+                constStr = (char *) malloc (sizeof (char)*20); 
+                sprintf(constStr,"1-OK-%d",namedTemp->masterPID);
+                msgType = namedTemp->masterPID;                                          //       
+		recvStr = recvMessageQueue_A(constStr,msgType);                          //阻塞等待测试执行完毕      
+		if(strncmp(recvStr, constStr, strlen(constStr)) == 0){                    //遇"1-OK-[PID]"结束		      
 		      printf("Named test from otdrMain  sucessful!\n");
 		}
 		else{

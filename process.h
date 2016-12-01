@@ -51,10 +51,12 @@ int semaphore_v();
 
 
 int sendMessageQueue(char * message);
-int sendMessageQueue_B(char * message);
+int sendMessageQueue_B(char * message,long msgType);
 int sendMessageQueue_C(char * message ,key_t key);
 
-char * recvMessageQueue_A(void);
+
+char * recvMessageQueue_A(char * waitStr ,long msgType);
+//char * recvMessageQueue_A(void);
 char * recvMessageQueue_B(void);
 char * recvMessageQueue_C(void);
 int recvMessageQueue_D(char * backMSG, key_t key);

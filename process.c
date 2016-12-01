@@ -77,15 +77,21 @@ int sendMessageQueue(char * message)
            }
          else
            {
-                printf("msgsnd successful!\n");
+                printf("msgsnd successful :%s len:%d!\n",data.text,strlen(data.text));
            }  
         return 0;
 	
 }
 
-int sendMessageQueue_B(char * message)
+int sendMessageQueue_B(char * message,long msgType)
 {
+/*
+a. msg_type == 0    返回消息队列中第一个消息，先进先出
 
+b. msg_type > 0    返回消息队列中类型为tpye的第一个消息
+
+c. msg_type < 0    返回消息队列中类型 <=  |type| 的数据；若这种消息有若干个，则取类型值最小的消息
+*/
         struct msg_st data;  
         char buffer[BUFSIZ];  
         int msgid = -1;  
@@ -98,17 +104,17 @@ int sendMessageQueue_B(char * message)
             return  -1;
         }  
             //输入数据  
-        data.msg_type = 1;                            //注意2  
+        data.msg_type = msgType;      //
         strcpy(data.text, message);  
             //向队列发送数据  
         if(msgsnd(msgid, (void*)&data, MAX_TEXT, 0) == -1)  
            {  
                 printf("msgsnd failed:%d\n",errno);  
-               return -1;
+                return -1;
            }
          else
            {
-                printf("msgsnd successful!\n");
+                printf("msgsnd successful :msgText:%s msgType:%ld len:%d!\n",data.text,data.msg_type,strlen(data.text));
            }  
         return 0;
 	
@@ -142,41 +148,41 @@ int sendMessageQueue_C(char * message ,key_t key)
            }  
         return 0;
 }
-char * recvMessageQueue_A(void)                                         //阻塞方法  (点名测试)
+char * recvMessageQueue_A(char * waitStr ,long msgType)                                         //阻塞方法  (点名测试)
 {
         int msgid = -1;  
         int running = 1;  
-        struct msg_st data;  
-        long int msgtype = 0;                                           //只获取某一特定类型消息 
-         
-        char * str;
-         str = (char * ) malloc (sizeof(char)*10);
+        struct msg_st data;    
+        char * str=NULL;
+        str = (char * ) malloc (sizeof(char)*10);
         msgid = msgget((key_t)444, 4777 | IPC_CREAT);                   //建立消息队列 (与otdrMain通信)   444
         if(msgid == -1)  
         {  
             printf("msgget failed with error: %d\n", errno);  
             return  "MSG Error"; 
         } 
-
+        //data.msg_type=msgType;                                          //只获取某一特定类型消息的第一个
         while(running)  
         {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype,IPC_NOWAIT|MSG_NOERROR);
-            if(strlen(data.text) !=0){                     
-               if(strncmp(data.text, "1-OK", 4) == 0){
-                     printf("RecvMessage: %s\n",data.text);  
+            msgrcv(msgid, (void*)&data, BUFSIZ, msgType,IPC_NOWAIT|MSG_NOERROR);
+            if(strlen(data.text) !=0){  
+               printf("Distory RecvMessage: %s msgType:%ld\n",data.text,data.msg_type);                     
+               if(strncmp(data.text, waitStr, strlen(waitStr)) == 0){
+                     printf("Useful RecvMessage: %s\n",data.text);  
                      strcpy(str,data.text);
                      running = 0;                                       //遇到1-OK结束 
-                     break;
+                     //break;
                 }
+               strcpy(data.text,"");   
              }      
         } 
-
+/*
         if(msgctl(msgid, IPC_RMID, 0) == -1)                           //删除消息队列 
         {  
             printf("msgctl(IPC_RMID) failed\n");  
             return "MSG Error";    
         } 
-        strcpy(data.text,"");       
+*/            
         return str;
 }
 

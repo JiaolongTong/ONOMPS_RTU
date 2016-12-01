@@ -108,7 +108,8 @@ responed * getOpticPowerParameter(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode
                printf("ModType:%d",ModType);
                if(ModType==2 || ModType==4){
 		  if(!setModbus_P())                                //P
-		      exit(EXIT_FAILURE);   
+		      exit(EXIT_FAILURE);
+		             usleep(50000);   
 		  modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 		  powerValue = getOneOpticalValue(mb,power->SNo); 
 		  freeModbus(mb);                     
@@ -127,11 +128,13 @@ responed * getOpticPowerParameter(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode
                   if(fiberType==0){
 		          if(!setModbus_P())                        //P
 			      exit(EXIT_FAILURE);   
+			  usleep(50000);
 			  modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 			  powerValue = getOneOpticalValue(mb,power->SNo); 
 			  freeModbus(mb);                     
 			  power->value=powerValue;   
-			  RespondMessage_OpticPowerData(power, 0);      
+			  RespondMessage_OpticPowerData(power, 0); 
+			  usleep(50000);     
 			  if(!setModbus_V())                        //V
 			      exit(EXIT_FAILURE);  
                   }else{
@@ -139,7 +142,7 @@ responed * getOpticPowerParameter(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode
                           resp->ErrorSN     = 1;  
 			  resp->SNorPN      = TYPE_SNo;
 		          resp->Group[0].SNo = power->SNo; 
-		          resp->Group[0].Main_inform  = "[光纤类型为保护模式的在纤]";
+		          resp->Group[0].Main_inform  = "光纤类型为保护模式的在纤";
 		          resp->Group[0].Error_inform = "Error: Can't get Optical Values -->Error SNo [光纤类型为保护模式的在纤]";
 			  return  resp; 
                   }
