@@ -266,7 +266,7 @@ static uint8_t compute_meta_length_after_function(int function,
         case _FC_WRITE_SINGLE_COIL:
         case _FC_WRITE_SINGLE_REGISTER:
         case _FC_WRITE_MULTIPLE_COILS:
-        case _FC_WRITE_MULTIPLE_REGISTERS:      //0x10
+        case _FC_WRITE_MULTIPLE_REGISTERS:
             length = 4;
             break;
         default:
@@ -326,7 +326,6 @@ static int compute_data_length_after_meta(modbus_t *ctx, uint8_t *msg,
    - read() or recv() error codes
 */
 
-//rc = receive_msg(ctx, rsp, MSG_CONFIRMATION);
 static int receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
 {
     int rc;
@@ -344,20 +343,20 @@ static int receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
             printf("Waiting for a confirmation...\n");
         }
     }
-   
+
     /* Add a file descriptor to the set */
-    //FD_ZERO(&rfds);
-    //FD_SET(ctx->s, &rfds);
+    FD_ZERO(&rfds);
+    FD_SET(ctx->s, &rfds);
 
     /* We need to analyse the message step by step.  At the first step, we want
      * to reach the function code because all packets contain this
      * information. */
     step = _STEP_FUNCTION;
-    length_to_read = ctx->backend->header_length + 1;   //header_length=_MODBUS_RTU_HEADER_LENGTH=1
+    length_to_read = ctx->backend->header_length + 1;
 
     if (msg_type == MSG_INDICATION) {
-        //Wait for a message, we don't know when the message will be
-        //received 
+        /* Wait for a message, we don't know when the message will be
+         * received */
         p_tv = NULL;
     } else {
         tv.tv_sec = ctx->response_timeout.tv_sec;
@@ -366,70 +365,55 @@ static int receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
     }
 
     while (length_to_read != 0) {
-       FD_ZERO(&rfds);
-       FD_SET(ctx->s, &rfds);
-       rc = ctx->backend->select(ctx, &rfds, p_tv, length_to_read);  //s_rc = select(ctx->s+1, rfds, NULL, NULL, tv)
-
+        rc = ctx->backend->select(ctx, &rfds, p_tv, length_to_read);
         if (rc == -1) {
             _error_print(ctx, "select");
             if (ctx->error_recovery & MODBUS_ERROR_RECOVERY_LINK) {
-               // int saved_errno = errno;
+                int saved_errno = errno;
 
                 if (errno == ETIMEDOUT) {
                     _sleep_and_flush(ctx);
                 } else if (errno == EBADF) {
                     modbus_close(ctx);
                     modbus_connect(ctx);
-                    FD_ZERO(&rfds);
-                    FD_SET(ctx->s, &rfds);
                 }
-                //errno = saved_errno;
+                errno = saved_errno;
             }
             return -1;
         }
 
         rc = ctx->backend->recv(ctx, msg + msg_length, length_to_read);
-        /* Display the hex code of each character received */
-        if (ctx->debug) {
-            int i;
-            for (i=0; i < rc; i++)
-                printf("{%.2X}", msg[msg_length + i]);
-        }
-
         if (rc == 0) {
-            errno = ECONNRESET;     
+            errno = ECONNRESET;
             rc = -1;
         }
-
 
         if (rc == -1) {
             _error_print(ctx, "read");
             if ((ctx->error_recovery & MODBUS_ERROR_RECOVERY_LINK) &&
                 (errno == ECONNRESET || errno == ECONNREFUSED ||
                  errno == EBADF)) {
-                //int saved_errno = errno;
-                if(errno==ECONNRESET)printf("ECONNRESET");
-                if(errno==ECONNREFUSED)printf("ECONNREFUSED");
-                if(errno==EBADF)printf("EBADF");
-
+                int saved_errno = errno;
                 modbus_close(ctx);
                 modbus_connect(ctx);
-                FD_ZERO(&rfds);
-                FD_SET(ctx->s, &rfds);
-                // Could be removed by previous calls 
-                // errno = saved_errno;
+                /* Could be removed by previous calls */
+                errno = saved_errno;
             }
             return -1;
         }
 
-
-
-        if(rc>0){
-           /* Sums bytes received */
-           msg_length += rc;
-           /* Computes remaining bytes */
-           length_to_read -= rc;
+        /* Display the hex code of each character received */
+        if (ctx->debug) {
+            int i;
+            for (i=0; i < rc; i++)
+                printf("<%.2X>", msg[msg_length + i]);
         }
+
+        /* Sums bytes received */
+        msg_length += rc;
+        /* Computes remaining bytes */
+        length_to_read -= rc;
+
         if (length_to_read == 0) {
             switch (step) {
             case _STEP_FUNCTION:
@@ -447,7 +431,6 @@ static int receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
                 if ((msg_length + length_to_read) > ctx->backend->max_adu_length) {
                     errno = EMBBADDATA;
                     _error_print(ctx, "too many data");
-                    FD_CLR(ctx->s, &rfds);
                     return -1;
                 }
                 step = _STEP_DATA;
@@ -458,14 +441,13 @@ static int receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
         }
 
         if (length_to_read > 0 && ctx->byte_timeout.tv_sec != -1) {
-              // If there is no character in the buffer, the allowed timeout
-              // interval between two consecutive bytes is defined by
-              // byte_timeout 
+            /* If there is no character in the buffer, the allowed timeout
+               interval between two consecutive bytes is defined by
+               byte_timeout */
             tv.tv_sec = ctx->byte_timeout.tv_sec;
             tv.tv_usec = ctx->byte_timeout.tv_usec;
             p_tv = &tv;
         }
-
     }
 
     if (ctx->debug)
@@ -1145,6 +1127,7 @@ static int read_registers(modbus_t *ctx, int function, int addr, int nb,
     if (rc > 0) {
         int offset;
         int i;
+
         rc = receive_msg(ctx, rsp, MSG_CONFIRMATION);
         if (rc == -1)
             return -1;
@@ -1157,7 +1140,8 @@ static int read_registers(modbus_t *ctx, int function, int addr, int nb,
 
         for (i = 0; i < rc; i++) {
             /* shift reg hi_byte to temp OR with lo_byte */
-            dest[i] = (rsp[offset + 2 + (i << 1)] << 8) | rsp[offset + 3 + (i << 1)];
+            dest[i] = (rsp[offset + 2 + (i << 1)] << 8) |
+                rsp[offset + 3 + (i << 1)];
         }
     }
 

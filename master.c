@@ -8,11 +8,11 @@ int main(int argc,char ** argv)
   modbus_t *mb;
   int mode;
   int16_t tab_reg[100]={0};
-  if(argc!=2){
-      printf("Uagae:%s [dev]\n",argv[0]);
+  if(argc!=4){
+      printf("Uagae:%s [dev] [addr] [Buad]\n",argv[0]);
       return -1;
   }
-   mb = modbus_new_rtu(argv[1],9600,'N',8,1);//open port
+   mb = modbus_new_rtu(argv[1],atoi(argv[3]),'N',8,1);//open port
   //mb = modbus_new_tcp("192.168.0.102", 1502);
   modbus_set_debug(mb, TRUE);
 
@@ -20,8 +20,10 @@ int main(int argc,char ** argv)
                               MODBUS_ERROR_RECOVERY_LINK |
                               MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-  modbus_set_slave(mb,2);//set slave address
+  modbus_set_slave(mb,atoi(argv[2]));//set slave address
 
+
+  printf("Devive Addr :%d  Dirver :%s\n",atoi(argv[2]),argv[1]);
   if(mode=modbus_rtu_get_serial_mode(mb)<0)
   {
       printf("get 1 serial mode faild\n");
@@ -62,8 +64,8 @@ int main(int argc,char ** argv)
   int regs;
   int i;
   int flag=1;
-  modbus_read_registers(mb, 0,1, tab_reg);
-  printf("Test:[%d]=%d\n",addr,tab_reg[0]);
+  modbus_read_registers(mb, 66,1, tab_reg);
+  printf("地址确认:[%d]=%d\n",addr,tab_reg[0]);
 while(1)
 {
     printf("请选择功能:\n");
@@ -76,7 +78,7 @@ while(1)
     printf("\n");
     switch(function){
         case 1 : 
-           modbus_set_slave(mb,1);
+           modbus_set_slave(mb,atoi(argv[2]));
            regs=modbus_read_registers(mb, addr,1, tab_reg);
            for(i=0;i<regs;i++)
            printf("读取单个寄存器:[%d]=%d\n",i,tab_reg[i]);
@@ -87,7 +89,7 @@ while(1)
            printf("读取多个寄存器:[%d]=%d\n",i,tab_reg[i]);
            break;
         case 3 :
-           modbus_set_slave(mb,1);
+           modbus_set_slave(mb,atoi(argv[2]));
            regs = modbus_write_register(mb,addr, number);
            printf("写入单个寄存器:Value=%d",number);
            if (regs == 1) 

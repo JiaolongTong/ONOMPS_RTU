@@ -15,7 +15,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 {
     mxml_node_t *BX,*SNo,*CM,*CLP,*SN,*T1,*T2,*IP01,*IP02,*IP03,*IP04,*IP05,*IP06;
     uint32_t  uint_a,i=0,intSN = 0,rtuCM =0,rtuCLP=0;
-    char srttmp[3]="Bx";
+    char strtmp[10],strNum[10];
     responed *resp;    
     resp = Responed_Create();
     resp->RespondCode=0;                                                         // default Sucessful 
@@ -26,6 +26,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
     cycfpar->Action = -1;                                                                          //将状态设置为-1，等待插入周期测试链表
     CM =mxmlFindElement(root, tree, "CM",NULL, NULL,MXML_DESCEND);
     rtuCM =  strtoul(CM->child->value.text.string, NULL, 0);   
+
     CLP =mxmlFindElement(root, tree, "CLP",NULL, NULL,MXML_DESCEND);
     rtuCLP =  strtoul(CLP->child->value.text.string, NULL, 0);  
  
@@ -33,8 +34,12 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 /*****************************解析周期测试XML指令文件*********************************/ 
     for (i=0;i<intSN;i++)
     { 
-	      srttmp[1]=i+0x31;
-	      BX  = mxmlFindElement(root, tree, srttmp ,NULL, NULL,MXML_DESCEND);     
+	      strtmp[0]='\0';
+	      strcat(strtmp,"B");
+	      uint32tostring(i+1,strNum);
+	      strcat(strtmp,strNum);
+
+	      BX  = mxmlFindElement(root, tree, strtmp ,NULL, NULL,MXML_DESCEND);     
  
 	      SNo = mxmlFindElement(BX, tree, "SNo",NULL, NULL,MXML_DESCEND);
 	      uint_a = strtoul (SNo->child->value.text.string, NULL, 0);          
@@ -99,7 +104,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
            PortFlag = SQL_existIN_db(mysql);    
            SQL_freeResult(&result,&rednum);
            if(UseFlag!=1){
-                   resp->RespondCode  = 14;
+                   resp->RespondCode  = 15;
                    resp->ErrorSN      = 1;                     
                    resp->SNorPN       = TYPE_SNo;
                    resp->Group[ErrorSNo].SNo =  cycfpar->Group[i].SNo;
@@ -403,10 +408,8 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 {
 
     mxml_node_t *EX,*CM,*CLP,*SN;
-    uint32_t  uint_a;
-    char srttmp[3]="Ex";
-    int i=0;
-    uint32_t  intSN = 0,rtuCM =0,rtuCLP=0;
+    char strtmp[10],strNum[10];     
+    uint32_t  uint_a=0,intSN = 0,rtuCM =0,rtuCLP=0,i=0;
 
     responed *resp;    
     resp = Responed_Create();
@@ -422,11 +425,14 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
     rtuCLP =  strtoul(CLP->child->value.text.string, NULL, 0);    
     for (i=0;i<intSN;i++)
     { 
-	      srttmp[1]=i+0x31;
-	      EX  = mxmlFindElement(root, tree, srttmp ,NULL, NULL,MXML_DESCEND);     
-	      uint_a = strtoul (EX->child->value.text.string, NULL, 0);          
-	      cycfpar->Group[i].SNo = uint_a;
-              if(cycfpar->Group[i].SNo == 0) break; 
+        strtmp[0]='\0';
+        strcat(strtmp,"E");
+        uint32tostring(i+1,strNum);
+        strcat(strtmp,strNum);
+        EX  = mxmlFindElement(root, tree, strtmp ,NULL, NULL,MXML_DESCEND);     
+	uint_a = strtoul (EX->child->value.text.string, NULL, 0);          
+	cycfpar->Group[i].SNo = uint_a;
+        if(cycfpar->Group[i].SNo == 0) break; 
     }
    intSN=i;
 
@@ -435,8 +441,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
    sqlite3 *mydb;
    int rc;
    sql *mysql;
-   char result[100];char *strSNo = NULL;
-   strSNo = (char *) malloc(sizeof(char)*10);
+   char result[100], strSNo[10];
    mysql = SQL_Create();
    rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
    if( rc != SQLITE_OK )
@@ -458,7 +463,6 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 	printf("The SNo = %d is canceled! Action:%d \n",cycfpar->Group[i].SNo,cycfpar->Action);
 
    }
-    free(strSNo);
     SQL_Destory(mysql);  
     sqlite3_close(mydb);
 /*******Send Signal to cycMain*******
@@ -469,7 +473,8 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 ************************************/
        int signum;
        union sigval mysigval;
-       char  *process=NULL,*recvStr=NULL;  
+       char  *process=NULL;
+       char  *recvStr=NULL;  
        int retProcess = 0,n=0;  
        pid_t cycPID[MAX_PID_NUM];  
 
@@ -485,9 +490,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 		       printf("send signal error\n");
 	      }  
 	           /*等待启动障碍告警测试成功信号*/
-
-
-	    recvStr = (char *) malloc (sizeof (char)*10);
+            recvStr = (char *) malloc(sizeof(char)*10); 
 	    recvStr = recvMessageQueue_C();
 	    if(strncmp(recvStr, "220-OK", 6) == 0)                     //遇"130-OK"结束
 	       printf("Set Alarmtest sucessful!\n");
@@ -499,7 +502,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 	            free(recvStr);
 		    return resp;  
             }
-	    free(recvStr);   
+	    free(recvStr);
       }else{
 	      resp->RespondCode=3;
 	      resp->Group[0].Main_inform  = "周期测试取消失败-->未找到后台进程";

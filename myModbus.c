@@ -1,5 +1,13 @@
 #include "myModbus.h"
 extern  int modbus_sem_id;  
+
+int16_t  OpticalPower_PATH_Mode2_Mode4[] = { 0x0008, 0x0007, 0x0006, 0x0005, 0x0004,0x0003, 0x0002, 0x0001};       //光功率采集通道选择，备纤模式+在纤（OPM）模式   (脚标是光路号1-8)
+int16_t  OpticalPower_PATH_Mode3[]       = { 0x0008, 0x0007, 0x0006, 0x0005};                                      //光功率采集通道选择,保护模式 (脚标是保护组号1-4)
+int16_t  OpticalPower_PATH_Mode5[]       = { 0x0008, 0x0007};
+int16_t  OpticalProtect_PATH_Mode3[]     = { 0x0003, 0x0002, 0x0001, 0x0004};                                      //光保护通道选择2*2光开关,保护模式
+int16_t  OpticalProtect_PATH_Mode5[]     = { 0x0003, 0x0002};                                                      //光保护通道选择2*2光开关,保护模式
+int16_t  OpticalOTDR_PATH[]              = { 0x0001, 0x0002, 0x0003, 0x0004, 0x0005,0x0006, 0x0007, 0x0008};       //OTDR通道选择1*8光开关
+
 int initModbusPV()
 {
     modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                                //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
@@ -45,28 +53,6 @@ int setModbus_P()
         return 0;  
     }  
     return 1;  
-/*
-    int ret=0;
-    struct sembuf sem_b;  
-    sem_b.sem_num = 0;  
-    sem_b.sem_op = -1;//P()  
-    sem_b.sem_flg = SEM_UNDO;  
-    while(1){ 
-        if(semop(modbus_sem_id, &sem_b, 1) == -1)  
-        {  
-            fprintf(stderr, "modbus_semaphore_v failed:%d\n",errno);
-            perror("ModBus_PV_V()");
-            if(errno==EINTR) continue;
-            else{
-              ret=0; break; 
-            }
-        }else
-        {
-             ret=1; break; 
-        } 
-    }
-*/
-    
 }
 int setModbus_V()
 {
@@ -81,35 +67,18 @@ int setModbus_V()
         return 0;  
     }  
     return 1;  
-/*
-    int ret=0;  
-    struct sembuf sem_b;  
-    sem_b.sem_num = 0;  
-    sem_b.sem_op = 1;//V()  
-    sem_b.sem_flg = SEM_UNDO; 
-    while(1){ 
-        if(semop(modbus_sem_id, &sem_b, 1) == -1)  
-        {  
-            fprintf(stderr, "modbus_semaphore_v failed:%d\n",errno);
-            perror("ModBus_PV_V()");
-            if(errno==EINTR) continue;
-            else{
-              ret=0; break; 
-            }
-        }else
-        {
-             ret=1; break; 
-        } 
-    }
-    return ret;  
-*/
 }
 
+
+/*
+               ModBus-RTU API
+
+*/
 modbus_t *newModbus(char *dev, int buad)
 {
   modbus_t *mb;
   int mode;
-  mb = modbus_new_rtu(dev,buad,'N',8,1);//open port
+  mb = modbus_new_rtu(dev,buad,'N',8,1);
   modbus_set_debug(mb, FALSE);
 
   modbus_set_error_recovery(mb,
@@ -122,7 +91,7 @@ modbus_t *newModbus(char *dev, int buad)
       return (modbus_t *)-1;
   }
 
-  mb=modbus_rtu_set_serial_mode(mb,MODBUS_RTU_RS485);
+  mb=modbus_rtu_set_serial_mode(mb,MODBUS_RTU_RS232);
   if(mode=modbus_rtu_get_serial_mode(mb)<0){
       printf("get 2 serial mode faild\n");
       return (modbus_t *)-1;
@@ -132,13 +101,14 @@ modbus_t *newModbus(char *dev, int buad)
   
   return mb;
 }
+
 void freeModbus(modbus_t *mb)
 {
   modbus_close(mb);  
   modbus_free(mb);
 }
 
-float getOneOpticalValue(modbus_t *mb,int SNo)                                       //光功率采集
+float   getOneOpticalValue(modbus_t *mb,int SNo,int Mode)   //光功率采集                                      
 {
        int16_t tab_reg[100]={0};
        int regs,i;
@@ -146,15 +116,15 @@ float getOneOpticalValue(modbus_t *mb,int SNo)                                  
        int16_t subPort;
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
-     //  if(mb->debug){
-     //    printf("SNo = %d devAddr=%d,subPort=%d\n",SNo,devAddr,OPTICALPOWER_R_ADDRESS+subPort);
-     //  }
-       modbus_set_slave(mb,devAddr);       
-       regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+subPort,1, tab_reg);
-     //  if(mb->debug){
-     //     for(i=0;i<regs;i++)
-     //        printf("SNo:%d   PowerValue:%f\n",OPTICALPOWER_R_ADDRESS+subPort,((float)tab_reg[i])/100.0);
-     //  }
+       modbus_set_slave(mb,devAddr);   
+       switch(Mode){
+          case  MODE2_BACKUP          :
+          case  MODE4_ONLINE_POWER    :regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+OpticalPower_PATH_Mode2_Mode4[subPort]-1,1,tab_reg);break;
+          case  MODE3_PROTECT_MASTER  :regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+OpticalPower_PATH_Mode3[subPort]-1,1, tab_reg);break;
+          case  MODE5_PROTECT_SLAVER  :regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+OpticalPower_PATH_Mode5[subPort]-1,1, tab_reg); break; 
+          default  : return regs;
+       }
+                   
       return ((float)tab_reg[0])/100.0;
 
 }
@@ -168,46 +138,42 @@ int getMulOpticalValue(modbus_t *mb,int SNo,int16_t num,float * value)
        subPort =((SNo-1)%8);
        modbus_set_slave(mb,devAddr);       
        regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+subPort,num, tab_reg);
-
-          for(i=0;i<regs;i++){
-           //  if(mb->debug){
-           //      printf("光路号:%d   光功率值:%d=%f\n",subPort,((float)tab_reg[i])/100.0); 
-           //  }
+       for(i=0;i<regs;i++){
              value[i] =  ((float)tab_reg[i])/100.0;
-          }
-
+       }
       return regs;
 }
 
 
-int doOtdrSwitch(modbus_t * mb,int SNo)
+int doOtdrSwitch(modbus_t * mb,int SNo,int onlyOne)
 {
        int regs;
        int PortA,PortB;
        PortA =((SNo-1)/8)+1;                    //OTDR子单元的1*8光开关号
        PortB =((SNo-1)%8)+1;                      //光功率模块上的1*8光开关号
        modbus_set_slave(mb,0);              //OTDR子单元地址 
-       regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,PortA);
-       
-       if(1 == regs){
-          //if(mb->debug){
-            printf("第一组1*8光开关切换成功-->PortA=%d\n",PortA);
-          //}
-       }else
-       {
-          //if(mb->debug){
-             printf("第一组1*8光开关切换失败->back=%d\n",regs);
-          // }
-           return -1;
+       if(!onlyOne){ 
+               regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,PortA);
+     
+	       if(1 == regs){
+		  //if(mb->debug){
+		    printf("第一组1*8光开关切换成功-->PortA=%d\n",PortA);
+		  //}
+	       }else
+	       {
+		 // if(mb->debug){
+		     printf("第一组1*8光开关切换失败->back=%d\n",regs);
+		 //  }
+		   return -1;
+	       }
        }
-
        modbus_set_slave(mb,PortA);          //光功率模块子单元地址   1-8
        usleep(100000);
        regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,PortB);
        if(1 == regs){
            //if(mb->debug){
               printf("第二组1*8光开关切换成功-->PortB=%d\n",PortB);
-           //}
+          // }
        }else
        {
            //if(mb->debug){
@@ -218,6 +184,8 @@ int doOtdrSwitch(modbus_t * mb,int SNo)
 
       return 0;
 }
+
+
 
 
 int setOneOpticalThreshold(modbus_t *mb,int SNo,float value)
@@ -233,7 +201,7 @@ int setOneOpticalThreshold(modbus_t *mb,int SNo,float value)
        if(1 == regs){
           //if(mb->debug){
              printf("设置光功率阈值成功-->子单元号=%d 光路号=0X%X 阈值=%d \n",devAddr,OPTICALTHRESHOLD_WR_ADDRESS+subPort,(int)(value*100));
-          //}
+          //}s
        }else
        {
           //if(mb->debug){
@@ -245,6 +213,7 @@ int setOneOpticalThreshold(modbus_t *mb,int SNo,float value)
       return 0;
 }
 
+
 float getOneOpticalThreshold(modbus_t *mb,int SNo)
 {
        int16_t value[100]={0};
@@ -254,7 +223,7 @@ float getOneOpticalThreshold(modbus_t *mb,int SNo)
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
        modbus_set_slave(mb,devAddr);       
-        regs=modbus_read_registers(mb, OPTICALTHRESHOLD_WR_ADDRESS+subPort,1, value);
+       regs=modbus_read_registers(mb, OPTICALTHRESHOLD_WR_ADDRESS+subPort,1, value);
        if(1 == regs){
           //if(mb->debug){
           //   printf("获取光功率阈值成功-->子单元号=%d 光路号=%d 阈值=%f \n",devAddr,subPort+1,((float)value[0])/100.0);
@@ -270,32 +239,249 @@ float getOneOpticalThreshold(modbus_t *mb,int SNo)
       return ((float)value[0])/100.0;
 }
 
-int doOpticalProtectSwitch(modbus_t *mb,int PNo,int flag)
+
+int16_t setSubDeviceMode(modbus_t *mb,int devAddr,int Mode)
+{
+
+     uint16_t  value[100]={0};
+     int reg;
+     modbus_set_slave(mb,devAddr);   // 1-8
+     reg=modbus_read_registers(mb, DEVICE_ID_WR_ADDR,1, value);
+     if(value[0] == devAddr && reg != -1){
+           usleep(100000);
+           reg = modbus_write_register(mb,DEVICE_MODE_WR_ADDR,Mode);
+           if(reg != -1){
+                return 0;
+           }else{
+                printf("Write Device Mode Failed!\n");
+                return -1;
+           }
+     }else{
+           printf("Don't have Device,Connect Failed!\n");
+           return -1;
+     }
+     
+}
+int doOpticalProtectSwitch(modbus_t *mb,int SWNo,int flag,int Mode)
 {
 
        int regs,i;
        int16_t devAddr;
        int16_t subPort;
-       devAddr =((PNo-1)/4)+1;
-       subPort =((PNo-1)%4);
+       devAddr =((SWNo-1)/4)+1;
+       subPort =((SWNo-1)%4);
        modbus_set_slave(mb,devAddr);       
-       regs = modbus_write_register(mb,OPTICALPROTECT_WR_ADDRESS+subPort,flag);
+
+       switch(Mode){
+           case MODE3_PROTECT_MASTER : regs = modbus_write_register(mb,OPTICALPROTECT_WR_ADDRESS+OpticalProtect_PATH_Mode3[subPort]-1,flag);break;
+           case MODE5_PROTECT_SLAVER : regs = modbus_write_register(mb,OPTICALPROTECT_WR_ADDRESS+OpticalProtect_PATH_Mode5[subPort]-1,flag);break;
+           default: return -1;
+       }
+       
        if(1 == regs){
           //if(mb->debug){
             printf("执行光保护切换成功-->子单元号=%d 保护组号=%d 执行状态={%s} \n",devAddr,subPort+1,flag==PARALLEL?"平行":"交叉");
-          //}
+         // }
        }else
        {
 
          //if(mb->debug){
            printf("执行光保护切换失败-->子单元号=%d 保护组号=%d 执行状态={%s} \n",devAddr,subPort+1,flag==PARALLEL?"平行":"交叉");
          //}
-
-           return -1;
+         return -1;
        }
     
       return 0;
+}
 
 
+
+/*
+               ModBus-TCP API
+
+*/
+
+
+slaverModuleInformatin * newSlaverModule()
+{
+      slaverModuleInformatin * me = (slaverModuleInformatin *) malloc(sizeof(slaverModuleInformatin));
+      return me;
+}
+
+void freeSlaverModule(slaverModuleInformatin * me)
+{
+     free(me);
+} 
+
+netInfor * newNetInfor()
+{
+      netInfor *  me = (netInfor *) malloc(sizeof(netInfor));
+      return me;
+}
+
+void freeNetInfor(netInfor *me){
+     free(me);
+}
+modbus_t *newModBus_TCP_Client(char *slaverIP)
+{
+    int16_t *tab_reg;
+    modbus_t *ctx;
+    int rc;
+    ctx = modbus_new_tcp("192.168.0.118", 1502);
+    if (modbus_connect(ctx) == -1) {
+        fprintf(stderr, "Connection failed: %s\n",
+                modbus_strerror(errno));
+        modbus_free(ctx);
+        return (modbus_t *)-1;
+    }
+    modbus_set_debug(ctx, TRUE);
+    return ctx;
+
+}
+void freeModbus_TCP_Client(modbus_t *ctx)
+{
+  modbus_close(ctx);  
+  modbus_free(ctx);
+}
+
+modbus_t * newModBus_TCP_Server(modbus_mapping_t *mb_mapping)
+{
+    modbus_t *ctx =NULL;
+    ctx = modbus_new_tcp("192.168.0.111", 1502);
+
+    mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0,
+                                    MODBUS_MAX_READ_REGISTERS, 0);
+
+    if (mb_mapping == NULL) {
+        fprintf(stderr, "Failed to allocate the mapping: %s\n",
+                modbus_strerror(errno));
+        modbus_free(ctx);
+        return (modbus_t *)-1;
+    }
+    return ctx; 
+}
+
+netInfor * modbus_TCP_listen(modbus_t * ctx)
+{
+
+    netInfor * netinfor=NULL;
+    netinfor=newNetInfor();
+    int server_socket;
+ 
+    netinfor->server_socket = modbus_tcp_listen(ctx, NB_CONNECTION);
+
+    if ( netinfor->server_socket == -1) {
+        fprintf(stderr, "Unable to listen TCP connection\n");
+        modbus_free(ctx);
+        return (netInfor *)-1;
+    }
+
+    return netinfor;
+}
+
+
+
+
+int createSlaverProtectModule(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP)
+{
+     int16_t addr=0;
+     int     rc;
+     int16_t write_date[3];
+     write_date[0] = CM;
+     write_date[1] = CLP;
+     write_date[2] = 0;
+     addr=ModNo*0x0010;
+
+     rc = modbus_write_registers(ctx,addr+MODULE_INFORMATION_MasterCM,3,write_date);   
+     if (rc == -1) {
+            fprintf(stderr, "%s\n", modbus_strerror(errno));
+            return -1;
+     }
+     return rc;
+}
+
+
+int setSlaverProtectGroup(modbus_t *ctx,int16_t ModNo,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos )
+{
+     int16_t rc;
+     int16_t write_date[5];
+     write_date[0] = ModNo;
+     write_date[1] = SNoA;
+     write_date[2] = SNoB;
+     write_date[3] = SwitchPos;
+     write_date[4] = ConnectPos;
+
+     rc = modbus_write_registers(ctx,SET_SLAVER_GROUP_ADDRESS,5,write_date);   
+     if (rc == -1) {
+            fprintf(stderr, "%s\n", modbus_strerror(errno));
+            return -1;
+     }
+     return rc;
+}
+
+int setSlaverProtectGate(modbus_t *ctx,int16_t ModNo,float powerGateA,float powerGateB)
+{
+     int16_t rc;
+     int16_t write_date[3];
+     write_date[0] = ModNo;
+     write_date[1] = (int16_t)(powerGateA*100);
+     write_date[2] = (int16_t)(powerGateB*100);
+
+      printf("%d  %d \n",write_date[1],write_date[2]);
+     rc = modbus_write_registers(ctx,SET_SLAVER_GATE_ADDRESS,3,write_date);   
+     if (rc == -1) {
+            fprintf(stderr, "%s\n", modbus_strerror(errno));
+            return -1;
+     }
+     return rc;
+}
+
+int deleteSlaverProtectModule(modbus_t *ctx,int16_t ModNo)
+{
+
+     int16_t rc;
+     int16_t write_date[1];
+     write_date[0] = ModNo;
+     rc = modbus_write_registers(ctx,DELETE_SLAVER_GROUP_ADDRESS,1,write_date);   
+     if (rc == -1) {
+            fprintf(stderr, "%s\n", modbus_strerror(errno));
+            return -1;
+     }
+     return rc;
+}
+
+int doSlaverProtectSwitch(modbus_t *ctx,int16_t ModNo,int16_t SwitchPos){
+
+     int16_t rc;
+     int16_t write_date[2];
+     write_date[0] = ModNo;
+     write_date[1] = SwitchPos;
+     
+     rc = modbus_write_registers(ctx,DO_SLAVER_SWITCH_ADDRESS,2,write_date);   
+     if (rc == -1) {
+            fprintf(stderr, "%s\n", modbus_strerror(errno));
+            return -1;
+     }
+     return rc;
+
+
+}
+int getSlaverModuleInformation(modbus_t *ctx,slaverModuleInformatin * slaverModule)
+{
+
+     uint16_t addr=0,regs=0;
+     uint16_t *read_date =NULL;
+     read_date = (uint16_t *)malloc(sizeof(uint16_t)*10);
+     addr= slaverModule->ModNo*16;
+     read_date[9] = slaverModule->ModNo;
+     if(regs=modbus_read_registers(ctx,addr,9,read_date )<0){
+
+        fprintf(stderr, "%s\n", modbus_strerror(errno));  
+        return -1;        
+     }
+     memcpy(slaverModule,read_date, sizeof(slaverModuleInformatin));
+     free(read_date);
+     read_date=NULL;
+     return regs;
 }
 

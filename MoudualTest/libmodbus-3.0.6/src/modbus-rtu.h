@@ -34,17 +34,8 @@ modbus_t* modbus_new_rtu(const char *device, int baud, char parity,
 #define MODBUS_RTU_RS232 0
 #define MODBUS_RTU_RS485 1
 
-modbus_t* modbus_rtu_set_serial_mode(modbus_t *ctx, int mode);
+int modbus_rtu_set_serial_mode(modbus_t *ctx, int mode);
 int modbus_rtu_get_serial_mode(modbus_t *ctx);
-
-#if HAVE_DECL_TIOCSRS485
-
-#define MODBUS_RTU_485DE_INPUT  0
-#define MODBUS_RTU_485DE_OUTPUT 1
-int modbus_rtu_open_485de(modbus_t *ctx,char *device);
-int modbus_rtu_set_485de_delay(modbus_t *ctx, int us);
-
-#endif
 
 MODBUS_END_DECLS
 

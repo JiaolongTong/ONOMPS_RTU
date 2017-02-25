@@ -37,17 +37,33 @@ float ntohf(float t)                     //网络浮点字节转换成主机浮�
     return *(float*)&ux;
 }
 
+int16_t uint16toint16(uint16_t t){
+
+    int16_t a;
+      
+    if( t & 0x8000 == 0){
+        return t;
+    }else{
+        a=-t;
+        return -1*a;
+    }
+ 
+}
 time_t str2Timestamp(char *str)          // 字符串形式(str): 20160715210732
 {  
-    struct tm* tmp_time = (struct tm*)malloc(sizeof(struct tm));  
+     
     int i;
-    char * strTo=NULL;
+    time_t tp;
+    char  strTo[30];
+    struct tm tmp_time;
     char year[5],mouth[3],day[3],h[3],m[3],s[3];
+    unsigned int intYear,intMouth,intDay,intHour,intMuinte,intSecond;
     for(i=0;i<4;i++)
     {
         year[i] = str[i];
     }
     year[i] ='\0';
+   
     for(i=0;i<2;i++)
     {
         mouth[i] = str[i+4];
@@ -77,16 +93,43 @@ time_t str2Timestamp(char *str)          // 字符串形式(str): 20160715210732
         s[i] = str[i+4+2+2+2+2];
     }
      s[i] ='\0';
+
+
+    intYear =(unsigned int)atoi(year);
+    intMouth=(unsigned int)atoi(mouth);
+    intDay=(unsigned int)atoi(day);
+    intHour=(unsigned int)atoi(h);
+    intMuinte=(unsigned int)atoi(m);
+    intSecond=(unsigned int)atoi(s);
+
+
+    if (0 >= (int) (intMouth -= 2)) {    /* 1..12 -> 11,12,1..10 */
+         intMouth += 12;      /* Puts Feb last since it has leap day */
+         intYear -= 1;
+    }
+
+
     
-    strTo=(char *) malloc (sizeof(char)*30);
+    tp = (((
+             (time_t) (intYear/4 - intYear/100 + intYear/400 + 367*intMouth/12 + intDay) +
+             intYear*365 - 719499
+          )*24 + intHour /* now have hours */
+       )*60 + intMuinte /* now have minutes */
+    )*60 + intSecond; /* finally seconds */
+
+    
+    
+/*
     sprintf(strTo,"%s-%s-%s %s:%s:%s",year,mouth,day,h,m,s);
     printf("DATE:%s\n",strTo);
-    strptime(strTo,TIMEFORMAT,tmp_time);  
-    time_t t = mktime(tmp_time);  
-    //printf("zhuTimesstamp:%ld\n",t); 
-    free(strTo);
-    free(tmp_time);  
-    return t;  
+    strptime(strTo,TIMEFORMAT,&tmp_time);  
+    printf("Strptime\n");
+    tp = mktime(&tmp_time);  
+    printf("Mktime\n");
+*/
+
+    
+    return tp;  
 }
 
 time_t computTime(char * str)           //str:日、时、分各2字节
@@ -115,7 +158,7 @@ time_t computTime(char * str)           //str:日、时、分各2字节
      time_t res=0;
  
      printf("Day:%s Hour:%s  Munitis:%s\n",day,h,m);
-    // time_t  day_t,h_t,m_t;
+     //time_t  day_t,h_t,m_t;
      //day_t = strtoul (P03->child->value.text.string, NULL, 0); 
      res =(time_t)(atoi(m)*60 + atoi(h)*60*60 + atoi(day)*60*60*24);
      return(res);
@@ -124,11 +167,14 @@ time_t computTime(char * str)           //str:日、时、分各2字节
 time_t getLocalTimestamp()               // 获取本地时间戳
 {
      time_t timep;
-     struct tm *p;  
+     //struct tm *p;  
      char s[100];
-     time(&timep);
-     p=gmtime(&timep);  
-     strftime(s, sizeof(s), "%Y-%m-%d %H:%M:%S", p);  
+     
+     timep=time(NULL);
+     
+     //p=gmtime(&timep);  
+      
+     //strftime(s, sizeof(s), "%Y-%m-%d %H:%M:%S", p);  
      //printf("NOW :%s\n", s);  
      //printf("nowTimesstamp:%ld\n",timep);
      return(timep);

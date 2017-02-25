@@ -66,7 +66,6 @@ static const uint8_t table_crc_hi[] = {
     0x80, 0x41, 0x00, 0xC1, 0x81, 0x40
 };
 
-
 /* Table of CRC values for low-order byte */
 static const uint8_t table_crc_lo[] = {
     0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06,
@@ -258,34 +257,6 @@ static int win32_ser_read(struct win32_ser *ws, uint8_t *p_msg,
 }
 #endif
 
-
-#if HAVE_DECL_TIOCSRS485
-static void _modbus_rtu_ioctl_485de(modbus_t *ctx, int on)
-{
-    
-    modbus_rtu_t *ctx_rtu = ctx->backend_data;
-    int fd = ctx_rtu->fd_485de;
-    int count;
-    if(on==1){
-	    if (ctx->debug) {
-	       fprintf(stderr,"Output Direction control fd_485de=%d ioctl()\n",fd);
-	    }
-	    count = write(fd, "1", 1); 
-	    if (count < 0) 
-		printf("write Direction pin devices fail!\n");
-    }else{
-	    if (ctx->debug) {
-	       fprintf(stderr," Input Direction control fd_485de=%d ioctl()\n",fd);
-	    }
-	    count = write(fd, "0", 1); 
-	    if (count < 0) 
-		printf("write Direction pin devices fail!\n");
-    }
-
-}
-#endif
-
-
 ssize_t _modbus_rtu_send(modbus_t *ctx, const uint8_t *req, int req_length)
 {
 #if defined(_WIN32)
@@ -293,42 +264,7 @@ ssize_t _modbus_rtu_send(modbus_t *ctx, const uint8_t *req, int req_length)
     DWORD n_bytes = 0;
     return (WriteFile(ctx_rtu->w_ser.fd, req, req_length, &n_bytes, NULL)) ? n_bytes : -1;
 #else
-#if HAVE_DECL_TIOCSRS485
-    modbus_rtu_t *ctx_rtu = ctx->backend_data;
-    if (ctx_rtu->serial_mode == MODBUS_RTU_RS485) {
-        ssize_t size;
-
-        if (ctx->debug) {
-            fprintf(stderr, "Sending RS485 request\n");
-        }
-
-        ctx_rtu->set_485de(ctx, MODBUS_RTU_485DE_OUTPUT);
-      //  usleep(ctx_rtu->delay_485de);
-        size = write(ctx->s, req, req_length);
-      //  usleep(ctx_rtu->onebyte_time * req_length + ctx_rtu->delay_485de);   
-        ctx_rtu->set_485de(ctx, MODBUS_RTU_485DE_INPUT);
-
-
-/*
-        ctx_rtu->set_rts(ctx, ctx_rtu->rts == MODBUS_RTU_RTS_UP);
-        usleep(ctx_rtu->rts_delay);
-
-        size = write(ctx->s, req, req_length);
-
-        usleep(ctx_rtu->onebyte_time * req_length + ctx_rtu->rts_delay);
-        ctx_rtu->set_rts(ctx, ctx_rtu->rts != MODBUS_RTU_RTS_UP);
-
-*/
-      // sleep(2);
-        return size;
-    } else {
-#endif
-        return write(ctx->s, req, req_length);
-#if HAVE_DECL_TIOCSRS485
-    }
-#endif
-
-
+    return write(ctx->s, req, req_length);
 #endif
 }
 
@@ -531,7 +467,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
 
        Timeouts are ignored in canonical input mode or when the
        NDELAY option is set on the file via open or fcntl */
-    ctx->s = open(ctx_rtu->device, O_RDWR | O_NOCTTY | O_NDELAY | O_EXCL );  //
+    ctx->s = open(ctx_rtu->device, O_RDWR | O_NOCTTY | O_NDELAY | O_EXCL);
     if (ctx->s == -1) {
         fprintf(stderr, "ERROR Can't open the device %s (%s)\n",
                 ctx_rtu->device, strerror(errno));
@@ -774,67 +710,48 @@ static int _modbus_rtu_connect(modbus_t *ctx)
 
 #if HAVE_DECL_TIOCSRS485
     /* The RS232 mode has been set by default */
-   // ctx_rtu->serial_mode = MODBUS_RTU_RS485;
-   ((modbus_rtu_t *)(ctx->backend_data))->serial_mode = MODBUS_RTU_RS485;
+    ctx_rtu->serial_mode = MODBUS_RTU_RS232;
 #endif
 
     return 0;
 }
 
-modbus_t* modbus_rtu_set_serial_mode(modbus_t *ctx, int mode)
+int modbus_rtu_set_serial_mode(modbus_t *ctx, int mode)
 {
     if (ctx->backend->backend_type == _MODBUS_BACKEND_TYPE_RTU) {
 #if HAVE_DECL_TIOCSRS485
-//        modbus_rtu_t *ctx_rtu;
-//        ctx_rtu = (modbus_rtu_t *)ctx->backend_data;
-//        struct serial_rs485 rs485conf;
-//        memset(&rs485conf, 0x0, sizeof(struct serial_rs485));
+        modbus_rtu_t *ctx_rtu = ctx->backend_data;
+        struct serial_rs485 rs485conf;
+        memset(&rs485conf, 0x0, sizeof(struct serial_rs485));
 
         if (mode == MODBUS_RTU_RS485) {
-/*
             rs485conf.flags = SER_RS485_ENABLED;
             if (ioctl(ctx->s, TIOCSRS485, &rs485conf) < 0) {
-                if (ctx->debug) {
-                  printf("faild in modbus_rtu_set_serial_mode:set RS485 \n");
-                 }
                 return -1;
             }
-*/
-           // ctx_rtu->serial_mode |= MODBUS_RTU_RS485;
-            ((modbus_rtu_t *)(ctx->backend_data))->serial_mode = MODBUS_RTU_RS485;
-            if (ctx->debug) {
-                  printf("modbus_rtu_set_serial_mode():set RS485 sucessful %d !\n", ((modbus_rtu_t *)(ctx->backend_data))->serial_mode);
-             }          
-            return ctx;
-        } else if (mode == MODBUS_RTU_RS232) {
-/*
-            if (ioctl(ctx->s, TIOCSRS485, &rs485conf) < 0) {
-                if (ctx->debug) {
-                  printf("faild in modbus_rtu_set_serial_mode:set RS232 \n");
-                 }
-                return -1;
-            }
-*/
 
-            //ctx_rtu->serial_mode = MODBUS_RTU_RS232;
-            ((modbus_rtu_t *)(ctx->backend_data))->serial_mode= MODBUS_RTU_RS232;
-            if (ctx->debug) {
-                  printf("modbus_rtu_set_serial_mode():set RS232 sucessful%d !\n", ((modbus_rtu_t *)(ctx->backend_data))->serial_mode);
-             }  
-            return ctx;
+            ctx_rtu->serial_mode |= MODBUS_RTU_RS485;
+            return 0;
+        } else if (mode == MODBUS_RTU_RS232) {
+            if (ioctl(ctx->s, TIOCSRS485, &rs485conf) < 0) {
+                return -1;
+            }
+
+            ctx_rtu->serial_mode = MODBUS_RTU_RS232;
+            return 0;
         }
 #else
         if (ctx->debug) {
-            printf("This function isn't supported on your platform\n");
+            fprintf(stderr, "This function isn't supported on your platform\n");
         }
         errno = ENOTSUP;
-        return ctx;
+        return -1;
 #endif
     }
 
     /* Wrong backend and invalid mode specified */
     errno = EINVAL;
-    return ctx;
+    return -1;
 }
 
 int modbus_rtu_get_serial_mode(modbus_t *ctx) {
@@ -855,73 +772,6 @@ int modbus_rtu_get_serial_mode(modbus_t *ctx) {
     }
 }
 
-int modbus_rtu_open_485de(modbus_t *ctx,char *device)
-{
-
-    if (ctx == NULL || device ==NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-    if (ctx->backend->backend_type == _MODBUS_BACKEND_TYPE_RTU) {
-#if HAVE_DECL_TIOCSRS485
-        modbus_rtu_t *ctx_rtu;
-        int fd,count;
-        ctx_rtu = (modbus_rtu_t *)ctx->backend_data;
-        fd = open(device, O_RDWR);
-        if (ctx->debug) {
-           printf("fd_485de=%d  open()",fd);
-        }
-        if(fd<0){
-            fprintf(stderr, "ERROR Can't open the device %s (%s)\n",
-                    device, strerror(errno));
-            return -1;
-        }
-        ctx_rtu->fd_485de=fd; 
-        count = write(fd, "0", 1);
-	if (count < 0) 
-	   printf("write file1 fail!\n");
-
-        return 0;
-#else
-        if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
-        }
-        errno = ENOTSUP;
-        return -1;
-#endif
-    } else {
-        errno = EINVAL;
-        return -1;
-    }
-
-}
-int modbus_rtu_set_485de_delay(modbus_t *ctx, int us)
-{
-    if (ctx == NULL || us < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    if (ctx->backend->backend_type == _MODBUS_BACKEND_TYPE_RTU) {
-#if HAVE_DECL_TIOCSRS485
-        modbus_rtu_t *ctx_rtu;
-        ctx_rtu = (modbus_rtu_t *)ctx->backend_data;
-        ctx_rtu->delay_485de = us;
-        return 0;
-#else
-        if (ctx->debug) {
-            fprintf(stderr, "This function isn't supported on your platform\n");
-        }
-        errno = ENOTSUP;
-        return -1;
-#endif
-    } else {
-        errno = EINVAL;
-        return -1;
-    }
-
-}
-
 void _modbus_rtu_close(modbus_t *ctx)
 {
     /* Closes the file descriptor in RTU mode */
@@ -939,9 +789,6 @@ void _modbus_rtu_close(modbus_t *ctx)
 #else
     tcsetattr(ctx->s, TCSANOW, &(ctx_rtu->old_tios));
     close(ctx->s);
-#if HAVE_DECL_TIOCSRS485
-    close(ctx_rtu->fd_485de);
-#endif
 #endif
 }
 
@@ -959,9 +806,7 @@ int _modbus_rtu_flush(modbus_t *ctx)
 int _modbus_rtu_select(modbus_t *ctx, fd_set *rfds,
                        struct timeval *tv, int length_to_read)
 {
-
-   int s_rc;
-
+    int s_rc;
 #if defined(_WIN32)
     s_rc = win32_ser_select(&(((modbus_rtu_t*)ctx->backend_data)->w_ser),
                             length_to_read, tv);
@@ -974,22 +819,21 @@ int _modbus_rtu_select(modbus_t *ctx, fd_set *rfds,
         return -1;
     }
 #else
-
     while ((s_rc = select(ctx->s+1, rfds, NULL, NULL, tv)) == -1) {
         if (errno == EINTR) {
             if (ctx->debug) {
                 fprintf(stderr, "A non blocked signal was caught\n");
             }
-            // Necessary after an error
+            /* Necessary after an error */
             FD_ZERO(rfds);
             FD_SET(ctx->s, rfds);
         } else {
-
             return -1;
         }
     }
+
     if (s_rc == 0) {
-        // Timeout
+        /* Timeout */
         errno = ETIMEDOUT;
         return -1;
     }
@@ -1012,34 +856,7 @@ int _modbus_rtu_filter_request(modbus_t *ctx, int slave)
         return 0;
     }
 }
-/*
 
-typedef struct _modbus_backend {
-    unsigned int backend_type;
-    unsigned int header_length;
-    unsigned int checksum_length;
-    unsigned int max_adu_length;
-    int (*set_slave) (modbus_t *ctx, int slave);
-    int (*build_request_basis) (modbus_t *ctx, int function, int addr,
-                                int nb, uint8_t *req);
-    int (*build_response_basis) (sft_t *sft, uint8_t *rsp);
-    int (*prepare_response_tid) (const uint8_t *req, int *req_length);
-    int (*send_msg_pre) (uint8_t *req, int req_length);
-    ssize_t (*send) (modbus_t *ctx, const uint8_t *req, int req_length);
-    ssize_t (*recv) (modbus_t *ctx, uint8_t *rsp, int rsp_length);
-    int (*check_integrity) (modbus_t *ctx, uint8_t *msg,
-                            const int msg_length);
-    int (*pre_check_confirmation) (modbus_t *ctx, const uint8_t *req,
-                                   const uint8_t *rsp, int rsp_length);
-    int (*connect) (modbus_t *ctx);
-    void (*close) (modbus_t *ctx);
-    int (*flush) (modbus_t *ctx);
-    int (*select) (modbus_t *ctx, fd_set *rfds, struct timeval *tv, int msg_length);
-    int (*filter_request) (modbus_t *ctx, int slave);
-} modbus_backend_t;
-
-
-*/
 const modbus_backend_t _modbus_rtu_backend = {
     _MODBUS_BACKEND_TYPE_RTU,
     _MODBUS_RTU_HEADER_LENGTH,
@@ -1103,23 +920,6 @@ modbus_t* modbus_new_rtu(const char *device,
     }
     ctx_rtu->data_bit = data_bit;
     ctx_rtu->stop_bit = stop_bit;
-
-#if HAVE_DECL_TIOCSRS485
-    /* The RS232 mode has been set by default */
-    ctx_rtu->serial_mode = MODBUS_RTU_RS232;
-
-    /* The RTS use has been set by default */
-    ctx_rtu->fd_485de = MODBUS_RTU_485DE_OUTPUT;
-
-    /* Calculate estimated time in micro second to send one byte */
-    ctx_rtu->onebyte_time = 1000000 * (1 + data_bit + (parity == 'N' ? 0 : 1) + stop_bit) / baud;
-
-    /* The internal function is used by default to set RTS */
-    ctx_rtu->set_485de = _modbus_rtu_ioctl_485de;
-
-    /* The delay before and after transmission when toggling the RTS pin */
-    ctx_rtu->delay_485de = ctx_rtu->onebyte_time;
-#endif
 
     return ctx;
 }

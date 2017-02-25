@@ -45,4 +45,5 @@ struct server_config_t {
 
 
 int PM_Check_IP(char* interface, char *ipaddr);
+int PM_Accsee_IP(char* interface, char *ipaddr);
 #endif                        /* __CHECKIP_H */

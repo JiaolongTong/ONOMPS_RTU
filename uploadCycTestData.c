@@ -5,20 +5,28 @@ const char base[]  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 
 //////////////////////   for test
 /*
+  if(SwitchPos==PARALLEL)  Status = 1;
+    if(SWitchPos==ACROSS)    Status = 0;    
+
+
 int otdr_sem_id =0; 
 void main(void)
 {
-    int SNo =3,CM=1;
-    otdr *testPar;
-    testPar = OTDR_Create();
-    testPar->MeasureLength_m=1000;
-    testPar->PulseWidth_ns=100;
-    testPar->Lambda_nm=10;
-    testPar->MeasureTime_ms=1;  
-    testPar->n=2.1;
-    testPar->NonRelectThreshold=2.2;
-    testPar->EndThreshold=2.3;
-    upload(SNo,CM,testPar,3);
+      int SNo =1,CM=1;
+      otdr *testPar;
+      backData * bData=NULL;
+      bData=backData_Create();
+      bData->SwitchPos =96;
+      strcpy(bData->backIP ,"192.168.0.140");
+//    testPar = OTDR_Create();
+//    testPar->MeasureLength_m=1000;
+//    testPar->PulseWidth_ns=100;
+//    testPar->Lambda_nm=10;
+//    testPar->MeasureTime_ms=1;  
+//    testPar->n=2.1;
+//    testPar->NonRelectThreshold=2.2;
+//    testPar->EndThreshold=2.3;
+      upload(bData,SNo,CM,4);
 }
 **************************/
 backData * backData_Create()
@@ -53,7 +61,13 @@ int upload(backData *bData,int SNo,int CM,int type)
                  {   
                    XMLgenerNewOTDRData(RTUSENDFILE,bData->otdrPar,SNo,CM,type);break;
                  }
+           case 4:{
+                   XMLsendProtectSwitchSwitch(RTUSENDFILE,bData->SwitchStatusRecv,bData->SwitchStatusSend,bData->SNoOnlineSend,bData->SNoOnlineRecv,CM,type);break;
+                 }
 
+           case 5:{
+                   XMLsendLineFaultWarming(RTUSENDFILE,bData->SNoOnlineSend,bData->SNoOnlineRecv,CM,type);break;
+                 }
 	   default: {printf("Input segment fault!\n");return -1;}break;
      }
 
@@ -158,7 +172,7 @@ int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,
     strcat(sumStr,"<AsynPush>\n");
     strcat(sumStr,"<OpticPowerWarming >\n");
     strcat(sumStr,"	<CMDcode>522</CMDcode>\n");
-    strcat(sumStr,"	<R></R >\n");
+    strcat(sumStr,"	<R>*</R >\n");
     sprintf(str,"%d",CM);
     strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
     strcat(sumStr,"	<CLP>*</CLP>\n");
@@ -182,8 +196,108 @@ int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,
     free(sumStr);
     return 0; 
 }
+//XMLsendProtectSwitchSwitch(RTYSENDFILE,bData->SwitchPos,ModNum,rPNo,sPNo,CM,type);break;
+/*
+CMDcode	523（固定）	INT(1Bytes)	每个指令或数据的唯一标识
+R		        INT(3Bytes)	预留
+CM		        String(10Bytes)	RTU代码
+CLP		        String(10Bytes)	局站代码
+ModNo		        INT(3Bytes)	本RTU的模块号
+RSNo		        INT(3Bytes)	当前下行在纤端口
+SSNo		        INT(3Bytes)	当前上行在纤端口
+StatusRecv		INT(3Bytes)	当前上行1*2光开关状态（1->2:96 1->3:16）
+StatusSend		INT(3Bytes)	当前下行1*2光开关状态（1->2:96 1->3:16）
 
+*/
+int XMLsendProtectSwitchSwitch(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type)
+{
+    FILE * fd;
+    char str[100];
+    char * sumStr;
+    
+    int   PNo;
+    int   ModNum  = (SNoSend-1)/8+1 ;
 
+    sumStr  =(char *)malloc(sizeof(char)*1024*8);
+    *sumStr ='\0';                                 
+    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
+    strcat(sumStr,"<AsynPush>\n");
+    strcat(sumStr,"<SwitchReport>\n");
+    strcat(sumStr,"	<CMDcode>523</CMDcode>\n");
+    strcat(sumStr,"	<R>*</R >\n");
+    sprintf(str,"%d",CM);
+    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
+    strcat(sumStr,"	<CLP>*</CLP>\n");
+    sprintf(str,"%d",ModNum);
+    strcat(sumStr,"	<ModNo>"); strcat(sumStr,str);strcat(sumStr,"</ModNo>\n");
+    sprintf(str,"%d",SNoRecv);
+    strcat(sumStr,"	<RSNo>"); strcat(sumStr,str);strcat(sumStr,"</RSNo>\n");
+    sprintf(str,"%d",SNoSend);
+    strcat(sumStr,"	<SSNo>"); strcat(sumStr,str);strcat(sumStr,"</SSNo>\n");
+
+    sprintf(str,"%d",SwitchPosMaster);
+    strcat(sumStr,"	<StatusRecv>"); strcat(sumStr,str);strcat(sumStr,"</StatusRecv>\n");
+    sprintf(str,"%d",SwitchPosSlaver);
+    strcat(sumStr,"	<StatusSend>"); strcat(sumStr,str);strcat(sumStr,"</StatusSend>\n");
+    strcat(sumStr,"</SwitchReport>\n");
+    strcat(sumStr,"</AsynPush>\n");    
+    if ((fd = fopen(filename,"w")) == NULL)  
+    {  
+        fprintf(stderr,"fopen file error:%s\n",filename);  
+        return -1;  
+    } 
+    fwrite(sumStr,strlen(sumStr),1,fd);    
+    fclose(fd);
+    free(sumStr);
+    return 0; 
+
+}
+/*
+CMDcode    	521（固定）	INT(1Bytes)	每个指令或数据的唯一标识
+R		INT	预留
+CM		String(10Bytes)	RTU代码
+CLP		String(10Bytes)	局站代码
+ModNo		INT(3Bytes)	本RTU的模块号
+RSNo		INT(3Bytes)	当前下行在纤端口
+SSNO		INT(3Bytes)	当前上行在纤端口
+*/
+int XMLsendLineFaultWarming   (char * filename,int SNoSend,int SNoRecv,int CM,int type){
+
+    FILE * fd;
+    char str[100];
+    char * sumStr;
+    
+    int   PNo;
+    int   ModNum = (SNoSend-1)/8+1;
+
+    sumStr  =(char *)malloc(sizeof(char)*1024*8);
+    *sumStr ='\0';                                 
+    strcat(sumStr,"<?xml version='1.0' encoding='UTF-8'?>\n");
+    strcat(sumStr,"<AsynPush>\n");
+    strcat(sumStr,"<LineFaultWarming>\n");
+    strcat(sumStr,"	<CMDcode>521</CMDcode>\n");
+    strcat(sumStr,"	<R></R >\n");
+    sprintf(str,"%d",CM);
+    strcat(sumStr,"	<CM>"); strcat(sumStr,str);strcat(sumStr,"</CM>\n");
+    strcat(sumStr,"	<CLP>*</CLP>\n");
+    sprintf(str,"%d",ModNum);
+    strcat(sumStr,"	<ModNo>"); strcat(sumStr,str);strcat(sumStr,"</ModNo>\n");
+    sprintf(str,"%d",SNoRecv);
+    strcat(sumStr,"	<RSNo>"); strcat(sumStr,str);strcat(sumStr,"</RSNo>\n");
+    sprintf(str,"%d",SNoSend);
+    strcat(sumStr,"	<SSNo>"); strcat(sumStr,str);strcat(sumStr,"</SSNo>\n");
+    strcat(sumStr,"</LineFaultWarming>\n");
+    strcat(sumStr,"</AsynPush>\n");    
+    if ((fd = fopen(filename,"w")) == NULL)  
+    {  
+        fprintf(stderr,"fopen file error:%s\n",filename);  
+        return -1;  
+    } 
+    fwrite(sumStr,strlen(sumStr),1,fd);    
+    fclose(fd);
+    free(sumStr);
+
+}
 int XMLgenerNewOTDRData (char * filename,otdr *Par,int SNo,int CM,int type)
 {
     char    *sumStr;

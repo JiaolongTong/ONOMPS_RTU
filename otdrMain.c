@@ -4,7 +4,7 @@
 #include "uploadCycTestData.h" 
 #include "process.h"
 #include "myModbus.h"
-
+#include "checkip.h"
 /***节点结构***/
 /*
     SNO:光路号
@@ -316,7 +316,7 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact);
 void main(void)
 {
         otdrNode *p1=NULL;
-        int SNo=0;
+        int SNo=0,i;
         int intCM=0;
         int type=0;
         int otdrSWFlag=-1;
@@ -327,17 +327,17 @@ void main(void)
         char *SMQstr=NULL;
         sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
         modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
-         if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
-          {  
+        if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
+        {  
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
-          }  
+        }  
 
-          if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
-          {  
+        if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
+        {  
               fprintf(stderr, "Failed to initialize modbus_semaphore\n");  
               exit(EXIT_FAILURE); 
-          } 
+        } 
 
         //initModbusPV();         //创建ModBus信号量Modbus  信号量 
         /*初始化测试链表*/
@@ -368,7 +368,7 @@ void main(void)
             
 		   testPar = lookupParm(SNo,type); 
                    if(testPar->haveParm == 1){                     
-			   printf("NowTime:%ld,Type:%d\n"   ,getLocalTimestamp(),type);
+			   printf("NowTime:%ld,Type:%d\n" ,getLocalTimestamp(),type);
 			   printf("SNo      -uint -[%d]\n",SNo);
 			   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
 			   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
@@ -382,12 +382,17 @@ void main(void)
 		         
 		           if(!setModbus_P())                                                //P
 		                 exit(EXIT_FAILURE); 
-		             usleep(50000); 
+		           //usleep(50000); 
 		             otdrSWFlag=-1;
 		             mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
-		             otdrSWFlag = doOtdrSwitch(mb,SNo);    
+                             for(i=0;i<5;i++){
+		                 otdrSWFlag = doOtdrSwitch(mb,SNo,1); 
+                                 if(!otdrSWFlag)break;
+                             } 
+                             printf("------------------------------------>Here 1\n");   
 		             freeModbus(mb);  
-		             usleep(50000);            
+		             //usleep(50000);   
+                             printf("------------------------------------>Here 2\n");         
 		           if(!setModbus_V())                                                //V
 		                 exit(EXIT_FAILURE); 
 
@@ -443,34 +448,87 @@ void main(void)
    (2)同一类型的消息，按照信号到来的时间，依次插入测试链表
       --->可以解决多个客户端（WEB）向同一个光路，几乎同时进行点名测试。
 */
+
 void addNewtoLink(int signum,siginfo_t *info,void *myact)
 {
-       int type=0,SNo=0;
+       int type=0,value=0,flag=0,fd=0;
+       pid_t pid; 
+       char newIP[16];
+       char oldIP[16];
+       char oldMask[16];
+       char str[30];
        type=info->si_int/100;
-       SNo =info->si_int%100;
-       printf("type:%d,SNo:%d,",type,SNo);
+       value =info->si_int%100;
+       printf("type:%d,value:%d,",type,value);
        switch(type){
+
+           case 0:{ 
+		            if(value==38){    //重启RTU         
+				    printf("Start Reboot System......\n");  
+				    sendMessageQueue_B("0-OK-38",38);  
+				    execl("/web/cgi-bin/reboot.sh","reboot.sh");      
+			 	    break;
+		            }
+		            if(value==16){    //网络配置
+		                 get_ip(newIP);
+		                 
+				 if(0!=PM_Accsee_IP("eth0","192.168.0.140")){
+				       if ((fd = open ("/web/cgi-bin/fiberMointor.tmp" , O_RDWR)) < 0){
+		                            perror ("Error opening file");
+		                       }else{
+					    lseek(fd,0,SEEK_SET);			 
+					    read(fd,oldIP,16);
+		                            printf("Back to Old IP:%s",oldIP);  
+		                            read(fd,oldMask,16); 
+		                            printf("Back to Old Mask:%s",oldMask); 
+				       }
+				       close (fd);                                  
+		                       set_ip(oldIP);
+		                 }else{
+		                       printf("Set to New IP:%s",newIP); 
+				       if ((fd = open ("/web/cgi-bin/fiberMointor.conf" , O_RDWR)) < 0){
+		                            perror ("Error opening file");
+		                       }else{
+				            sprintf(str,"eth0 %s",newIP);
+					    lseek(fd,0,SEEK_SET);			 
+					    write(fd,str,strlen(str));   
+				       }
+				       close (fd);                           
+		                 }
+		                 break;
+		            }                      
+                  }
+                
            case 1:{                                               
-		    linkHead=insertTestNode(linkHead,type,SNo);
-		    outPutALL(linkHead);
-                    //sendMessageQueue_B("1-OK");                   在主进程中回复
-		    break;
+			    linkHead=insertTestNode(linkHead,type,value);
+			    outPutALL(linkHead);
+		            //sendMessageQueue_B("1-OK");                   在主进程中回复
+			    break;
                   }
            case 2:{                                                
-                    linkHead=insertTestNode(linkHead,type,SNo);                   
-                    outPutALL(linkHead);
-                    sendMessageQueue_C("2-OK",2222);
-		    break;
+		            linkHead=insertTestNode(linkHead,2,value);                   
+		            outPutALL(linkHead);
+		            sendMessageQueue_C("2-OK",2222);
+			    break;
                   }
-           case 3:{                                                
-                    linkHead=insertTestNode(linkHead,type,SNo);                   
-                    outPutALL(linkHead);
-                    sendMessageQueue_C("3-OK",3333);
 
-		    break;
+           case 4:{                                                
+		            linkHead=insertTestNode(linkHead,2,value);                   
+		            outPutALL(linkHead);
+		            sendMessageQueue_C("4-OK",4444);
+			    break;
                   }
+
+           case 3:{                                                
+		            linkHead=insertTestNode(linkHead,type,value);                   
+		            outPutALL(linkHead);
+		            sendMessageQueue_C("3-OK",3333);
+
+			    break;
+                  }
+
           default:break;
-            }
+      }
 }
 
 

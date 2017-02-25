@@ -111,7 +111,7 @@ responed * getOpticPowerParameter(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode
 		      exit(EXIT_FAILURE);
 		             usleep(50000);   
 		  modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-		  powerValue = getOneOpticalValue(mb,power->SNo); 
+		  powerValue = getOneOpticalValue(mb,power->SNo,ModType); 
 		  freeModbus(mb);                     
 		  power->value=powerValue;   
 		  RespondMessage_OpticPowerData(power, 0);      
@@ -130,7 +130,7 @@ responed * getOpticPowerParameter(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode
 			      exit(EXIT_FAILURE);   
 			  usleep(50000);
 			  modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-			  powerValue = getOneOpticalValue(mb,power->SNo); 
+			  powerValue = getOneOpticalValue(mb,power->SNo,ModType); 
 			  freeModbus(mb);                     
 			  power->value=powerValue;   
 			  RespondMessage_OpticPowerData(power, 0); 

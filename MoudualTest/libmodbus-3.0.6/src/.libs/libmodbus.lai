@@ -38,4 +38,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/web/cgi-bin/MoudualTest/libmodbus-3.0.6/lib/lib'
+libdir='/web/cgi-bin/MoudualTest/libmodbus-3.0.6/install/lib'

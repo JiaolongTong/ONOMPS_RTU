@@ -5,7 +5,8 @@
 
 #include <sys/sem.h>
 #define BUF_SIZE          (128*1024)       //OTDR测试缓冲区大小
-#define OTDR_IP           "192.168.1.180"
+//#define OTDR_IP           "192.168.1.180"
+#define OTDR_IP           "192.168.1.249"
 typedef struct otdr otdr;
 struct otdr {
         int      haveParm;                        //是否存在测试参数

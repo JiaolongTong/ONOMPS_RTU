@@ -74,6 +74,30 @@ void RespondMessage_Error(int code ,responed * res)
 			}
 			printf("</Data>\n");
                        }break;
+
+
+            case 15:{
+                        ErrorSN=res->ErrorSN;
+			printf("<Data>\n");
+                                printf("<ModuleNo>");
+				for(i=0;i<ErrorSN;i++){
+				   uint32tostring((uint32_t)i,str);
+				   printf("%d,",res->Group[i].SNo);                   //i>10待修改  
+				 
+				}
+				printf("</ModuleNo>\n");
+				printf("<Infor>");
+				for(i=0;i<ErrorSN;i++)
+				{
+				   printf("%s,",res->Group[i].Main_inform);                   //i>10待修改  
+				}
+		 		printf("</Infor>\n");               
+				for(i=0;i<ErrorSN;i++){
+
+				 printf("%s ModNo:%d %s\n",str1,res->Group[i].SNo,res->Group[i].Error_inform);
+				}		
+			printf("</Data>\n");	
+                    }break;
             case 3: { 
 			printf("<Data>\n");
                         printf("	<Infor>%s</Infor>\n",res->Group[0].Main_inform);	

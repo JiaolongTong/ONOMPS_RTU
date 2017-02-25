@@ -23,7 +23,7 @@
 #include <sys/time.h>
 #include <errno.h>
 
-#include <modbus/modbus.h>
+#include <modbus.h>
 
 #define G_MSEC_PER_SEC 1000
 
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     if (use_backend == TCP) {
         ctx = modbus_new_tcp("127.0.0.1", 1502);
     } else {
-        ctx = modbus_new_rtu("/dev/ttyUSB0", 115200, 'N', 8, 1);
+        ctx = modbus_new_rtu("/dev/ttyUSB1", 115200, 'N', 8, 1);
         modbus_set_slave(ctx, 1);
     }
     if (modbus_connect(ctx) == -1) {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 
     printf("READ BITS\n\n");
 
-    nb_points = 8;
+    nb_points = MODBUS_MAX_READ_BITS;
     start = gettime_ms();
     for (i=0; i<n_loop; i++) {
         rc = modbus_read_bits(ctx, 0, nb_points, tab_bit);

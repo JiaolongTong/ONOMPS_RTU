@@ -80,10 +80,6 @@ typedef struct _modbus_rtu {
 #endif
 #if HAVE_DECL_TIOCSRS485
     int serial_mode;
-    int fd_485de;
-    int delay_485de;
-    int onebyte_time;
-    void (*set_485de) (modbus_t *ctx, int on);
 #endif
 } modbus_rtu_t;
 

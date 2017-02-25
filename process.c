@@ -302,17 +302,6 @@ char * recvMessageQueue_C(void)                                      //非阻塞
 
 
 }
-
-void TimeOutMSG(int signo){
-    switch (signo){
-        case SIGVTALRM:
-            printf("Catch a signal -- SIGVTALRM \n");
-            //signal(SIGVTALRM, sigOutime);
-            flag = 1;
-            break;
-    }
-    return;
-}
 int recvMessageQueue_D(char * backMSG, key_t key)                                         //阻塞方法  
 {
 
@@ -335,12 +324,16 @@ int recvMessageQueue_D(char * backMSG, key_t key)                               
 
         while(1)  
         {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
-            if(strncmp(data.text,backMSG, 4) == 0){                //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
+            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);  
+           // printf("------------------------------------->Here!\n");
+            if(strncmp(data.text,backMSG, 4) == 0){   
+                            
                if(key==3333)
                   printf("cycMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);  
                if(key==2222)   
-                  printf("alarmMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);                      
+                  printf("alarmMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);    
+               if(key==4444)
+                  printf("ProtectMasterMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);                  
                //running = 0;  
                ret=0;
                break;              
@@ -355,58 +348,6 @@ int recvMessageQueue_D(char * backMSG, key_t key)                               
         } 
         strcpy(data.text,"");
         return ret; 
-/*
-        struct itimerval value, ovalue;  
-        int msgid = -1;  
-        int running = 1; 
-        int ret=-1; 
-        struct msg_st data;  
-        long int msgtype = 0;                                        //只获取某一特定类型消息         
-        signal(SIGVTALRM, TimeOutMSG);
-        value.it_value.tv_sec = 0;
-        value.it_value.tv_usec = 100000;
-        value.it_interval.tv_sec = 0;
-        value.it_interval.tv_usec = 400000;
-        setitimer(ITIMER_VIRTUAL, &value, &ovalue);
-
-        msgid = msgget(key, 4777 | IPC_CREAT);              //建立消息队列(与BOA服务器通信) 1234
-        if(msgid == -1)  
-        {  
-            printf( "msgget failed with error: %d\n", errno);  
-            return -1;
-             
-        }  
-
-       // rflags=IPC_NOWAIT|MSG_NOERROR;                              //从队列中获取消息，直到遇到消息为止
-          
-        while(1)  
-        {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
-            if(strncmp(data.text,backMSG, 4) == 0){                //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
-               if(key==333)
-                  printf("cycMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);  
-               if(key==222)   
-                  printf("alarmMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);
-               ret=0;
-               break;              
-             } 
-            if(flag){
-               printf("Wait backProcessor xxxMain message time out");
-               flag=0;
-               ret=-1;
-               break;
-	    }          
-        }  
-        
-
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                        //删除消息队列 
-        {  
-            printf("msgctl(IPC_RMID) failed\n");  
-            return -1;    
-        } 
-
-        return ret; 
-*/
 }
 
 

@@ -20,7 +20,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <modbus/modbus.h>
+#include <modbus.h>
 
 #include "unit-test.h"
 
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     } else if (use_backend == TCP_PI) {
         ctx = modbus_new_tcp_pi("::1", "1502");
     } else {
-        ctx = modbus_new_rtu("/dev/ttyUSB0", 115200, 'N', 8, 1);
+        ctx = modbus_new_rtu("/dev/ttyUSB1", 115200, 'N', 8, 1);
     }
     if (ctx == NULL) {
         fprintf(stderr, "Unable to allocate libmodbus context\n");

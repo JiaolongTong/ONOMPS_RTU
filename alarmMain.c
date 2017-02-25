@@ -9,13 +9,14 @@
 #include "otdr.h"
 #include "uploadCycTestData.h" 
 #include "myModbus.h"
+
 /***测试链表节点结构***/ //LinkA
 /*
     SNO:光路号
     CM :局站号
     ANo:告警组号（优先级）
     PowerGate     :光功率门限，低于此门限产生告警
-    protectFlag   :光保护标识。1：存在保护光路。0：不存在保护光路
+
     fristAlarmFlag:首次告警标识：首次产生告警，置位为1，告警消失：置位为0。
     nextAlarmTime :告警未消失时，下次向服务器上传告警信息的时间
     alarmClick    :上传告警的周期
@@ -27,7 +28,7 @@ struct checkNode{
         int    CM;
 	int    ANo;
         float  PowerGate;
-        int    protectFlag;
+
         int    fristAlarmFlag;
         time_t nextAlarmTime;
         time_t alarmClick;
@@ -38,7 +39,7 @@ struct checkNode{
 /***告警链表节点***/   //LinkB
 /*
     SNO:光路号
-  ANo:告警组号（优先级）
+    ANo:告警组号（优先级）
     Order:节点序列号，按优先级排序依据 Order = ANo*100 + SNo
 */
 typedef struct alarmNode alarmNode;
@@ -66,14 +67,14 @@ int flagNew=0;                     //节点更新/插入标志
 /*****************************LinkA-checkLink************************************/
 /***插入测试节点****/
 /*
-     (1) 尾插法.
+     (1) 尾插法.uint32tostring
 */
 checkNode *insert_A(checkNode *head,checkNode *newNode)
 {
         checkNode *current=NULL;
         checkNode *pre=NULL;
-       // current = (checkNode *) malloc (sizeof(checkNode ));
-       // pre = (checkNode *) malloc (sizeof(checkNode ));
+        //current = (checkNode *) malloc (sizeof(checkNode ));
+        //pre = (checkNode *) malloc (sizeof(checkNode ));
 	//pre     = NULL;
 	current = head;
         while(current!=NULL){
@@ -99,11 +100,10 @@ checkNode *link_creat_A(){
         p1->CM            =0;
         p1->ANo           =0;
         p1->PowerGate     =-30;
-        p1->protectFlag   =2;
         p1->fristAlarmFlag=0;
         p1->nextAlarmTime =0;
         p1->alarmClick    =0;
-        
+ 
 	head = insert_A(head,p1);
 	return(head);
 }
@@ -169,8 +169,8 @@ void outPutALL_A(checkNode *head){
 	else
 		printf("There are %d lines on alarm testing linkA:\n",num_A);
 	while(p!=NULL){
-		printf("SNo:%d,rtuCM:%d,ANo:%d,PowerGate:%f,protectFlag:%d,fristAlarmFlag:%d,nextAlarmTime:%ld,alarmClick:%ld\n"
-                       ,p->SNo,p->CM,p->ANo,p->PowerGate,p->protectFlag,p->fristAlarmFlag,p->nextAlarmTime, p->alarmClick);
+		printf("SNo:%d,rtuCM:%d,ANo:%d,PowerGate:%ffristAlarmFlag:%d,nextAlarmTime:%ld,alarmClick:%ld\n"
+                       ,p->SNo,p->CM,p->ANo,p->PowerGate,p->fristAlarmFlag,p->nextAlarmTime, p->alarmClick);
                 p=p->next;
 	}
 }
@@ -336,22 +336,24 @@ void outPutALL_B(alarmNode *head){
 checkNode * InitA_CycleLink(void)
 {
 	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo,*ModNo;
+	 char *zErrMsg = 0,*SNo,*ModNo,*SNoOnline;
+         char strPNo[10];
+         int oldSwitchPos=0;
 	 int rc,i,rednum=0,SN=0;
 	 sql *mysql;
 	 char resultSNo[64][5];
          char **result = NULL;
          checkNode *head=NULL,*node=NULL;
-         uint32_t ANo,intModNo,protectFlag;
-         int fiberType=-1,ModuleType=-1;
-         float PowerGate;
+         uint32_t ANo,intModNo;
+         int fiberType=-1,ModuleType=-1,protectFlag=0;
+         float PowerGate,PowerGateOnline;
          int    CM=0;
          int    ret=-1;
          time_t T3,T4;
 
          head = link_creat_A();
          head = delete_A(head,0);                                     
-
+         SNoOnline =(char *) malloc(sizeof(char)*5);
 	 SNo = (char *) malloc(sizeof(char)*5);
 	 ModNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
@@ -363,6 +365,7 @@ checkNode * InitA_CycleLink(void)
 	 mysql->tableName   =  "AlarmTestSegmentTable";	
          mysql->filedsValue =  "1";                                
          mysql->filedsName  =  "Status";
+
          SN=SQL_findSNo(mysql,resultSNo);
          if(SN>0){
 		for(i =0 ;i<SN;i++){
@@ -375,7 +378,13 @@ checkNode * InitA_CycleLink(void)
                      fiberType=atoi(result[0]);
 		     printf("fiberType:%d ",fiberType);
                      SQL_freeResult(&result,&rednum);
-                       
+                      
+		     mysql->filedsName    = "protectFlag"; 
+	             SQL_lookupPar(mysql,&result,&rednum); 
+		     protectFlag=atoi(result[0]);
+	             printf("protectFlag:%d ",protectFlag);
+	             SQL_freeResult(&result,&rednum);
+ 
                      intModNo=((atoi(resultSNo[i])-1)/8+1);                  // 获取所属模块类型              
                      uint32tostring(intModNo,ModNo);
                      mysql->mainKeyValue  = ModNo;
@@ -386,67 +395,65 @@ checkNode * InitA_CycleLink(void)
 		     printf("moduleType:%d \n",ModuleType);
                      SQL_freeResult(&result,&rednum);
 
-                     if(fiberType==0 || ModuleType==4 ){                     // 备纤 或 在纤（OPM）模块
-	                mysql->tableName     = "AlarmTestSegmentTable";   
-
-			mysql->filedsName    = "rtuCM"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        CM =atoi(result[0]);
-			printf("CM:%d ",CM);
-			SQL_freeResult(&result,&rednum);
-
-			mysql->filedsName    = "Level"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        ANo =atoi(result[0]);
-			printf("ANo:%d ",ANo);
-			SQL_freeResult(&result,&rednum);
-
-			mysql->filedsName    = "AT06"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        PowerGate=atof(result[0]);
-			printf("PowerGate:%f ",PowerGate);
-			SQL_freeResult(&result,&rednum);
-
-			mysql->filedsName    = "protectFlag"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        protectFlag=atoi(result[0]);
-			printf("protectFlag:%d ",protectFlag);
-			SQL_freeResult(&result,&rednum);
 
 
-			mysql->filedsName    = "T3"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        T3 =computTime(result[0]);
-			printf("T3:%ld ",T3);
-			SQL_freeResult(&result,&rednum);
+                     if(fiberType==0 || ModuleType==4  ){                     // 备纤 或 在纤（OPM）模块
+                        if(protectFlag == 0 ){
+			        mysql->tableName     = "AlarmTestSegmentTable";   
+		                mysql->mainKeyValue  = SNo;
 
-			mysql->filedsName    = "T4"; 
-			SQL_lookupPar(mysql,&result,&rednum); 
-		        T4= computTime(result[0]);
-			printf("T4:%ld \n",T4);
-			SQL_freeResult(&result,&rednum);
+				mysql->filedsName    = "rtuCM"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				CM =atoi(result[0]);
+				printf("CM:%d ",CM);
+				SQL_freeResult(&result,&rednum);
+	 
+				mysql->filedsName    = "Level"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				ANo =atoi(result[0]);
+				printf("ANo:%d ",ANo);
+				SQL_freeResult(&result,&rednum);
 
-		        if(!setModbus_P())                                                //P
-                           exit(EXIT_FAILURE);   
-                        modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-                        ret = setOneOpticalThreshold(mb,atoi(SNo),PowerGate); 
-                        freeModbus(mb);                     
-                        if(!setModbus_V())                                                //V
-                           exit(EXIT_FAILURE); 
-        
-                        if(ret==0){ 
-			    node=(checkNode *)malloc(sizeof(checkNode));
-			    node->SNo           = atoi(SNo);
-		            node->CM            = CM;
-			    node->ANo           = ANo;
-			    node->PowerGate     = PowerGate;
-			    node->protectFlag   = protectFlag;
-			    node->fristAlarmFlag= 0;
-			    node->nextAlarmTime = getLocalTimestamp();                    
-			    node->alarmClick    = T3;                                  
-		            head=insert_A(head,node); 
-                        } 
-                    }
+				mysql->filedsName    = "AT06"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				PowerGate=atof(result[0]);
+				printf("PowerGate:%f ",PowerGate);
+				SQL_freeResult(&result,&rednum);
+
+				mysql->filedsName    = "T3"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				T3 =computTime(result[0]);
+				printf("T3:%ld ",T3);
+				SQL_freeResult(&result,&rednum);
+
+				mysql->filedsName    = "T4"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				T4= computTime(result[0]);
+				printf("T4:%ld \n",T4);
+				SQL_freeResult(&result,&rednum);
+		                                     
+	    	                if(!setModbus_P())                                                //P
+		                   exit(EXIT_FAILURE);  
+		                usleep(50000);                         
+		                modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+		                ret = setOneOpticalThreshold(mb,atoi(SNo),PowerGate); 
+		                freeModbus(mb);     
+		                usleep(50000);                  
+		                if(!setModbus_V())                                                //V
+		                   exit(EXIT_FAILURE);        
+		                if(ret==0){ 	
+		                    node=(checkNode *)malloc(sizeof(checkNode));		    
+				    node->SNo           = atoi(SNo);
+				    node->CM            = CM;
+				    node->ANo           = ANo;
+				    node->PowerGate     = PowerGate;
+				    node->fristAlarmFlag= 0;
+				    node->nextAlarmTime = getLocalTimestamp();                    
+				    node->alarmClick    = T3;                                
+				    head=insert_A(head,node); 
+		                } 
+                        }
+                    } 
 		}
          }
          free(SNo);
@@ -463,343 +470,6 @@ alarmNode * InitB_CycleLink(void)
          head = delete_B(head,0); 
          return(head);
 }
-/***刷新状态***/
-/*
-      (1)将数据库中状态为“-1”和“-2”的状态光路，修改为“1”和“2”。
-          --->防止BOA单方面修改状态而并没有通过插入节点程序更新状态，导致后台周期测试调度程序没有发现，或由于意外情况发生，没有及时处理的光路。
-*/
-void flushWaitingSNo(void)
-{
-      	 sqlite3 *mydb;
-	 char *zErrMsg = 0;
-	 int rc,i,SN=0;
-	 sql *mysql;
-	 char resultSNo[64][5];
-
-	 mysql = SQL_Create();
-	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	 if( rc != SQLITE_OK ){
-		      printf( "Lookup SQL error: %s\n", zErrMsg);
-		      sqlite3_free(zErrMsg);
-		   }
-	 mysql->db = mydb;
-	 mysql->tableName   =  "AlarmTestSegmentTable";	
-         mysql->filedsName  =  "Status";
-         mysql->filedsValue =  "-1";                                
-         SN=SQL_findSNo(mysql,resultSNo);                          
-         if(SN>0){
-	     for(i =0 ;i<SN;i++)
-	        {
-		    printf("SNo:%s",resultSNo[i]);	                                  
-                    mysql->filedsValue  =  "1";                                             
-                    mysql->mainKeyValue =  resultSNo[i];                                    //需要修改状态的光路号
-                    if(!semaphore_p())  
-                        exit(EXIT_FAILURE);                                                 //P
-                    rc=SQL_modify(mysql);
-                    if( rc != SQLITE_OK ){
-			 printf( "Modify SQL error\n");
-			 sqlite3_free(zErrMsg);
-		    }
-                     if(!semaphore_v())                                                     //V
-                         exit(EXIT_FAILURE);                 	 
-	       }
-         }
-
-         mysql->filedsValue =  "-2";                                
-         SN=SQL_findSNo(mysql,resultSNo);                          
-         if(SN>0){
-	     for(i =0 ;i<SN;i++)
-	        {
-		    printf("SNo:%s",resultSNo[i]);	                                  
-                    mysql->filedsValue  =  "2";                                             
-                    mysql->mainKeyValue =  resultSNo[i];                                    //需要修改状态的光路号
-                    if(!semaphore_p())  
-                        exit(EXIT_FAILURE);                                                 //P
-                    rc=SQL_modify(mysql);
-                    if( rc != SQLITE_OK ){
-			 printf( "Modify SQL error\n");
-			 sqlite3_free(zErrMsg);
-		    }
-                     if(!semaphore_v())                                                     //V
-                         exit(EXIT_FAILURE);                 	 
-	       }
-         }
-
-	 SQL_Destory(mysql);  
-	 sqlite3_close(mydb);   
-         return ;
-} 
-
-float realValue[8] ={4,4,4,4,4,4,4,4};                              //for test
-alarmNode *  rollPolingAlarm(checkNode *headA,alarmNode *headB)
-{
-     	checkNode *p=NULL;
-        alarmNode *q=NULL,*node=NULL;    
-        float powerValue=-100.0,PowerGate=0; 
-        backData *bData=NULL; 
-        int i=0,j=0;
-	sqlite3 *mydb=NULL;
-	sql *mysql=NULL;
-	char **result = NULL;
-        char *strSNo=NULL;
-	int  rednum =0;
-	int rc=0,intSNo=0,intANo=0,intCM=0;
-        int protectFlag=0,fristAlarmFlag=0;
-        time_t nowTime=0,nextAlarmTime=0,alarmClick=0;
-	p= headA;
-        q= headB;
-	if(p==NULL){
-		//printf("This is a void excel!\n");
-		return q;
-	}
-	else
-	  while(p!=NULL){
-      
-               if(p!=NULL){
-                  if(flagNew == 0 ){                         
-		       intSNo=p->SNo;
-		       intANo=p->ANo; 
-		       intCM =p->CM;    
-		       protectFlag=p->protectFlag;  
-		       fristAlarmFlag=p->fristAlarmFlag;     
-		       PowerGate=p->PowerGate;   
-		       nextAlarmTime=p->nextAlarmTime; 
-		       alarmClick=p->alarmClick;
-
-			if(!setModbus_P())                                                //P  获取当前光路光功率值
-		           exit(EXIT_FAILURE);   
-		        usleep(50000);
-		        
-		       	modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-			if(protectFlag==1){   
-				if(intSNo%2==0)                                         
-				powerValue = getOneOpticalValue(mb,((intSNo)/2)*2-1);         //保护模式(3)
-				else
-				powerValue = getOneOpticalValue(mb,intSNo);                   //保护模式(3)   
-			}else if(protectFlag==0){
-				   powerValue = getOneOpticalValue(mb,intSNo);                        //非保护模式(2,4)
-			} 		           
-			freeModbus(mb);  		       
-		        usleep(50000);    
-                        if(powerValue==0)powerValue=-70.0;               
-			if(!setModbus_V())                                                //V
-			    exit(EXIT_FAILURE);  
-                       //printf("--------------------------->Here 1!\n");
-                  }else{
-                       if(p!=NULL){
-		               p=p->next; 
-		               if(p!=NULL){
-				       intSNo=p->SNo;
-				       intANo=p->ANo; 
-				       intCM =p->CM;    
-				       protectFlag=p->protectFlag;  
-				       fristAlarmFlag=p->fristAlarmFlag;     
-				       PowerGate=p->PowerGate;   
-				       nextAlarmTime=p->nextAlarmTime; 
-				       alarmClick=p->alarmClick;     
-					if(!setModbus_P())                                                //P  获取当前光路光功率值
-					   exit(EXIT_FAILURE);   
-					usleep(50000);
-				
-				       	modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-					if(protectFlag==1){   
-						if(intSNo%2==0)                                         
-						powerValue = getOneOpticalValue(mb,((intSNo)/2)*2-1);         //保护模式(3)
-						else
-						powerValue = getOneOpticalValue(mb,intSNo);                   //保护模式(3)   
-					}else if(protectFlag==0){
-						   powerValue = getOneOpticalValue(mb,intSNo);                        //非保护模式(2,4)
-					} 		           
-					freeModbus(mb);  		       
-					usleep(50000);    
-				        if(powerValue==0)powerValue=-70.0;               
-					if(!setModbus_V())                                                //V
-					    exit(EXIT_FAILURE); 
-                                        flagNew=0;
-		                       //printf("--------------------------->Here 2!\n");                 
-		               }else{
-		                  p=NULL;
-                                  flagNew=0;
-		                  break;
-		               }
-                       }else{
-			       p=NULL;
-                               flagNew=0;
-			       break;                           
-                       }
-                       flagNew=0;  
-                  }
-                }else{
-		       p==NULL;
-                       flagNew=0;
-		       break;
-                }
-
-                if(powerValue < PowerGate ){    //异常		   
-                     nowTime = getLocalTimestamp(); 
-                     //printf("                                   intSNo:%d---intANo:%d--intCM:%d--protectFlag:%d--fristAlarmFlag:%d--PowerGate:%f--nextAlarmTime:%ld--nowTime:%ld--powerValue:%f\n",
-                     //      intSNo,intANo,intCM,protectFlag,fristAlarmFlag,PowerGate,nextAlarmTime,nowTime,powerValue);
-                     if(fristAlarmFlag ==0){                                   //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
-                          printf("StateC--->SNo  powerValue:%f <---> gateValue:%f\n",intSNo,powerValue,PowerGate);
-		          fristAlarmFlag = 1;
-                          if(protectFlag==0){
-				  node=(alarmNode *)malloc(sizeof(alarmNode));
-				  node->SNo = intSNo;
-				  node->CM  = intCM;
-				  node->ANo = intANo;     
-				  node->Order = (intANo)*100 +intSNo; 
-                                  if(p!=NULL){
-				  	q=insert_B(q,node);
-                                  }
-                                  else{
-		                          p=NULL;
-		                          break;
-                                  }
-                          }else if(protectFlag==1){
-				  printf("General a alarm warmming on SNo= %d powerValue=%f, gateValue:%f",intSNo,powerValue,PowerGate);
-                                  bData=backData_Create();
-                                  bData->powerValue =powerValue;
-                                  bData->powerGate  =PowerGate;
-                                  bData->level      =intANo;
-                                  if(p!=NULL){
-				          mysql = SQL_Create();
-					  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-					  if( rc != SQLITE_OK )
-						printf( "Lookup IP SQL error\n");			 
-					  mysql->db = mydb;
-					  mysql->tableName        = "AlarmTestSegmentTable";
-					  mysql->filedsName       = "IP01";
-				          strSNo=malloc(sizeof(char)*10);
-					  uint32tostring(intSNo,strSNo);
-					  mysql->mainKeyValue = strSNo;  
-					  SQL_lookupPar(mysql,&result,&rednum);
-					  strcpy(bData->backIP,result[0]);
-					  SQL_freeResult(&result,&rednum); 
-				     	  SQL_Destory(mysql);  
-					  sqlite3_close(mydb); 
-				          free(strSNo);
-
-				          printf("upload IP :%s\n",bData->backIP);
-		                          upload(bData,intSNo,intCM,1);
-		                          
-                                  }else{
-		                          p=NULL;
-		                          break;
-                                  } 
-                                  backData_Destory(bData);                         
-                          }
-	                  nextAlarmTime  = getLocalTimestamp()+alarmClick;                  
-                     }else if(nowTime >= nextAlarmTime){                       //状态D:长期处于异常 -->fristAlarmFlag=1   实际光功率值<阈值  
-                          printf("StateD--->SNo:%d  powerValue:%f <---> gateValue:%f\n",intSNo,powerValue,PowerGate);    
-                          if(protectFlag==0){      
-				  node=(alarmNode *)malloc(sizeof(alarmNode));
-				  node->SNo = intSNo;
-				  node->CM  = intCM;
-				  node->ANo = intANo;     
-				  node->Order = (intANo)*100 +intSNo; 
-                                  if(p!=NULL){
-				  	q=insert_B(q,node);
-                                  }else{
-		                          p=NULL;
-		                          break;
-                                  }
-                          }else if(protectFlag==1){
-				  printf("General a alarm warmming on SNo= %d  powerValue=%f, gateValue:%f",intSNo,powerValue,PowerGate);
-                                  bData=backData_Create();
-                                  bData->powerValue =powerValue;
-                                  bData->powerGate  =PowerGate;
-                                  bData->level      =intANo;
-                                  if(p!=NULL){
-				          mysql = SQL_Create();
-					  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-					  if( rc != SQLITE_OK )
-						printf( "Lookup IP SQL error\n");			 
-					  mysql->db = mydb;
-					  mysql->tableName        = "AlarmTestSegmentTable";
-					  mysql->filedsName       = "IP01";
-				          strSNo=malloc(sizeof(char)*10);
-					  uint32tostring(intSNo,strSNo);
-					  mysql->mainKeyValue = strSNo;  
-					  SQL_lookupPar(mysql,&result,&rednum);
-					  strcpy(bData->backIP,result[0]);
-					  SQL_freeResult(&result,&rednum); 
-				     	  SQL_Destory(mysql);  
-					  sqlite3_close(mydb); 
-				          free(strSNo);
-
-				          printf("upload IP :%s\n",bData->backIP);
-		                          upload(bData,intSNo,intCM,1);
-		                          
-                                  }else{
-                                               
-		                          p=NULL;
-		                          break;
-                                  } 
-                                  backData_Destory(bData);                   
-                          }
-	                  nextAlarmTime  = getLocalTimestamp()+alarmClick;
-                          
-                     }  
-                 }                                 //正常             
-                 else if(fristAlarmFlag!=0){                                 //状态A:从异常中首次恢复 --> fristAlarmFlag=1 实际光功率值>=阈值      
-                          printf("StateA--->SNo:%d  powerValue:%f <---> gateValue:%f\n",intSNo,powerValue,PowerGate);  
-                          bData=backData_Create();
-                          bData->powerValue =powerValue;
-                          bData->powerGate  =PowerGate;
-                          bData->level      =0;
-                          if(p!=NULL){
-		                  mysql = SQL_Create();
-				  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-				  if( rc != SQLITE_OK )
-					printf( "Lookup IP SQL error\n");			 
-				  mysql->db = mydb;
-				  mysql->tableName        = "AlarmTestSegmentTable";
-				  mysql->filedsName       = "IP01";
-		                  strSNo=malloc(sizeof(char)*10);
-				  uint32tostring(intSNo,strSNo);
-				  mysql->mainKeyValue = strSNo;  
-				  SQL_lookupPar(mysql,&result,&rednum);
-				  strcpy(bData->backIP,result[0]);
-				  SQL_freeResult(&result,&rednum); 
-			     	  SQL_Destory(mysql);  
-				  sqlite3_close(mydb); 
-		                  free(strSNo);
-
-		                  printf("upload IP :%s\n",bData->backIP);
-		                  upload(bData,intSNo,intCM,1);
-                          }else{
-		                  p==NULL;
-		                  break;
-                          }
-                          backData_Destory(bData);      
-                          fristAlarmFlag= 0;
-                      } 
-                      else ;                                                     //状态B:正常  -->  fristAlarmFlag=0 实际光功率值>=阈值            
-
-                if(p!=NULL){
-                      if(flagNew==0){
-			      p->fristAlarmFlag=fristAlarmFlag;
-			      p->nextAlarmTime=nextAlarmTime  ;
-                              
-			      p=p->next;
-                              //printf("--------------------------->Here 3!\n");   
-                      }else{
-		              if(p!=NULL){
-				      p=p->next;
-				      //printf("--------------------------->Here 4!\n");
-		              }
-                              flagNew=0;   
-		              break;
-                      }
-  
-                }else{
-                        p=NULL; 
-                        flagNew=0; 
-                        break;
-                }                    
-         }
-       return q;
-}
 /***遍历链表***/
 alarmNode * deleteALL_B(alarmNode *head){
 	alarmNode *p=NULL;
@@ -813,37 +483,36 @@ alarmNode * deleteALL_B(alarmNode *head){
 		return p=NULL;
 	}
 	else{
-	while(p!=NULL){
-                   /*向otdrMain发送启动信号*/
-                if(!setOTDR_P())                                                //P
-                   exit(EXIT_FAILURE);   
-                printf("Send message to otdrMain! SNo=%d\n",p->SNo);
-		process ="/web/cgi-bin/otdrMain";                        
-		ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-		printf("alarmMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-		signum=SIGRTMIN;                                     
-		mysigval.sival_int = p->SNo+200;                                                      
-		for(n=0;n<ret;n++){                                      
-			printf("otdrMain PID:%u\n", cycPID[n]);                  
-			if(sigqueue(cycPID[n],signum,mysigval)==-1)
-				printf("send signal error\n");
-			}  
-                   /*等待信号的成功处理消息*/			    
-		recvInt = recvMessageQueue_D("2-OK",2222);
-                if(recvInt==0){
-                      printf("alarmMain Recv back message from otdrMain  sucessful!");
-                 }else{
-                      printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
-                 } 		                                                      
-               // usleep(100000);             //确保信号被处理完
-                usleep(10000);
-                if(!setOTDR_V())                                                //V
-                   exit(EXIT_FAILURE); 
+	    while(p!=NULL){
+		           /*向otdrMain发送启动信号*/
+		        if(!setOTDR_P())                                                //P
+		           exit(EXIT_FAILURE);   
+		        printf("Send message to otdrMain! SNo=%d\n",p->SNo);
+			process ="/web/cgi-bin/otdrMain";                        
+			ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
+			printf("alarmMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
+			signum=SIGRTMIN;                                     
+			mysigval.sival_int = p->SNo+200;                                                      
+			for(n=0;n<ret;n++){                                      
+				printf("otdrMain PID:%u\n", cycPID[n]);                  
+				if(sigqueue(cycPID[n],signum,mysigval)==-1)
+					printf("send signal error\n");
+				}  
+		           /*等待信号的成功处理消息*/			    
+			recvInt = recvMessageQueue_D("2-OK",2222);
+		        if(recvInt==0){
+		              printf("alarmMain Recv back message from otdrMain  sucessful!");
+		         }else{
+		              printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
+		         } 		                                                               
+		        usleep(10000);    //确保信号被处理完
+		        if(!setOTDR_V())                                                //V
+		           exit(EXIT_FAILURE); 
 
-                if(recvInt==0)  
-		    p=delete_B(p,p->SNo);
-	}
-         printf("\n\n");
+		        if(recvInt==0)  
+			    p=delete_B(p,p->SNo);
+	   }
+           printf("\n\n");
         }    
        return p;
 }
@@ -890,7 +559,9 @@ alarmNode *removeAllNode_B(alarmNode * head)
 checkNode *insertWaitingNode(checkNode *head)                    
 {
 	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo=NULL,*ModNo=NULL;
+	 char *zErrMsg = 0,*SNo=NULL,*ModNo=NULL,*SNoOnline;
+         char strPNo[10];
+         int oldSwitchPos=0;
 	 int rc,i,rednum=0;
 	 sql *mysql;
 	 char resultSNo[64][5];
@@ -900,9 +571,9 @@ checkNode *insertWaitingNode(checkNode *head)
                                    
          uint32_t SN=0,ANo=0,CM=0,intModNo=0;
          int   fiberType=-1,ModuleType=-1,protectFlag=-1,ret =-1;
-         float PowerGate;
+         float PowerGate,PowerGateOnline;
 
-  
+         SNoOnline =(char *) malloc(sizeof(char)*5);
 	 SNo = (char *) malloc(sizeof(char)*5);
          ModNo=(char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
@@ -928,7 +599,15 @@ checkNode *insertWaitingNode(checkNode *head)
                         fiberType=atoi(result[0]);
 		        printf("fiberType:%d\n",fiberType);
                         SQL_freeResult(&result,&rednum);
-                       
+                 
+
+			mysql->filedsName    = "protectFlag"; 
+			SQL_lookupPar(mysql,&result,&rednum); 
+		        protectFlag=atoi(result[0]);
+			printf("protectFlag:%d\n",protectFlag);
+                        SQL_freeResult(&result,&rednum);
+
+      
                         intModNo=((atoi(resultSNo[i])-1)/8+1);                  // 获取所属模块类型              
                         uint32tostring(intModNo,ModNo);
                         mysql->mainKeyValue  = ModNo;
@@ -938,96 +617,77 @@ checkNode *insertWaitingNode(checkNode *head)
                         ModuleType=atoi(result[0]); 
                         SQL_freeResult(&result,&rednum);
 
+
+
                         if(fiberType==0 || ModuleType==4){                       //备纤 或 在纤（OPM）模块
-	                        mysql->tableName     = "AlarmTestSegmentTable";   
-				mysql->filedsName    = "rtuCM"; 
-				mysql->mainKeyValue  = SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                CM =atoi(result[0]);
-				printf("CM:%d  ",CM);
-                                SQL_freeResult(&result,&rednum);
+                                if(protectFlag==0){
+			                mysql->tableName     = "AlarmTestSegmentTable";   
+					mysql->filedsName    = "rtuCM"; 
+					mysql->mainKeyValue  = SNo;
+					SQL_lookupPar(mysql,&result,&rednum); 
+				        CM =atoi(result[0]);
+					printf("CM:%d  ",CM);
+		                        SQL_freeResult(&result,&rednum);
 
-				mysql->filedsName    = "Level"; 
-				mysql->mainKeyValue  = SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                ANo =atoi(result[0]);
-				printf("ANo:%d  ",ANo);
-                                SQL_freeResult(&result,&rednum);
+					mysql->filedsName    = "Level"; 
+					mysql->mainKeyValue  = SNo;
+					SQL_lookupPar(mysql,&result,&rednum); 
+				        ANo =atoi(result[0]);
+					printf("ANo:%d  ",ANo);
+		                        SQL_freeResult(&result,&rednum);
 
-				mysql->filedsName    = "AT06"; 
-		                mysql->mainKeyValue  =  SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                PowerGate=atof(result[0]);
-				printf("PowerGate:%f  ",PowerGate);
-                                SQL_freeResult(&result,&rednum);
+					mysql->filedsName    = "AT06"; 
+				        mysql->mainKeyValue  =  SNo;
+					SQL_lookupPar(mysql,&result,&rednum); 
+				        PowerGate=atof(result[0]);
+					printf("PowerGate:%f  ",PowerGate);
+		                        SQL_freeResult(&result,&rednum);
 
-				mysql->filedsName    = "T3"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                T3 =computTime(result[0]);
-				printf("T3:%ld  ",T3);
-                                SQL_freeResult(&result,&rednum);
+					mysql->filedsName    = "T3"; 
+					SQL_lookupPar(mysql,&result,&rednum); 
+				        T3 =computTime(result[0]);
+					printf("T3:%ld  ",T3);
+		                        SQL_freeResult(&result,&rednum);
 
-				mysql->filedsName    = "T4"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                T4= computTime(result[0]);
-				printf("T4:%ld  ",T4);
-                                SQL_freeResult(&result,&rednum);
+					mysql->filedsName    = "T4"; 
+					SQL_lookupPar(mysql,&result,&rednum); 
+				        T4= computTime(result[0]);
+					printf("T4:%ld  ",T4);
+		                        SQL_freeResult(&result,&rednum);
 
-				mysql->filedsName    = "protectFlag"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                protectFlag=atoi(result[0]);
-				printf("protectFlag:%d\n",protectFlag);
-                                SQL_freeResult(&result,&rednum);
-
-				node=(checkNode *)malloc(sizeof(checkNode));
-				node->SNo           = atoi(SNo);
-		                node->CM            = CM;
-				node->ANo           = ANo;
-				node->PowerGate     = PowerGate;
-				node->protectFlag   = protectFlag;
-				node->fristAlarmFlag= 0;
-				node->nextAlarmTime = getLocalTimestamp();
-				node->alarmClick    = T3;                                 
-		                find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
-                               
-		                if(find ==NULL)
-		                {
-		                   head = insert_A(head,node);                
-				}else{
-
-				   head = delete_A(head,find->SNo);         
-		                   head = insert_A(head,node); 
-		                }
-/*
-                                if(!setModbus_P())                                                //P
-                                   exit(EXIT_FAILURE);  
-                                usleep(50000); 
-                                modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-                                ret = setOneOpticalThreshold(mb,node->SNo,node->PowerGate); 
-                                freeModbus(mb);  
-                                usleep(50000);                   
-                                if(!setModbus_V())                                                //V
-                                   exit(EXIT_FAILURE);  
-*/                              ret=0;
-
+                                         /*
+		                        if(!setModbus_P())                                                //P
+		                           exit(EXIT_FAILURE);  
+		                        //usleep(50000); 
+		                        modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+		                        ret = setOneOpticalThreshold(mb,node->SNo,node->PowerGate);      //设置备纤光功率阈值
+		                        freeModbus(mb);   
+		                        //usleep(50000);                   
+		                        if(!setModbus_V())                                                //V
+		                           exit(EXIT_FAILURE);  
+                                       */
+                                        ret=0;
+                                        printf("----------->Here\n");
+				        if(ret==0){ 	
+				            node=(checkNode *)malloc(sizeof(checkNode));		    
+					    node->SNo           = atoi(SNo);
+					    node->CM            = CM;
+					    node->ANo           = ANo;
+					    node->PowerGate     = PowerGate;
+					    node->fristAlarmFlag= 0;
+					    node->nextAlarmTime = getLocalTimestamp();                    
+					    node->alarmClick    = T3;                                
+		                            find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
+				            if(find ==NULL){
+				               head = insert_A(head,node);                
+					    }else{
+					       head = delete_A(head,find->SNo);         
+				               head = insert_A(head,node); 
+				            }
+				        } 
+                                }//end if
                           }//endif
-
-                      if(ret==0 || fiberType==1 ){
-                          mysql->tableName     = "AlarmTestSegmentTable";  
-                          mysql->filedsValue  =  "1";                
-                          mysql->filedsName   =  "Status";
-                          mysql->mainKeyValue =  SNo;
-                          if(!semaphore_p())  
-                               exit(EXIT_FAILURE);                                     //P
-                          rc=SQL_modify(mysql); 
-                          if( rc != SQLITE_OK ){
-			      printf( "Modify SQL error\n");
-
-		           }
-                         if(!semaphore_v())                                            //V
-                            exit(EXIT_FAILURE);
-                      }
-                         
+                       
 		}  //end for 
          }
          free(SNo);
@@ -1091,7 +751,7 @@ checkNode * removeWaitingNode(checkNode *head)
                        ModuleType=atoi(result[0]); 
                        SQL_freeResult(&result,&rednum);
 
-		       if(fiberType==0 ||ModuleType == 4 ){		       //备纤 或 在纤（OPM）模块                        
+		       if(fiberType==0 || ModuleType == 4 ){		       //备纤 或 在纤（OPM）模块                        
 		          find=findNode_A(head,intSNo);                  
 		          if(find ==NULL)
 		             printf("Don't have SNo=%d node in LinkA!\n",intSNo);                
@@ -1119,294 +779,203 @@ checkNode * removeWaitingNode(checkNode *head)
           
          return(head);
 }
-/*
-checkNode * removeProtectGroup(checkNode *head) 
+
+float realValue[8] ={4,4,4,4,4,4,4,4};                              //for test
+alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
 {
-	 sqlite3 *mydb;
-	 int rc,i,SN=0,intSNo=0;
-         int fiberType;
-         char *strSNo;
-	 sql *mysql;
-	 char resultSNo[64][5];
-         char **result;
-         checkNode *find;
-	 PNo     = (char *) malloc(sizeof(char)*5);
-	 strSNoA = (char *) malloc(sizeof(char)*5);
-	 strSNoB = (char *) malloc(sizeof(char)*5);
-	 mysql = SQL_Create();
-	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	 if( rc != SQLITE_OK )
-	     printf("Lookup SQL error\n");
-	 mysql->db = mydb;
-	 mysql->tableName   =  "AlarmTestSegmentTable";	
-         mysql->filedsValue =  "-1";                                
-         mysql->filedsName  =  "Status";
-         SN=SQL_findSNo(mysql,resultSNo);                           
-         if(SN>0){
+     	checkNode *p=NULL;
+        alarmNode *q=NULL,*node=NULL;    
+        float powerValue=-100.0,PowerGate=0,powerGateOnline=0; 
+        backData *bData=NULL; 
+        int i=0,j=0;
+	sqlite3 *mydb=NULL;
+	sql *mysql=NULL;
+	char **result = NULL;
+        modbus_t *mb=NULL;
+        char strSNo[10],strPNo[10],strSNoOnline[10],strNewSwitchPos[10];
+	int  rednum =0;
+        int  oldSwitchPos=0,newSwitchPos=0,flagSW=-1;
+	int rc=0,intSNo=0,intANo=0,intCM=0;
+        int fristAlarmFlag=0;
+        time_t nowTime=0,nextAlarmTime=0,alarmClick=0;
+	p= headA;
+        q= headB;
+        mysql = SQL_Create();
+	if(p==NULL){
+		//printf("This is a void excel!\n");
+		return q;
+	} 
+	else
+	  while(p!=NULL){    
+             if(p!=NULL){
+                  if(flagNew == 0 ){                                                                   
+		      if(p!=NULL)intSNo=p->SNo;
+		      if(p!=NULL)intANo=p->ANo; 
+		      if(p!=NULL)intCM =p->CM;    
+		      if(p!=NULL)fristAlarmFlag=p->fristAlarmFlag;     
+		      if(p!=NULL)PowerGate=p->PowerGate;   
+		      if(p!=NULL)nextAlarmTime=p->nextAlarmTime; 
+		      if(p!=NULL)alarmClick=p->alarmClick;
 
-		 for(i =0 ;i<SN;i++)
-		 {
-		        printf("PNo:%s",resultPNo[i]);
-		        strcpy(PNo,resultPNo[i]);		    
+	              if(!setModbus_P())                                              //P  
+		         exit(EXIT_FAILURE); 
+                      usleep(50000);  		        
+		      mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+		      powerValue = getOneOpticalValue(mb,intSNo,2);                //获取当前光路光功率值                      
+		      freeModbus(mb);  
+                      usleep(50000);		                 
+		      if(!setModbus_V())                                              //V
+                         exit(EXIT_FAILURE);  
+                      if(powerValue==0)powerValue=-70.0; 
+  
+                  }else{
+                       if(p!=NULL){
+		               if(p!=NULL)p=p->next; 
+		               if(p!=NULL){
+				    if(p!=NULL)intSNo=p->SNo;
+				    if(p!=NULL)intANo=p->ANo; 
+				    if(p!=NULL)intCM =p->CM;    
+				    if(p!=NULL)fristAlarmFlag=p->fristAlarmFlag;     
+				    if(p!=NULL)PowerGate=p->PowerGate;              
+				    if(p!=NULL)nextAlarmTime=p->nextAlarmTime; 
+				    if(p!=NULL)alarmClick=p->alarmClick; 
 
-	                mysql->tableName     = "ProtectGroupTable";                       
-		        mysql->filedsName    = "SNoA"; 
-			mysql->mainKeyValue  =  PNo;
-		        rc= SQL_lookup(mysql,&result);
-                        strSNoA=result[0];
-		        printf("SNoA:%s\n",strSNoA);
-
-		        mysql->filedsName    = "SNoB"; 
-		        rc= SQL_lookup(mysql,&result);
-                        strSNoB=result[0];
-		        printf("SNoB:%s\n",strSNoB);
-
-	                mysql->tableName     = "AlarmTestSegmentTable";	
-		        mysql->filedsName    = "fiberType"; 
-			mysql->mainKeyValue  =  strSNoA;
-		        rc= SQL_lookup(mysql,&result);
-                        fiberType=atoi(result[0]);
-		        if(fiberType==0){
-                           intSNo=atoi(strSNoA);		                        
-		           find=findNode_A(head,intSNo);                  
-		           if(find ==NULL)
-		                printf("Don't have SNo=%d node in this Link!\n",intSNo);                
-			   else
-		                head = delete_A(head,intSNo);                                             
-                        }
-                        mysql->filedsValue  =  "0";                                             
-                        mysql->filedsName   =  "protectFlag";
-
-                        if(!semaphore_p())  
-                          exit(EXIT_FAILURE);                                                //P
-                        rc=SQL_modify(mysql);
-                        if( rc != SQLITE_OK )
-			   printf( "Modify SQL error\n");
-                        if(!semaphore_v())                                                   //V
-                           exit(EXIT_FAILURE);  
-
-		        mysql->filedsName    = "fiberType"; 
-			mysql->mainKeyValue  = strSNoB;
-		        rc= SQL_lookup(mysql,&result);
-                        fiberType=atoi(result[0]);
-		        if(fiberType==0){
-                           intSNo=atoi(strSNoB);		                        
-		           find=findNode_A(head,intSNo);                  
-		           if(find ==NULL)
-		                printf("Don't have SNo=%d node in this Link!\n",intSNo);                
-			   else
-		                head = delete_A(head,intSNo);                                             
-                        }
-                        mysql->filedsValue  =  "0";                                             
-                        mysql->filedsName   =  "protectFlag";   
-                        if(!semaphore_p())  
-                          exit(EXIT_FAILURE);                                                //P
-                        rc=SQL_modify(mysql);
-                        if( rc != SQLITE_OK )
-			  printf( "Modify SQL error\n");
-                        if(!semaphore_v())                                                   //V
-                           exit(EXIT_FAILURE);  
-
-	                mysql->tableName    = "ProtectGroupTable";   
-		        mysql->filedsName   = "Status";
-                        mysql->filedsValue  = "2";  
-			mysql->mainKeyValue = PNo;
-                        if(!semaphore_p())  
-                          exit(EXIT_FAILURE);                                                //P
-                        rc=SQL_modify(mysql);
-                        if( rc != SQLITE_OK )
-			    printf( "Modify SQL error\n");
-                        if(!semaphore_v())                                                   //V
-                           exit(EXIT_FAILURE);  
-                 }           
-     	
-         }
-         free(PNo);
-         free(strSNoA);
-         free(strSNoB);
-	 SQL_Destory(mysql);  
-	 sqlite3_close(mydb);   
-         return(head);     
-}
-*/
-checkNode *execOpticalSwich(checkNode *head)
-{
-	 sqlite3 *mydb;
-	 sql  *mysql;
-         checkNode *node,*find;
-         time_t T3,T4;
-	 char *SNo=NULL;
-	 int rc=0,i=0,rednum=0;
-	 char resultSNo[64][5];
-         char **result = NULL;
-
-                                   
-         uint32_t SN=0,ANo=0,CM=0,intModNo=0;
-         int   fiberType=-1,ModuleType=-1,protectFlag=-1,ret =-1;
-         float PowerGate;
-	 SNo = (char *) malloc(sizeof(char)*5);
-	 mysql = SQL_Create();
-	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	 if( rc != SQLITE_OK )
-	     printf( "Lookup SQL error\n");
-	 mysql->db = mydb;
-	 mysql->tableName   =  "AlarmTestSegmentTable";	
-         mysql->filedsValue =  "-1";                                
-         mysql->filedsName  =  "Status";
-         SN=SQL_findSNo(mysql,resultSNo);                                       //查找光路状态为待启动的记录
-         if(SN>0){
-		for(i =0 ;i<SN;i++){
-
-   		        printf("SNo:%s",resultSNo[i]);                          //获取光纤类型
-		        strcpy(SNo,resultSNo[i]);         
-	                mysql->tableName     = "AlarmTestSegmentTable";          
-		        mysql->filedsName    = "fiberType"; 
-			mysql->mainKeyValue  = SNo;
-		        SQL_lookupPar(mysql,&result,&rednum); 
-                        fiberType=atoi(result[0]);
-		        printf("fiberType:%d\n",fiberType);
-                        SQL_freeResult(&result,&rednum);
-                        if(fiberType==0){                      
-				mysql->filedsName    = "rtuCM"; 
-				mysql->mainKeyValue  = SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                CM =atoi(result[0]);
-				printf("CM:%d  ",CM);
-                                SQL_freeResult(&result,&rednum);
-
-				mysql->filedsName    = "Level"; 
-				mysql->mainKeyValue  = SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                ANo =atoi(result[0]);
-				printf("ANo:%d  ",ANo);
-                                SQL_freeResult(&result,&rednum);
-
-				mysql->filedsName    = "AT06"; 
-		                mysql->mainKeyValue  =  SNo;
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                PowerGate=atof(result[0]);
-				printf("PowerGate:%f  ",PowerGate);
-                                SQL_freeResult(&result,&rednum);
-
-				mysql->filedsName    = "T3"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                T3 =computTime(result[0]);
-				printf("T3:%ld  ",T3);
-                                SQL_freeResult(&result,&rednum);
-
-				mysql->filedsName    = "T4"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                T4= computTime(result[0]);
-				printf("T4:%ld  ",T4);
-                                SQL_freeResult(&result,&rednum);
-
-				mysql->filedsName    = "protectFlag"; 
-				SQL_lookupPar(mysql,&result,&rednum); 
-		                protectFlag=atoi(result[0]);
-				printf("protectFlag:%d\n",protectFlag);
-                                SQL_freeResult(&result,&rednum);
-
-				node=(checkNode *)malloc(sizeof(checkNode));
-				node->SNo           = atoi(SNo);
-		                node->CM            = CM;
-				node->ANo           = ANo;
-				node->PowerGate     = PowerGate;
-				node->protectFlag   = protectFlag;
-				node->fristAlarmFlag= 0;
-				node->nextAlarmTime = getLocalTimestamp();
-				node->alarmClick    = T3;
-                                find=findNode_A(head,node->SNo);                                // 查看链表中是否已经存在SNo光路
-
-		                if(find ==NULL)
-		                {
-		                   head = insert_A(head,node);                
-				}else{
-
-				   head = delete_A(head,find->SNo);         
-		                   head = insert_A(head,node); 
-		                }
-/*
-                                 if(node->SNo%2 == 0){                                 
-				        find=findNode_A(head,node->SNo-1);                          // 查看链表中是否已经存在SNo光路
-				        if(find ==NULL)
-				        {
-				           head = insert_A(head,node);                
-					}else{
-		                          
-					   head = delete_A(head,node->SNo-1);         
-				           head = insert_A(head,node); 
-				        }
-                                 }else{
-				        find=findNode_A(head,node->SNo+1);                          // 查看链表中是否已经存在SNo光路
-				        if(find ==NULL)
-				        {
-				           head = insert_A(head,node);                
-					}else{
-		                          
-					   head = delete_A(head,node->SNo+1);         
-				           head = insert_A(head,node); 
-				        }
-
-                                 }
-*/
-                               
-                               /* if(!setModbus_P())                                                //P
-                                   exit(EXIT_FAILURE);  
-                                usleep(50000); 
-                                modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-                                ret = setOneOpticalThreshold(mb,node->SNo,node->PowerGate); 
-                                if(ret==0)printf("set OptiaclGate successful!\n");
-                                else printf("set OptiaclGate failed!\n");
-                                freeModbus(mb);      
-                                usleep(50000);                
-                                if(!setModbus_V())                                                //V
-                                  exit(EXIT_FAILURE);  */ 
-                               ret=0;
-                          }else if(fiberType==1){   
-                                find=findNode_A(head,atoi(SNo));                                    //如果是数据库中是在纤 查看链表中是否已经存在SNo光路
-		                if(find !=NULL){
-				   head = delete_A(head,find->SNo);        
-		                }
-                                ret=0;
-                          }//endif
-
-                     if(ret==0 || fiberType==1){
-                          mysql->filedsValue  =  "1";                
-                          mysql->filedsName   =  "Status";
-                          mysql->mainKeyValue =  SNo;
-                          if(!semaphore_p())  
-                               exit(EXIT_FAILURE);                                     //P
-                          rc=SQL_modify(mysql); 
-                          if( rc != SQLITE_OK )
-			      printf( "Modify SQL error\n");
-
-                         if(!semaphore_v())                                            //V
-                            exit(EXIT_FAILURE);
-                     }
+				    if(!setModbus_P())                                                //P  
+					exit(EXIT_FAILURE);   
+				    usleep(50000);				
+				    mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+				    powerValue = getOneOpticalValue(mb,intSNo,2);                        //获取当前光路光功率值							           
+			            freeModbus(mb);  		       
+                                    usleep(50000);				                     
+			            if(!setModbus_V())                                                //V
+				       exit(EXIT_FAILURE); 
+                                    if(powerValue==0)powerValue=-70.0;  
+                                    flagNew=0;
+		                                        
+		               }else{
+		                    p=NULL;
+                                    flagNew=0;
+		                    break;
+		               }
+                       }else{
+			    p=NULL;
+                            flagNew=0;
+			    break;                           
+                       }
+                  }
+             }else{
+		  p==NULL;
+                  flagNew=0;
+		  break;
+             }              
+             if( powerValue < PowerGate ){    //异常	 
+                     nowTime = getLocalTimestamp(); 
+                     printf("intSNo:%d---intANo:%d--intCM:%d--fristAlarmFlag:%d--PowerGate:%f--nextAlarmTime:%ld--nowTime:%ld--powerValue:%f\n",
+                             intSNo,     intANo,     intCM,   fristAlarmFlag,    PowerGate,    nextAlarmTime,     nowTime,     powerValue);                    
+                     if(fristAlarmFlag ==0){                                   //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
+                          printf("StateC--->SNo  powerValue:%f <---> gateValue:%f\n",
+                                         intSNo ,powerValue,         PowerGate);
                          
-		}  //end for 
-         }
-         free(SNo);
-	 SQL_Destory(mysql);  
-	 sqlite3_close(mydb);  
-         return(head);
+		          fristAlarmFlag = 1;
+			  node=(alarmNode *)malloc(sizeof(alarmNode));
+			  node->SNo = intSNo;
+		          node->CM  = intCM;
+		          node->ANo = intANo;     
+		          node->Order = (intANo)*100 +intSNo; 
+                          if(p!=NULL){
+			       q=insert_B(q,node);
+                          }else{
+		               p=NULL;
+		               break;
+                          }
+	                  nextAlarmTime  = getLocalTimestamp()+alarmClick;                  
+                     }else if(nowTime >= nextAlarmTime){                       //状态D:长期处于异常 -->fristAlarmFlag=1   实际光功率值<阈值  
+                          printf("StateD--->SNo:%d  powerValue:%f <---> gateValue:%f\n",
+                                         intSNo,    powerValue,         PowerGate);                                   
+			  node=(alarmNode *)malloc(sizeof(alarmNode));
+			  node->SNo = intSNo;
+			  node->CM  = intCM;
+			  node->ANo = intANo;     
+			  node->Order = (intANo)*100 +intSNo; 
+                          if(p!=NULL){
+			     q=insert_B(q,node);
+                          }else{
+		             p=NULL;
+		             break;
+                          }                        
+	                  nextAlarmTime  = getLocalTimestamp()+alarmClick;   
+                     }  
+                 }                               //正常             
+                 else if(fristAlarmFlag!=0){                                 //状态A:从异常中首次恢复 --> fristAlarmFlag=1 实际光功率值>=阈值      
+                          printf("StateA--->SNo:%d  powerValue:%f <---> gateValue:%f\n",
+                                         intSNo,    powerValue,         PowerGate);  
+                          bData=backData_Create();
+                          bData->powerValue =powerValue;
+                          bData->powerGate  =PowerGate;
+                          bData->level      =0;
+                          if(p!=NULL){
+		                  mysql = SQL_Create();
+				  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+				  if( rc != SQLITE_OK )
+					printf("Lookup IP SQL error\n");			 
+				  mysql->db = mydb;
+				  mysql->tableName        = "AlarmTestSegmentTable";
+				  mysql->filedsName       = "IP01";
+				  uint32tostring(intSNo,strSNo);
+				  mysql->mainKeyValue = strSNo;  
+				  SQL_lookupPar(mysql,&result,&rednum);
+				  strcpy(bData->backIP,result[0]);
+				  SQL_freeResult(&result,&rednum); 
+			     	  SQL_Destory(mysql);  
+				  sqlite3_close(mydb); 
+		                  upload(bData,intSNo,intCM,1);
+                          }else{
+		                  p=NULL;
+		                  break;
+                          }
+                          backData_Destory(bData);      
+                          fristAlarmFlag= 0;
+                      } 
+                else ;                                                       //状态B:正常  -->  fristAlarmFlag=0 实际光功率值>=阈值            
+
+                if(p!=NULL){
+                      if(flagNew==0){
+			      if(p!=NULL) p->fristAlarmFlag=fristAlarmFlag;
+			      if(p!=NULL) p->nextAlarmTime=nextAlarmTime  ;
+			      if(p!=NULL) p=p->next;
+                      }else{
+		              if(p!=NULL) p=p->next;
+                              flagNew=0;   
+		              break;
+                      }
+                }else{
+                     p=NULL; 
+                     flagNew=0; 
+                     break;
+                }                    
+       }
+       return q;
 }
 void addNewtoLink(int signum,siginfo_t *info,void *myact);
 void main(void)
 {
         checkNode *node_A;
         alarmNode *node_B;
-        int i;
+        int i,flagCycle = 0,flagProtect=0 ; 
+        pid_t cyclePID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
         /*初始化信号量*/
         sem_id        = semget((key_t)1234, 1, 4777 | IPC_CREAT);                         //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
         modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                         //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
         otdr_sem_id   = semget((key_t)2468, 1, 4777 | IPC_CREAT);                         //创建OTDR信号量   :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量 
 
-        if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
+
+       flagCycle = get_pid_by_name("/web/cgi-bin/cycMain", cyclePID, MAX_PID_NUM);  
+       flagProtect = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", protectPID, MAX_PID_NUM);  
+       if(flagCycle <=0 && flagProtect<=0)
+          if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
             exit(0);
-         } 
+       }   
         /*初始化测试链表*/
-        flushWaitingSNo();
         linkHead_check_A=InitA_CycleLink();
         linkHead_alarm_B=InitB_CycleLink();
         if(linkHead_check_A !=NULL)
@@ -1421,7 +990,7 @@ void main(void)
         /*初始化信号机制（IPC）*/
         struct sigaction act;
         int sig;
-        sig=SIGUSR1;  
+        sig=SIGUSR1;  //for Boa
         sigemptyset(&act.sa_mask);
         act.sa_sigaction=addNewtoLink;
         act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                               
@@ -1438,12 +1007,10 @@ void main(void)
             linkHead_alarm_B=deleteALL_B(linkHead_alarm_B);
  
             usleep(100000);
-            //printf("--->Out\n");  
+           
   
         }   	
 }
-
-
 void addNewtoLink(int signum,siginfo_t *info,void *myact)
 {
        printf("alarmMain(R): the int value is %d \n",info->si_int);
@@ -1472,18 +1039,8 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
                     outPutALL_A(linkHead_check_A);
                     sendMessageQueue("230-OK");
 		    break;
-                  }
-
-           case 250:{                                                            //取消光保护配对
-                    flagNew = 1;
-                    linkHead_check_A = execOpticalSwich(linkHead_check_A);
-                    outPutALL_A(linkHead_check_A);
-                    sendMessageQueue("250-OK");
-		    break;
-                  }
-
-            
-           case  260:{                                                           //清除RTU模式
+                  }          
+           case 260:{                                                           //清除RTU模式
                     flagNew = 1;
                     linkHead_check_A = removeAllNode_A(linkHead_check_A); 
                     linkHead_alarm_B = removeAllNode_B(linkHead_alarm_B);                  
@@ -1491,27 +1048,7 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
                     outPutALL_B(linkHead_alarm_B); 
                     sendMessageQueue("260-OK");
 		    break;    
-           }
-           
-           case 370:{                                                            //请求光保护切换
-                    flagNew = 1;
-                    linkHead_check_A=execOpticalSwich(linkHead_check_A);     
-                    outPutALL_A(linkHead_check_A);                                                      
-                    sendMessageQueue("370-OK");
-                     
-		    break;
-                  }
-
-           case 170:{
-                    flagNew = 1;
-                    linkHead_check_A=execOpticalSwich(linkHead_check_A);     
-                    outPutALL_A(linkHead_check_A);                               //设置光保护配对(不考虑使用)
-                    sendMessageQueue("170-OK");
-		    break;
-                  }
-
-
-
+                   }         
           default:{                                                             //异步接收光功率异常(测试)
                     //realValue[SNo]=(float)value;
                     break;

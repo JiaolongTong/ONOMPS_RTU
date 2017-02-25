@@ -1,3 +1,5 @@
+#ifndef UPLOAD_H
+#define UPLOAD_H
 #include <stdio.h>  
 #include <stdlib.h>
 #include <unistd.h> 
@@ -26,7 +28,12 @@ struct backData {
        /***门限***/
         float    powerValue;
         float    powerGate;
-        int      level;
+        int      level;                  //
+       /*保护切换信息*/
+        int SwitchStatusRecv;                   //1*2光开关状态
+        int SwitchStatusSend;
+        int SNoOnlineRecv;
+        int SNoOnlineSend;
 };
 
 backData * backData_Create();
@@ -38,10 +45,12 @@ char * setBackAddr(char * backIP);
 int upload(backData *bData,int SNo,int CM,int type);
 
 int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,int level,int SNo,int CM,int type);
+int XMLsendProtectSwitchSwitch(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type);
 int XMLgenerNewOTDRData       (char * filename,otdr *Par,int SNo,int CM,int type);
-
+int XMLsendLineFaultWarming   (char * filename,int SNoSend,int SNoRecv,int CM,int type);
 char* base64_encode(const char* data, int data_len); 
 char *base64_decode(const char* data, int data_len); 
 static char find_pos(char ch); 
 int read_file( char *filename, int *len, char **data );
 
+#endif

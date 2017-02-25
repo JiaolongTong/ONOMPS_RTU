@@ -2,6 +2,7 @@
 #include "sql.h"
 #include "process.h"
 #include "checkip.h"
+#include "myModbus.h"
 
 rtuInform * RTU_Create()
 {
@@ -94,7 +95,7 @@ responed * requestReferenceTime(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
 responed * setRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
-   mxml_node_t    *CM,*perCMDcode;
+   mxml_node_t    *CM,*CLP,*perCMDcode;
    rtuInform *rtuMode;
    responed *resp; 
    int intCM;
@@ -116,57 +117,58 @@ responed * setRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 	    int  intKNo,intType,intMN,i;
             char strKX[3]="Kx";
 
-	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo;
-	 int rc;
-	 sql *mysql;
-         char resultModNo[64][5];
-         int  resultModNum=0;
-         int   ModNo;
-         char **resultType = NULL;
-         int  resultTypeNum;
+   	    sqlite3 *mydb;
+	    char *zErrMsg = 0,*SNo;
+	    int rc;
+	    sql *mysql;
+            char resultModNo[64][5];
+            int  resultModNum=0;
+            int   ModNo;
+            char **resultType = NULL;
+            int  resultTypeNum,ErrorSNo=0;
 
 
-	 CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
-	 rtuMode->rtuCM = strtoul(CM->child->value.text.string, NULL, 0);     //RTU局站号
+	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
+	    rtuMode->rtuCM = strtoul(CM->child->value.text.string, NULL, 0);     //RTU局站号
 
-         MN =mxmlFindElement(cmd, tree, "MN",NULL, NULL,MXML_DESCEND);
-         intMN =  strtoul(MN->child->value.text.string, NULL, 0);
-         rtuMode->sumModule =intMN;                                            //RTU中子单元数量
+	    CLP = mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
+	    rtuMode->rtuCLP = strtoul(CLP->child->value.text.string, NULL, 0);     //RTU局站号
+
+            MN =mxmlFindElement(cmd, tree, "MN",NULL, NULL,MXML_DESCEND);
+            intMN =  strtoul(MN->child->value.text.string, NULL, 0);
+            rtuMode->sumModule =intMN;                                            //RTU中子单元数量
 
 
  
  
-	 mysql = SQL_Create();
-	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-	 if( rc != SQLITE_OK ){
+	    mysql = SQL_Create();
+	    rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
+	    if( rc != SQLITE_OK ){
 		      printf( "Lookup SQL error: %s\n", zErrMsg);
 		      sqlite3_free(zErrMsg);
-		   }
-	 mysql->db = mydb;
-	 mysql->tableName   = "SubModuleTypeTable";	
-         mysql->filedsValue =  "1";                                
-         mysql->filedsName  =  "UseFlag";
+	    }
+	    mysql->db = mydb;
+	    mysql->tableName   =  "SubModuleTypeTable";	
+            mysql->filedsValue =  "1";                                
+            mysql->filedsName  =  "UseFlag";
         
-         resultModNum=SQL_findModNo(mysql,resultModNo);
+            resultModNum=SQL_findModNo(mysql,resultModNo);
   
-         for(i=0;i<MAXSUBMODULE;i++) rtuMode->rtuMode[i] =0;
+            for(i=0;i<MAXSUBMODULE;i++) rtuMode->rtuMode[i] =0;
+            for(i=0;i<resultModNum;i++)
+            {
+		     mysql->mainKeyValue = resultModNo[i];
+		     mysql->filedsValue =  "1";                                
+		     mysql->filedsName  =  "ModuleType";
+		     SQL_lookupPar(mysql,&resultType,&resultTypeNum);
 
-         for(i=0;i<resultModNum;i++)
-         {
-             mysql->mainKeyValue = resultModNo[i];
-             mysql->filedsValue =  "1";                                
-             mysql->filedsName  =  "ModuleType";
-             SQL_lookupPar(mysql,&resultType,&resultTypeNum);
-
-             rtuMode->rtuMode[atoi(resultModNo[i])-1]=atoi(resultType[0]);                                         //获取本地已有模块信息(需要查询数据库) 
-            
-             SQL_freeResult(&resultType,&resultTypeNum);          
-         }
+		     rtuMode->rtuMode[atoi(resultModNo[i])-1]=atoi(resultType[0]);//获取本地已有模块信息(需要查询数据库) 
+		    
+		     SQL_freeResult(&resultType,&resultTypeNum);          
+            }
        
-        for(i=0;i<MAXSUBMODULE;i++)
-             printf("已有模块:%d 类型:%d\n",i+1,rtuMode->rtuMode[i]);
-
+            for(i=0;i<MAXSUBMODULE;i++)
+                printf("已有模块:%d 类型:%d\n",i+1,rtuMode->rtuMode[i]);
             for (i=0;i<intMN;i++)                                                //
             { 
 		strKX[1]=i+0x31;
@@ -177,47 +179,71 @@ responed * setRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
                 Type  = mxmlFindElement(KX,tree,"Type",NULL, NULL,MXML_DESCEND); 
                 intType =  strtoul(Type->child->value.text.string, NULL, 0);  
 
-                 rtuMode->rtuMode[intKNo-1]=intType;
-                            
+                rtuMode->rtuMode[intKNo-1]=intType;
+                                            
             }
-
-
-            printf("--------RTU局站号:%d-------\n",rtuMode->rtuCM);
+            printf("--------RTU局站号:%d CLP:%d-------\n",rtuMode->rtuCM,rtuMode->rtuCLP);
             for(i=0;i<MAXSUBMODULE;i++)
             {
-                  printf("新增/修改 模块:%d   类型:%d\n",i+1,rtuMode->rtuMode[i]);  
+                  printf("新增/修改 模块:%d 类型:%d  \n",i+1,rtuMode->rtuMode[i]);  
             }
 /**************************************************************************/
-    int UseFlag=1;
-    char * str;
-    str   = (char *) malloc(sizeof(char)*200);
+    int UseFlag=1,setFlag=-1;
+    modbus_t * mb=NULL ;
+    char  str[200];
+ 
     for(i=0 ;i<MAXSUBMODULE;i++)
-    {                
-          if(rtuMode->rtuMode[i] !=0){       
-                           /*SNo CM CLP SN bg   pd  IP1  IP2  IP3  IP4  IP5  IP6  Ac PID*/
-		 sprintf(str,"%d,%d,%d,%d,'%d','%d'\n",i+1                           //模块物理编号
-		                                      ,rtuMode->rtuCM
-		                                      ,rtuMode->rtuCLP
-		                                      ,rtuMode->rtuMode[i]           //模块类型
-		                                      ,i+1                           //模块通信地址
-		                                      ,UseFlag
-                                                       );
-		  mysql->filedsValue =  str;
+    {
 
-                  if(!semaphore_p())  
-                            exit(EXIT_FAILURE);                                //P
-		  rc = SQL_add(mysql);                                         //更新或者插入新的纪录
-		  if( rc != SQLITE_OK ){
-		      printf( "Save SQL error\n");
-		  }else
-                  printf("%s",str);
-                  if(!semaphore_v())                                           //V
-                           exit(EXIT_FAILURE);
+             if(rtuMode->rtuMode[i] ==1 || rtuMode->rtuMode[i] ==2 || rtuMode->rtuMode[i] ==3 || rtuMode->rtuMode[i] ==4 || rtuMode->rtuMode[i] ==5){                
+		 if(!setModbus_P())                                                  //P
+		     exit(EXIT_FAILURE);
+                 mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+                 if(rtuMode->rtuMode[i] ==5 || rtuMode->rtuMode[i] == 4) setFlag = setSubDeviceMode(mb,i+1,1); //待单片机部分修改完，删除
+                 else setFlag = setSubDeviceMode(mb,i+1,rtuMode->rtuMode[i]-1);
+                 freeModbus(mb);
+                 if(!setModbus_V())                                                 //V
+		     exit(EXIT_FAILURE);
+                 usleep(100000);
+                 if(0 !=setFlag)
+                 {
+                  	  resp->RespondCode  = 15;
+			  resp->ErrorSN      = 1;                     
+			  resp->SNorPN       = TYPE_SNo;
+			  resp->Group[ErrorSNo].SNo = i+1;
+			  resp->Group[ErrorSNo].Main_inform  = "未找到模块硬件设备";
+			  resp->Group[ErrorSNo].Error_inform = "Error:Can't Find Hardware Devive!\n";
+                          ErrorSNo++;
+                 }else{ 
+		                 /*ModuleNo rtuCM rtuCLP ModuleType ComAddr UseFlag*/
+			 sprintf(str,"%d,%d,%d,%d,'%d','%d'\n",i+1                           //模块物理编号
+				                              ,rtuMode->rtuCM
+				                              ,rtuMode->rtuCLP
+				                              ,rtuMode->rtuMode[i]           //模块类型
+				                              ,i+1                           //模块通信地址
+				                              ,UseFlag
+		          );
+			  mysql->filedsValue =  str;
+
+		          if(!semaphore_p())  
+		                    exit(EXIT_FAILURE);                                //P
+			  rc = SQL_add(mysql);                                         //更新或者插入新的纪录
+			  if( rc != SQLITE_OK ){
+			      printf( "Save SQL error\n");
+			  }else
+		          printf("%s",str);
+		          if(!semaphore_v())                                           //V
+		                   exit(EXIT_FAILURE);
+               }
           }
      }
 
     SQL_Destory(mysql);  
     sqlite3_close(mydb);
+    if(resp->RespondCode != 0 ){
+             resp->ErrorSN =  ErrorSNo;                  //错误光路总条数    
+             return resp; 
+    }
  }  
  RTU_Destory(rtuMode);
  
@@ -274,7 +300,7 @@ responed * cancelRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
  
 
       recvStr = recvMessageQueue_C();
-      if(strncmp(recvStr, "260-OK", 6) != 0){                 //遇"260-OK"结束
+      if(strncmp(recvStr, "260-OK", 6) != 0){                  //遇"260-OK"结束
           printf("CancelRTUMode failed!\n");
           printf("<RespondCode>3</RespondCode>\n");
           resp->RespondCode=-1;
@@ -289,16 +315,16 @@ responed * cancelRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
        signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
        mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
        for(n=0;n<ret;n++){  
-        printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-        if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
+	       printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
        } 
 
        recvStr = recvMessageQueue_C();
        if(strncmp(recvStr, "260-OK", 6) != 0){                 //遇"260-OK"结束
-          printf("CancelRTUMode failed!\n");
-          printf("<RespondCode>3</RespondCode>\n");
-          resp->RespondCode=-1;
+	       printf("CancelRTUMode failed!\n");
+	       printf("<RespondCode>3</RespondCode>\n");
+	       resp->RespondCode=-1;
        return resp;
        }
 
@@ -394,7 +420,7 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 /**************************解析XML消息***************************************/
 
          mxml_node_t *PX,*PN,*SNo,*Type;
-	 int  intSNo,intPN,intType,i=0;
+	 int  intSNo=0,intPN=0,intType=0,setRTUPort=0,i=0;
          char strPX[3]="Px";
 
          for(i=0;i<MAXRTUPORT;i++) rtuMode->rtuPort[i] =0;
@@ -405,8 +431,6 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
          PN =mxmlFindElement(cmd, tree, "PN",NULL, NULL,MXML_DESCEND);
          intPN =  strtoul(PN->child->value.text.string, NULL, 0);
          rtuMode->sumPort =intPN;                                            //RTU中Port数量
-
-            printf("hello!\n");
 
          for (i=0;i<intPN;i++)                                               
          { 
@@ -421,57 +445,88 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
                 rtuMode->rtuPort[intSNo-1]=intType+1;                          
          }
 
-            printf("--------RTU局站号:%d-------\n",rtuMode->rtuCM);
-            for(i=0;i<MAXRTUPORT;i++)
-            {
+         printf("--------RTU局站号:%d-------\n",rtuMode->rtuCM);
+         for(i=0;i<MAXRTUPORT;i++){
                if(rtuMode->rtuPort[i] !=0)
                   printf("新增Port:%d   类型:%d\n",i+1,rtuMode->rtuPort[i]);  
-            }
+         }
 /**************************************************************************/
-	 sqlite3 *mydb;
-	 int rc;
-	 sql *mysql;
-         char * str;
-         str   = (char *) malloc(sizeof(char)*200);
-
+	 sqlite3 *mydb=NULL;
+	 sql *mysql=NULL;
+         responed *resp=NULL;
+         char strSQL[200],strNo[5];
+         char ** result=NULL;
+         int rc=0,ModuleNo=0,rednum=0,UseFlag=0,ErrorSNo=0,existFlag=0;
+	 resp   = Responed_Create();
+	 resp->RespondCode=0;  
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 	 if( rc != SQLITE_OK )
 	    printf( "Lookup SQL error!\n");		  
-	 mysql->db = mydb;
-	 mysql->tableName   = "PortOccopyTable";	
-         for(i=0 ;i<MAXRTUPORT;i++)
-         {                
-          if(rtuMode->rtuPort[i] !=0){       
-                           /*SNo CM CLP SN bg   pd  IP1  IP2  IP3  IP4  IP5  IP6  Ac PID*/
-		 sprintf(str,"%d,%d,%d,%d\n",i+1                           //Port物理编号
-		                            ,(i/8)+1                       //Port 模块
-		                            ,(i%8)+1                       //Port on模块
-		                            ,rtuMode->rtuPort[i]           //模块类型
-                                            );
-		  mysql->filedsValue =  str;
+	 mysql->db = mydb;	 	
+         for(i=0 ;i<MAXRTUPORT;i++){
+              if(rtuMode->rtuPort[i] !=0){
+		    mysql->tableName ="SubModuleTypeTable";                 //检查子单元模块是否存在
+		    ModuleNo = (i/8)+1;
+		    uint32tostring(ModuleNo,strNo);
+		    mysql->mainKeyValue = strNo;
+                    if(!SQL_existIN_db(mysql)){
+			    resp->RespondCode  = 15;
+			    resp->ErrorSN      = 1;                     
+			    resp->SNorPN       = TYPE_SNo;
+			    resp->Group[ErrorSNo].SNo = i+1;
+			    resp->Group[ErrorSNo].Main_inform  = "模块未激活";
+			    resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Module\n";
+                            ErrorSNo++;
+                    }else{
+			    mysql->filedsName   = "UseFlag";
+			    SQL_lookupPar(mysql,&result,&rednum);
+			    UseFlag=atoi(result[0]);
+			    SQL_freeResult(&result,&rednum);
+			    if(UseFlag!=1){
+				  resp->RespondCode  = 15;
+				  resp->ErrorSN      = 1;                     
+				  resp->SNorPN       = TYPE_SNo;
+				  resp->Group[ErrorSNo].SNo = i+1;
+				  resp->Group[ErrorSNo].Main_inform  = "模块未激活";
+				  resp->Group[ErrorSNo].Error_inform = "Error: Don't have such Module\n";
+		                  ErrorSNo++;
+			    }else{            
+				    mysql->tableName   = "PortOccopyTable";      
+				    if(rtuMode->rtuPort[i] !=0){       
+						   /*SNo ModleNo SubPort FiberType*/
+					  sprintf(strSQL,"%d,%d,%d,%d\n",i+1                        // 物理编号(1-64)
+								        ,(i/8)+1                    // 模块编号(1-8)
+								        ,(i%8)+1                    // 子端口编号(1-8)
+								        ,rtuMode->rtuPort[i]        // 端口类型
+					  );
+					  mysql->filedsValue =  strSQL;
+					  if(!semaphore_p())  
+					       exit(EXIT_FAILURE);                                  //P
+					  rc = SQL_add(mysql);                                      //更新或者插入新的纪录
+					  if( rc != SQLITE_OK ){
+					      printf( "Save SQL error\n");
+					  }else
+					      printf("%s",strSQL);
+					  if(!semaphore_v())                                        //V
+						exit(EXIT_FAILURE);
+				  }
+			  }
+                    }
+               }
+         }    
+         SQL_Destory(mysql);  
+         sqlite3_close(mydb);
 
-                  if(!semaphore_p())  
-                       exit(EXIT_FAILURE);                                  //P
-		  rc = SQL_add(mysql);                                      //更新或者插入新的纪录
-		  if( rc != SQLITE_OK ){
-		      printf( "Save SQL error\n");
-		  }else
-                      printf("%s",str);
-                  if(!semaphore_v())                                        //V
-                        exit(EXIT_FAILURE);
-          }
-       }
-
-    SQL_Destory(mysql);  
-    sqlite3_close(mydb);
- }  
+         printf("Code-Res:%d",resp->RespondCode);
+         if(resp->RespondCode != 0 ){
+             resp->ErrorSN =  ErrorSNo;                  //错误光路总条数    
+             return resp; 
+         }
+    }  
  RTU_Destory(rtuMode);
  
  return resp; 
-
-
-
 }
 responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
@@ -538,49 +593,51 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
        char * recvStr; 
        recvStr = (char *) malloc (sizeof (char)*10);
 
-
        for(i=0;i<MAXRTUPORT;i++)
        {
            if(rtuMode->rtuPort[i]==1){
 /*障碍告警测试 */
 	       process ="/web/cgi-bin/alarmMain";                        
 	       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-	       printf("alarmMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-	       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
-	       for(n=0;n<ret;n++){  
-		printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-		if(sigqueue(cycPID[n],signum,mysigval)==-1)
-		       printf("alarmMain:send signal error\n");
-	       } 
+               if(ret>0){
+		       printf("alarmMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
+		       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
+		       for(n=0;n<ret;n++){  
+			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+			if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("alarmMain:send signal error\n");
+		       } 
 
-	       recvStr = recvMessageQueue_C();
-	       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
-		  printf("alarmMain: CancelRTUPort failed!:%s\n",recvStr);
-		  printf("<RespondCode>3</RespondCode>\n");
-		  resp->RespondCode=-1;
-	       return resp;
-	       }
+		       recvStr = recvMessageQueue_C();
+		       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
+			  printf("alarmMain: CancelRTUPort failed!:%s\n",recvStr);
+			  printf("<RespondCode>3</RespondCode>\n");
+			  resp->RespondCode=-1;
+		       return resp;
+		       }
+               }
 /*周期测试*/
 	       process ="/web/cgi-bin/cycMain";  
-	       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-	       printf("cycMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-	       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
-	       for(n=0;n<ret;n++){  
-		printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-		if(sigqueue(cycPID[n],signum,mysigval)==-1)
-		       printf("cycMain: send signal error\n");
-	       } 
+	       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM); 
+               if( ret >0 ){ 
+		       printf("cycMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
+		       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
+		       for(n=0;n<ret;n++){  
+			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+			if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("cycMain: send signal error\n");
+		       } 
 
-	       recvStr = recvMessageQueue_C();
-	       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
-		  printf("cycMain: CancelRTUPort failed!\n");
-		  printf("<RespondCode>3</RespondCode>\n");
-		  resp->RespondCode=-1;
-	       return resp;
-	       }
-
+		       recvStr = recvMessageQueue_C();
+		       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
+			  printf("cycMain: CancelRTUPort failed!\n");
+			  printf("<RespondCode>3</RespondCode>\n");
+			  resp->RespondCode=-1;
+		       return resp;
+		       }
+               }
 
            }
            usleep(1000);
@@ -654,8 +711,8 @@ responed * requestRebootRTU(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 {
    mxml_node_t    *CM,*CLP,*Time,*perCMDcode;
    responed *resp; 
-   pid_t pid;  
-
+   pid_t pid;
+ 
    resp   = Responed_Create();
    resp  -> RespondCode=0;  
       
@@ -667,22 +724,51 @@ responed * requestRebootRTU(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             return resp;   
        }
       else{
-/**************************解析XML消息***************************************/
 	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);	
 	    CLP = mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
-	    Time = mxmlFindElement(cmd, tree, "Time",NULL, NULL,MXML_DESCEND);            
-	    if((pid = fork())==0) { 
-                int flag; 
-                char  argv[10];
-                strcpy(argv,Time->child->value.text.string);
-		printf("Start Reboot System......\n");    
-		flag = execl("/etc/boa/reboot.sh","reboot.sh",argv); 
-		if(flag == -1)  
-		    printf("exec error!\n");  
-		
-	    } 
+	    Time = mxmlFindElement(cmd, tree, "Time",NULL, NULL,MXML_DESCEND);
+     
+/******************后台进程发送重启命令，并等待回复*****************/
+        int signum=0,retProcess = 0,n=0;
+        char* process=NULL,*recvStr=NULL;  
+        pid_t otdrPID[MAX_PID_NUM];
+        union sigval mysigval;  
+                                     /*向otdrMain发送启动信号*/
+        process ="/web/cgi-bin/otdrMain";                        
+        retProcess = get_pid_by_name(process, otdrPID, MAX_PID_NUM);  
+	printf("process '%s' is existed? (%d): %c ", process, retProcess, (retProcess > 0)?'y':'n');  
+        if(retProcess>0){
+		signum=SIGRTMIN;                                         
+		mysigval.sival_int = 38;                                   //发送需要启动测试的光路号  及测试类型：百位表示类型+十位个位表示SNo   (eg:101,type=1,SNo=1)                         
+		for(n=0;n<retProcess;n++){                                      
+		     printf("otdrMain PID:%u\n", otdrPID[n]);             //获取OTDR测试进程PID
+		     if(sigqueue(otdrPID[n],signum,mysigval)==-1)
+			 printf("send signal error\n");
+		}	 
+		                    /*等待信号的成功处理消息*/		    
+		recvStr = (char *) malloc (sizeof (char)*20);                                              
+		recvStr = recvMessageQueue_A("0-OK-38",38);                          //阻塞等待测试执行完毕      
+		if(strncmp(recvStr, "0-OK-38",7) == 0){                    //遇"0-OK-38"结束		      
+		      printf("ReBoot RTU  sucessful!\n");
+		}
+		else{
+		      printf("ReBoot RTU Faild\n");
+		      resp->RespondCode=3;
+		      resp->Group[0].Main_inform  = "重启失败-->未收到回复消息";
+		      resp->Group[0].Error_inform = "Error:Don't get back massage![重启失败-->未收到回复消息]";
+	              free(recvStr);
+		      return resp;  
+		}
+                free(recvStr);
+        }else{
+		resp->RespondCode=3;
+		resp->Group[0].Main_inform  = "重启失败-->未找到后台进程";
+		resp->Group[0].Error_inform = "Error:Don't get back massage![重启失败-->未找到后台进程]";
+	        free(recvStr);
+		return resp;  
+       }
 	
-       }  
+   }  
 
    return resp;   
 
@@ -706,6 +792,12 @@ responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             return resp;   
        }
       else{
+            int canUSE=-1,fd=0;
+            char *interface = "eth0";
+            char str[100];
+            char oldIP[16];
+            char oldNetmask[16];
+
 /**************************解析XML消息***************************************/
 	    CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
 	    rtuReferenceTime->rtuCM = strtoul(CM->child->value.text.string, NULL, 0); 	
@@ -713,21 +805,60 @@ responed * setNetwork(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
             rtuReferenceTime->rtuCLP= strtoul(CLP->child->value.text.string, NULL, 0);
 	    IP = mxmlFindElement(cmd, tree, "IP",NULL, NULL,MXML_DESCEND);
 	    Netmask = mxmlFindElement(cmd, tree,"Netmask",NULL, NULL,MXML_DESCEND);
-	   // Gateway = mxmlFindElement(cmd, tree,"Gateway",NULL, NULL,MXML_DESCEND);
+            get_ip(oldIP);
+            get_ip_netmask(oldNetmask);
 
-            int canUSE=-1;
-            char *interface = "eth0";
-            char * ipaddr =IP->child->value.text.string;
-            canUSE=PM_Check_IP(interface,ipaddr);
+            canUSE=PM_Check_IP(interface,IP->child->value.text.string);
             if(!canUSE){
-               set_ip(IP->child->value.text.string);
-               set_ip_netmask(Netmask->child->value.text.string);
-               //set_gateway(Gateway->child->value.text.string);
-            }
-            else{
+		set_ip(IP->child->value.text.string);
+		set_ip_netmask(Netmask->child->value.text.string);
+/******************后台进程发送网络配置命令*****************/
+		int signum=0,retProcess = 0,n=0;
+		char* process=NULL,*recvStr=NULL;  
+		pid_t otdrPID[MAX_PID_NUM];
+		union sigval mysigval;  
+		                             /*向otdrMain发送启动信号*/
+		process ="/web/cgi-bin/otdrMain";                        
+		retProcess = get_pid_by_name(process, otdrPID, MAX_PID_NUM);  
+		printf("process '%s' is existed? (%d): %c ", process, retProcess, (retProcess > 0)?'y':'n');  
+		if(retProcess>0){
+			signum=SIGRTMIN;                                         
+			mysigval.sival_int = 16;                                   //发送需要启动测试的光路号  及测试类型：百位表示类型+十位个位表示SNo   (eg:101,type=1,SNo=1)                         
+			for(n=0;n<retProcess;n++){  
+			     fd = open ("/web/cgi-bin/fiberMointor.tmp" , O_RDWR);
+			     if (fd < 0)
+				 perror ("Error opening file");
+			     else {
+		                sprintf(str,"%s\n%s",oldIP,oldNetmask);
+				lseek(fd,0,SEEK_SET);
+				if(write(fd,str,strlen(str))<0){
+				     set_ip(oldIP);
+				     set_ip_netmask(oldNetmask);
+		                     printf("<RespondCode>3</RespondCode>\n");
+		                     printf("<Data>Set IP Failed [%s]!\n</Data>\n",IP->child->value.text.string);
+		                     resp->RespondCode=-1;
+				     RTU_Destory(rtuReferenceTime);
+                                     close (fd);
+		                     return resp; 
+				}    
+			     }
+			     close (fd);                                    
+			     if(sigqueue(otdrPID[n],signum,mysigval)==-1)
+				 printf("send signal error\n");
+			}	 
+		}else{
+			set_ip(oldIP);
+			set_ip_netmask(oldNetmask);
+			resp->RespondCode=3;
+			resp->Group[0].Main_inform  = "网络配置-->未找到后台进程";
+			resp->Group[0].Error_inform = "Error:Don't get back massage![网络配置-->未找到后台进程]";
+			free(recvStr);
+			return resp;  
+	       }
 
+          }else{
                printf("<RespondCode>3</RespondCode>\n");
-	       printf("<Data> IP conflict [%s] can't use!\n</Data>\n",IP->child->value.text.string);
+	       printf("<Data>Set IP Failed [%s]! Check NetWork\n</Data>\n",IP->child->value.text.string);
                resp->RespondCode=-1;
                RTU_Destory(rtuReferenceTime);
                return resp;  

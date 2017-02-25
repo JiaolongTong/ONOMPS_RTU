@@ -189,7 +189,6 @@ int check_ip(char *interface,u_int32_t addr)
  } else return 0;
 }
 
-
 int PM_Check_IP(char* interface, char *ipaddr)
 {
  
@@ -199,7 +198,7 @@ int PM_Check_IP(char* interface, char *ipaddr)
   printf("read_interface false!!!\n");
   return -1;
  }
- printf("ipaddr=[%s]\n",ipaddr);
+ 
  if(!check_ip(interface,inet_addr(ipaddr)))
  {
   DEBUG(LOG_INFO, "IP:%s can use", ipaddr);
@@ -214,15 +213,45 @@ int PM_Check_IP(char* interface, char *ipaddr)
  
 }
 
-/*
-void main()
-{
-   char * interface="ens33"; 
 
-   char * addr="192.168.0.141";
-    
-   PM_Check_IP(interface,addr);
+#define NET_PORT 8080 
+
+//获取联网状态 
+int PM_Accsee_IP(char* interface, char *ipaddr) {
+    int fd;  int in_len=0; 
+    struct sockaddr_in servaddr; 
+    in_len = sizeof(struct sockaddr_in);
+
+    if((fd = socket(AF_INET,SOCK_STREAM,0)) < 0) { 
+          perror("socket");
+          return -1;
+    } 
+    /*设置默认服务器的信息*/ 
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(NET_PORT); 
+    servaddr.sin_addr.s_addr = inet_addr(ipaddr);
+    memset(servaddr.sin_zero,0,sizeof(servaddr.sin_zero));
+
+    /*connect 函数*/ 
+    if(connect(fd,(struct sockaddr* )&servaddr,in_len) < 0 )  {  //没有联网成功 
+           DEBUG(LOG_INFO, "IP:%s don't Access \n", ipaddr); 
+           close(fd);
+           return -1; 
+    } else { 
+           DEBUG(LOG_INFO, "IP:%s is Accsee\n", ipaddr);
+           close(fd);
+           return 0;
+    }  
 }
-*/
+/*
+void main(int argc ,char **argv)
+{
+   char * interface="eth0"; 
 
+   char * addr=argv[1];
+    
+   PM_Accsee_IP(interface,addr);
+}
+
+*/
 

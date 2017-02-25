@@ -15,7 +15,7 @@
 # endif
 #endif
 
-
+#define SERVER_ID 0
 #define INVALID_SERVER_ID 32
 
 const uint16_t MAX_REGISTERS =100;       //0x0064

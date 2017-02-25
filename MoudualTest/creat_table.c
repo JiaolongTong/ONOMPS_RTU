@@ -28,14 +28,22 @@ int main(int argc, char* argv[])
    }
 
 
-//  create table NamedTestSegmentTable(SNo INT PRIMARY KEY,PS INT,P11 INT,P12 INT,P13 INT,P14 INT,P15 FLOAT,P16 FLOAT,P17 FLOAT);
+//  create table ProtectGroupTable(PNo INT PRIMARY KEY,SNoA INT,SNoB INT,SwitchPos INT,sPNo INT,sSNoA INT,sSNoB INT,sSwitchPos INT,ConnectPos INT,sModNo INT,sIP VARCHAR,Status INT );
    /* Create SQL statement */
    sql = "CREATE TABLE ProtectGroupTable("  \
          "PNo INT PRIMARY KEY   ," \
-         "rtuCM     INT     ," \
-         "rtuCLP    INT     ," \
-         "SNoA      INT     ," \
-         "SNoB      INT     ," \
+         "SNoA     INT     ," \
+         "SNoB    INT     ," \
+         "SwitchPos      INT     ," \
+
+         "sPNo      INT     ," \
+         "sSNoA     INT     ," \
+         "sSNoB    INT     ," \
+         "sSwitchPos      INT     ," \
+
+         "ConnectPos      INT     ," \
+         "sModNo     INT     ," \
+         "sIP    VARCHAR     ," \
          "Status    INT     );" \
 ;
 

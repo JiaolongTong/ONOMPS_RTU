@@ -20,7 +20,7 @@ char * getMainKeyname(sql* const me)
           return  out = "SNo";
         else if(0==strcmp(me->tableName,"ProtectGroupTable"))
           return  out = "PNo";
-        else if (0==strcmp(me->tableName,"SubModuleTypeTable"))
+        else if (0==strcmp(me->tableName,"SubModuleTypeTable") || 0==strcmp(me->tableName,"SlaveProtectTable"))
           return out ="ModuleNo";
         else
           return  out ="rtuCM";
@@ -47,11 +47,13 @@ char * getFieldsName(sql *const me)
 	if(0==strcmp(me->tableName,"AlarmTestSegmentTable"))
              return  out = "(SNo,rtuCM,rtuCLP,Level,PS,P21,P22,P23,P24,P25,P26,P27,AT01,AT02,AT03,AT04,AT05,AT06,IP01,IP02,IP03,IP04,IP05,IP06,T3,T4,fiberType,protectFlag,Status)";
         if(0==strcmp(me->tableName,"ProtectGroupTable"))
-             return  out = "(PNo,rtuCM,rtuCLP,SNoA,SNoB,Status,SwitchPos)";
+             return  out = "(PNo,SNoA,SNoB,SwitchPos,sPNo,sSNoA,sSNoB,sSwitchPos,ConnectPos,sModNo,sIP,Status)";
         if(0==strcmp(me->tableName,"PortOccopyTable"))
              return  out = "(SNo,ModuleNo,SubPort,FiberType)";
         if(0==strcmp(me->tableName,"SubModuleTypeTable"))
              return  out = "(ModuleNo,rtuCM,rtuCLP,ModuleType,ComAddr,UseFlag)";
+        if(0==strcmp(me->tableName,"SlaveProtectTable"))
+             return  out = "(PNo,ModuleNo,SNoA,SNoB,GateA,GateB,SwitchPos,ConnectPos,belongCM,belongCLP,Status)";
 }
 /*周期测试表CycleTestSegnemtTable
 

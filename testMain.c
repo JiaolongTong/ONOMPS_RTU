@@ -61,8 +61,10 @@ int main(int argc,char **argv)
 			    exit(0);
 			}
 		    else{
-                    //code=getCommendCode(root,tree);
-                    code =atoi(argv[1]);
+                    code=getCommendCode(root,tree);
+                    //code =atoi(argv[1]);
+
+                    printf("Code : %d",code);
                     switch(code){
 
 /*******************************************加入功能块begin*****************************************************/
@@ -72,7 +74,7 @@ int main(int argc,char **argv)
         (2) "1"   测试参数非法: SN,P01,P02,P03,P04,P05,P06,P07
         (3) "4"   通信参数非法: 起始时间、时间间隔格式错误,回传IP地址错误
         (4) "14"  数据库不同步: 设置时间表时，检查优化参数是否存在，如果不存在报告数据库不同步错误，并回传未同步的光路号(SNo)。
-*/     		               case 100 :{   //设置优化参数                                   
+*/      		               case 100 :{   //设置优化参数                                   
                                      ret=setDefaultTestSegment(root,tree,code);                                        
                                      if (ret->RespondCode == 0)RespondMessage_OK(code);
                                      else RespondMessage_Error(code,ret);
@@ -239,10 +241,10 @@ int main(int argc,char **argv)
 			                mxmlDelete(tree);
 			                exit(0);  
 				     }
-				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+				    if (ret->RespondCode == 0) RespondMessage_OK(code);
 			            else RespondMessage_Error(code,ret);
-				     free(ret);
-				     break;
+					    free(ret);
+					    break;
 			            }
 
 		              case  270:{  //清除RTU端口占用
@@ -265,19 +267,18 @@ int main(int argc,char **argv)
 			                mxmlDelete(tree);
 			                exit(0);  
 				     }
-				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+				    if (ret->RespondCode == 0);//RespondMessage_OK(code);
 			            else RespondMessage_Error(code,ret);
 				     free(ret);
 				     break;
 			            }
-                               case 380:{   //请求重启RTU
+                              case 380:{   //请求重启RTU
                                     ret=requestRebootRTU(root,tree,code);
                                     if (ret->RespondCode == 0)RespondMessage_OK(code);
                                     else RespondMessage_Error(code,ret);
                                     free(ret);
                                     break;
 				    }
-
 /******************************************加入功能块end****************************************************************/                                        
                                default  :  NullPossess();
 

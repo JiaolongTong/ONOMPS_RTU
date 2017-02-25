@@ -452,8 +452,10 @@ int OtdrTest(otdr const * me)
 			}
 			HostStartMeasure(sock,me, buf);                               //设定测量参数，并开始测试      
 			get_final = 0;
+                       
             while(!get_final){
 				curlen = recv(sock, buf, sizeof(frame_header_t), 0);      //接收数据帧头
+
 				if(curlen <= 0)
 					{
 						printf("%d : recv error --> %s\n", __LINE__, strerror(errno));
@@ -487,5 +489,6 @@ int OtdrTest(otdr const * me)
 				NetworkIdle(sock,buf);				                                                          //sleep(1);
             }
 		close(sock);
+                sleep(1);
 		return 0;
 	}

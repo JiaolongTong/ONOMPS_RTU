@@ -104,27 +104,27 @@ int main(void)
                       }                                                                        //Save data  to file
                       fp = fopen(RCV_FILE, "r");
 	              if(fp == NULL){
-                    printf("<RespondCode>3</RespondCode>\n");
+                                printf("<RespondCode>3</RespondCode>\n");
 			        printf("<Error>open the recv.xml error!</Error>\n");
-                    printf("</RespondMessage>");
+                                printf("</RespondMessage>");
 			        exit(0);
 					}
 		    }
 		    tree = mxmlLoadFile(NULL, fp, MXML_TEXT_CALLBACK);
 
 		    if(tree == NULL){
-                printf("<RespondCode>3</RespondCode>\n");
+                            printf("<RespondCode>3</RespondCode>\n");
 			    printf("<Data>Load XML file error!</Data>\n");
-                fclose(fp);
+                            fclose(fp);
 			    exit(0);
 			}
-    		   fclose(fp);
- 		       root = mxmlFindElement(tree, tree, "SegmentCode",NULL, NULL,MXML_DESCEND);
-              if(root == NULL){
-		        printf("<RespondCode>3</RespondCode>\n");
+    		    fclose(fp);
+ 		    root = mxmlFindElement(tree, tree, "SegmentCode",NULL, NULL,MXML_DESCEND);
+                    if(root == NULL){
+		            printf("<RespondCode>3</RespondCode>\n");
 			    printf("<Data>Undefined Code :%s</Data>\n",root->value.element.name);
-		        printf("</RespondMessage>");
-		        mxmlDelete(tree);
+		            printf("</RespondMessage>");
+		            mxmlDelete(tree);
 			    exit(0);
 			}
 		    else{
@@ -352,7 +352,7 @@ int main(void)
 			                mxmlDelete(tree);
 			                exit(0);  
 				     }
-				    if (ret->RespondCode == 0)RespondMessage_OK(code);
+				    if (ret->RespondCode == 0);//RespondMessage_OK(code);
 			            else RespondMessage_Error(code,ret);
 				     free(ret);
 				     break;

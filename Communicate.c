@@ -61,7 +61,7 @@ char *  getCommendString(int code)
 	if(code == 370)
           return str = "RequestCableProtect";
 	if(code == 380)
-          return str = "RequestRebootRTU";
+          return str = "RequestRebootRtu";
 	if(code == 390)
           return str = "RequestRTUStatus";
 }
@@ -226,9 +226,9 @@ int getCommendCode(mxml_node_t * root,mxml_node_t * tree)
 		   return 370;
 		}    
         }
-     if ((search = mxmlFindElement(root, tree, "RequestRebootRTU",NULL, NULL,MXML_DESCEND))!=NULL)
+     if ((search = mxmlFindElement(root, tree, "RequestRebootRtu",NULL, NULL,MXML_DESCEND))!=NULL)
         {
-            if (strcmp(search->value.element.name,"RequestRebootRTU")==0)
+            if (strcmp(search->value.element.name,"RequestRebootRtu")==0)
 		{
 		   return 380;
 

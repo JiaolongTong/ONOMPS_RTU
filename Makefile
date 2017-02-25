@@ -1,4 +1,4 @@
-arm-linux-gnueabihf-gcc -o BoaCom.cgi  ComWithHttpClient.c common.c Communicate.c namedtest.c otdr.c defaulttest.c cycletest.c alarmtest.c opticalprotect.c opticalpower.c responed.c sql.c process.c myModbus.c -lsqlite3 -lmxml -lmodbus -lpthread -D_GNU_SOURCE -D__USE_XOPEN
+arm-linux-gnueabihf-gcc -o BoaCom.cgi  ComWithHttpClient.c common.c Communicate.c namedtest.c otdr.c defaulttest.c cycletest.c alarmtest.c opticalprotect.c opticalpower.c responed.c sql.c process.c myModbus.c rtuIformation.c  checkip.c -lsqlite3 -lmxml -lmodbus -lpthread -D_GNU_SOURCE -D__USE_XOPEN
 
 arm-linux-gnueabihf-gcc -o cycMain  cycMain.c sql.c common.c uploadCycTestData.c otdr.c process.c  -lsqlite3 -lcurl -D_GNU_SOURCE -D__USE_XOPEN
 

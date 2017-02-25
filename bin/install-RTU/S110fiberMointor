@@ -1,0 +1,140 @@
+#!/bin/sh
+#
+# Start fiberMointor System 
+#
+
+pid_file=/web/cgi-bin/fiberMointor.pid
+conf_file=/web/cgi-bin/fiberMointor.conf
+stop_system()
+{
+	if [ -f $pid_file ];then
+		echo "停止光缆资源管理在纤保护RTU设备 ..."
+		kill `cat $pid_file`
+	#	rm -rf $pid_file
+	fi
+}
+
+start_system()
+{
+	echo "启动光缆资源管理在纤保护RTU设备 ..."
+
+	while read line
+	do
+            
+	    varname=`echo $line|grep -E -v "#|^$"|awk '{print $1}'`
+	    varvalue=`echo $line|grep -E -v "#|^$"|awk '{print $2}'`
+	    eval ${varname}=${varvalue}
+	    case $varname in
+		 eth0) eval     routeIP=${varvalue};;
+		 eth1) eval     localIP=${varvalue};;
+		 ServerIP)eval  serverIP=${varvalue};;
+		 otdrMain)eval  otdrFlag=${varvalue};;
+		 cycleMain)eval cycleFlag=${varvalue};;
+		 alarmMain)eval alarmFlag=${varvalue};;
+                 autoPowerOn)  autoPowerOn=${varvalue};;
+		 --)break ;;
+		 *)  echo "非法参数!"; echo "终止执行..." exit ;;  
+	    esac  
+       done < $conf_file
+  
+
+       echo "set eth0 $routeIP "
+   
+       if [ -n "$routeIP" ]
+       then
+               ifconfig eth0 $routeIP
+       fi
+       sleep 5
+
+       echo "eth1 $localIP "
+       if [ -n "$localIP" ]
+       then
+               ifconfig eth1 $localIP
+       fi
+       
+       echo "serverIP $serverIP"
+
+       if [ -z $serverIP ]
+       then
+                echo "时间同步  192.168.0.140 ..."
+		message=$(ntpdate 192.168.0.108)
+
+		echo "message:$message"
+
+		if [  $message="" ]
+		then
+		   echo "时间同步失败";
+                   echo "中止脚本执行，请确认网络连接后重启 ..."
+		else
+		   echo "时间同步成功";
+                   hwclock --systohc;
+		fi
+	       
+               
+       else
+	        echo "时间同步  $serverIP..."
+                message=$(ntpdate  $serverIP)
+		echo "message:$message"
+
+		if [  $message="" ]
+		then
+
+		   echo "时间同步失败";
+                   echo "中止脚本执行，请确认网络连接后重启 ..."
+
+		else
+		   echo "时间同步成功";
+                   hwclock --systohc;
+		fi
+	       
+       fi
+
+
+
+
+       if [  $autoPowerOn = "y" ]
+
+       then
+
+	       boa &       
+	     
+	       cd /web/cgi-bin/
+	       if [  $otdrFlag = "y" ]
+	       then
+		    echo "启动OTDR进程 ..."
+		   ./otdrMain &
+	       fi
+	       if [  $cycleFlag = "y" ]
+	       then
+		   echo "启动周期测试进程 ..."
+		   ./cycMain &
+	       fi
+	       if [  $alarmFlag = "y" ]
+	       then
+		   echo "启动障碍告警测试进程 ..."
+		  ./alarmMain &
+	       fi
+       fi
+       echo $! | tee $pid_file
+}
+
+
+case "$1" in
+  start)
+	stop_system
+	start_system
+	;;
+  stop)
+	stop_system
+	;;
+  restart|reload)
+	stop_system
+	start_system
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

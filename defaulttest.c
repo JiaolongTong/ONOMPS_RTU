@@ -14,18 +14,21 @@ void  getDefaultParameter(mxml_node_t *root,mxml_node_t *tree,defaulttest *defpa
 {
     mxml_node_t *AX,*SNo,*CM,*CLP,*SN,*P01,*P02,*P03,*P04,*P05,*P06,*P07;
 
-    uint32_t  uint_a;
+    uint32_t  uint_a=0,intSN = 0,i=0;
     float   float_a;
-    char srttmp[3]="Ax";
-    char i=0;
-    uint32_t  intSN = 0;
+    char strtmp[10],strNum[10];
     SN =mxmlFindElement(root, tree, "SN",NULL, NULL,MXML_DESCEND);
     intSN =  strtoul(SN->child->value.text.string, NULL, 0);
     defpar->SN = intSN;
     
     for (i=0;i<intSN;i++){ 
-        srttmp[1]=i+0x31;
-        AX  = mxmlFindElement(root, tree, srttmp ,NULL, NULL,MXML_DESCEND);      
+
+        strtmp[0]='\0';
+        strcat(strtmp,"A");
+        uint32tostring(i+1,strNum);
+        strcat(strtmp,strNum);
+
+        AX  = mxmlFindElement(root, tree, strtmp ,NULL, NULL,MXML_DESCEND);      
         SNo = mxmlFindElement(AX, tree, "SNo",NULL, NULL,MXML_DESCEND);
         uint_a = strtoul (SNo->child->value.text.string, NULL, 0);          
         defpar->Group[i].SNo = uint_a;

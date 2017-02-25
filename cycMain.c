@@ -29,10 +29,12 @@ struct testLinknode{
 
 /*全局变量*/
 int sem_id=0;              //信号量ID（数据库互斥访问）
-int otdr_sem_id=0;         //信号量ID（OTDR互斥访问）                             
+int otdr_sem_id=0;         //信号量ID（OTDR互斥访问）                         
 int flagNew=0;             //新节点插入标志
 testLinknode *linkHead;    //链表头
 int n =0;                  //链表节点数
+
+
 
 
 /***插入有序节点****/
@@ -228,6 +230,8 @@ testLinknode * Init_CycleLink(void)
 	 char resultSNo[64][5];
 
          char **result = NULL;
+         int  rednum =0;
+
          testLinknode *head,*node;
          head = link_creat();
          head = delete(head,0);                                     
@@ -253,23 +257,25 @@ testLinknode * Init_CycleLink(void)
 
 		       mysql->filedsName    = "rtuCM"; 
 		       mysql->mainKeyValue  = SNo;
-		       rc= SQL_lookup(mysql,&result);
+                       SQL_lookupPar(mysql,&result,&rednum);
                        CM =atoi(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("CM:%d\n",CM);
 
 		       mysql->filedsName    = "T1"; 
 		       mysql->mainKeyValue  = SNo;
-		       rc= SQL_lookup(mysql,&result);
-                       T1 =str2Timestamp(result[0]);
+		       SQL_lookupPar(mysql,&result,&rednum);
+                       T1 =atoi(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("T1:%ld\n",T1);
 
 		       mysql->filedsName    = "T2"; 
-		       rc= SQL_lookup(mysql,&result);
-                       printf("res:%s",result[0]);
+		       SQL_lookupPar(mysql,&result,&rednum);
                        T2= computTime(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("T2:%ld\n",T2);
 
-			node=(testLinknode *)malloc(sizeof(testLinknode));
+		        node=(testLinknode *)malloc(sizeof(testLinknode));
 			node->SNo =atoi(SNo);
                         node->CM  =CM;
 			node->fristTestTime=T1;
@@ -281,17 +287,6 @@ testLinknode * Init_CycleLink(void)
          free(SNo);
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb);
-	 if(result != NULL)
-	   {
-	     if(result[0] != NULL)
-		{
-			free(result[0]);
-			result[0] = NULL;
-		}
-
-		free(result);
-		result = NULL;
-	  }
          return(head);
 }
 
@@ -314,16 +309,17 @@ testLinknode * Init_CycleLink(void)
 testLinknode * insertWaitingNode(testLinknode *head)                    
 {
 	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo;
+	 char *zErrMsg =NULL;
 	 int rc,i,SN=0;
 	 sql *mysql;
 	 char resultSNo[64][5];
-
+         char SNo[5];
          char **result = NULL;
+         int  rednum =0;
          time_t T1,T2;
          int    CM=0;
          testLinknode *node,*find;
-	 SNo = (char *) malloc(sizeof(char)*5);
+	 
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 	 if( rc != SQLITE_OK ){
@@ -343,39 +339,43 @@ testLinknode * insertWaitingNode(testLinknode *head)
 
 		       mysql->filedsName    = "rtuCM"; 
 		       mysql->mainKeyValue  = SNo;
-		       rc= SQL_lookup(mysql,&result);
+		       SQL_lookupPar(mysql,&result,&rednum);
                        CM =atoi(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("CM:%d\n",CM);
 
 		       mysql->filedsName    = "T1"; 
 		       mysql->mainKeyValue  = SNo;
-		       rc= SQL_lookup(mysql,&result);
-                       T1 =str2Timestamp(result[0]);
+		       SQL_lookupPar(mysql,&result,&rednum);                        
+                       T1 =atoi(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("T1:%ld\n",T1);
 
 		       mysql->filedsName    = "T2"; 
-		       rc= SQL_lookup(mysql,&result);
-                       printf("res:%s",result[0]);
+		       SQL_lookupPar(mysql,&result,&rednum);
                        T2= computTime(result[0]);
+                       SQL_freeResult(&result,&rednum);
 		       printf("T2:%ld\n",T2);
 
 		       node=(testLinknode *)malloc(sizeof(testLinknode));
 		       node->SNo =atoi(SNo);
                        node->CM  =CM;
 		       node->fristTestTime=T1;
-                        if(T1<=getLocalTimestamp())
+                       if(T1<=getLocalTimestamp()){
 			    node->nextTestTime =getLocalTimestamp();
-			else
-                            node->nextTestTime =getLocalTimestamp();  //T1;               //for test
-			node->timePeriod =  T2;                    //for test                    
-                        find=findNode(head,node->SNo);                           // 查看链表中是否已经存在SNo光路
-                        if(find ==NULL)
-                        {
+                       }
+		       else{
+                            node->nextTestTime =getLocalTimestamp();  //T1     for test
+                       }
+		       node->timePeriod =  T2;                       //for test                  
+                       find=findNode(head,node->SNo);                           // 查看链表中是否已经存在SNo光路
+                       if(find ==NULL)
+                       {
                            head=insert(head,node);                
-		        }else{
+		       }else{
 		           head = delete(head,node->SNo);         
                            head=  insert(head,node); 
-                        }
+                       }
                        mysql->filedsValue  =  "1";                
                        mysql->filedsName   =  "Status";
                        mysql->mainKeyValue =  SNo;
@@ -386,27 +386,15 @@ testLinknode * insertWaitingNode(testLinknode *head)
 			      printf( "Modify SQL error\n");
 			      sqlite3_free(zErrMsg);
 		       }
-                      if(!semaphore_v())                                         //V
+                       if(!semaphore_v())                                         //V
                              exit(EXIT_FAILURE);
 
                      }		
          }
 
-         free(SNo);
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb); 
-
-	if(result != NULL)
-	{
-	     if(result[0] != NULL)
-		{
-			free(result[0]);
-			result[0] = NULL;
-		}
-
-		free(result);
-		result = NULL;
-	}  
+ 
          return(head);
 }
 
@@ -423,12 +411,12 @@ testLinknode * insertWaitingNode(testLinknode *head)
 testLinknode * removeWaitingNode(testLinknode *head) 
 {
 	 sqlite3 *mydb;
-	 char *zErrMsg = 0,*SNo;
+	 char *zErrMsg = NULL;
 	 int rc,i,SN=0,intSNo=0;
 	 sql *mysql;
 	 char resultSNo[64][5];
+         char SNo[5];
          testLinknode *find;
-	 SNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 	 if( rc != SQLITE_OK ){
@@ -467,8 +455,6 @@ testLinknode * removeWaitingNode(testLinknode *head)
                         }
 	            }
          }
-
-         free(SNo);
 	 SQL_Destory(mysql);  
 	 sqlite3_close(mydb);   
          return(head);
@@ -506,14 +492,14 @@ void flushWaitingSNo(void)
 		    printf("SNo:%s",resultSNo[i]);	                                  
                     mysql->filedsValue  =  "1";                                             
                     mysql->mainKeyValue =  resultSNo[i];                                    //需要修改状态的光路号
-         if(!semaphore_p())  
-                 exit(EXIT_FAILURE);                                                        //P
+                    if(!semaphore_p())  
+                         exit(EXIT_FAILURE);                                                //P
                     rc=SQL_modify(mysql);
                     if( rc != SQLITE_OK ){
 			 printf( "Modify SQL error\n");
 			 sqlite3_free(zErrMsg);
 		    }
-                     if(!semaphore_v())                                                    //V
+                     if(!semaphore_v())                                                     //V
                          exit(EXIT_FAILURE);                 	 
 	       }
          }
@@ -587,8 +573,7 @@ void main(void)
             fprintf(stderr, "Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
         } 
-        flushWaitingSNo();                                      //清理数据库中的等待状态（Status为"-1"，"-2"）
-        linkHead=Init_CycleLink();                              //初始化有序链表      
+        linkHead=Init_CycleLink();                                                        //初始化有序链表      
                      
         if(linkHead !=NULL)
             outPutALL(linkHead);
@@ -604,9 +589,9 @@ void main(void)
        int signum;
        union sigval mysigval;
        char* process;  
-       int ret = 0;  
+       int flagAlarm = 0,flagProtect=0 ,flagCycle=0;  
        int n;  
-       pid_t cycPID[MAX_PID_NUM];  
+       pid_t cycPID[MAX_PID_NUM],alarmPID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
        int recvInt; 
 
         /*初始化信号机制（与BOA通信）*/
@@ -622,7 +607,15 @@ void main(void)
        }
         /*创建信号量 */
        sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);    
-       otdr_sem_id = semget((key_t)2468,1,4777 |IPC_CREAT);                            
+       otdr_sem_id = semget((key_t)2468,1,4777 |IPC_CREAT);     
+
+                      
+       flagAlarm = get_pid_by_name("/web/cgi-bin/alarmMain", alarmPID, MAX_PID_NUM);  
+       flagProtect = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", protectPID, MAX_PID_NUM);  
+       if(flagAlarm <=0 && flagProtect<=0)
+          if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
+            exit(0);
+       }                      
        /*if(!set_semvalue())                                                               
          {  
             fprintf(stderr, "Failed to initialize semaphore\n");  
@@ -631,7 +624,7 @@ void main(void)
         /*周期调度主进程*/
         while(1)
         {
-		p1=outFirstnode(linkHead);                                          //获取待服务器节点（头节点）
+		p1=outFirstnode(linkHead);                                          //获取待服务节点（头节点）
                 if(p1!=NULL){
                    SNo     = p1->SNo; 
                    intCM   = p1->CM;
@@ -643,9 +636,8 @@ void main(void)
                     nowTime= getLocalTimestamp();             
 	            if((p1!=NULL && nowTime >= setTime) || flagNew ==1)             //守护查询是否到时
                     {  
-                                
-                                 /*信号处理*/                                      
-                           if(flagNew ){
+                                  /*信号处理*/                                      
+                           if( flagNew ){
                                 p1=outFirstnode(linkHead);
                                 if(p1!=NULL){    
 		                   SNo     = p1->SNo;  
@@ -661,13 +653,12 @@ void main(void)
 				   printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
 		                                 /*向otdrMain发送启动信号*/
 				   if(!setOTDR_P())                                                //P
-		                         exit(EXIT_FAILURE);   
-				   process ="/web/cgi-bin/otdrMain";                        
-				   ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-				   printf("cycMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
+		                         exit(EXIT_FAILURE);                         
+				   flagCycle = get_pid_by_name("/web/cgi-bin/otdrMain", cycPID, MAX_PID_NUM);  
+				   printf("cycMain:process '%s' is existed? (%d): %c ", process, flagCycle, (flagCycle > 0)?'y':'n');  
 				   signum=SIGRTMIN;//SIGUSR1;                                         
 				   mysigval.sival_int = SNo+300;                                                      
-				   for(n=0;n<ret;n++){                                      
+				   for(n=0;n<flagCycle;n++){                                      
 					printf("otdrMain PID:%u\n", cycPID[n]);                  
 					if(sigqueue(cycPID[n],signum,mysigval)==-1)
 					       printf("send signal error\n");
@@ -679,22 +670,22 @@ void main(void)
 		                   }else{
 		                        printf("cycMain Recv back message from otdrMain  Faild:Time out!");
 		                   } 
-                          }
-                           usleep(10000);           //确保信号被处理完 
-		           if(!setOTDR_V())                                                //V
-                                 exit(EXIT_FAILURE);   
-                                        /*更新头节点参数，执行周期调度*/
-				   p1=outFirstnode(linkHead);        
-		                   if(p1!=NULL){
-					SNo     = p1->SNo;
-		                        intCM   = p1->CM; 
-					setTime = p1->nextTestTime;   
-					nowTime = getLocalTimestamp(); 
-		                        printf("\n");
-					linkHead= taskScheduler(linkHead,p1);              
-		                        printf("\n");
-		                   } 
-                           break;
+		                   usleep(10000);                                                 //确保信号被处理完 
+				   if(!setOTDR_V()) 
+                                     exit(EXIT_FAILURE);                                          //V
+                          }                                   
+                                              /*更新头节点参数，执行周期调度*/
+			  p1=outFirstnode(linkHead);        
+		          if(p1!=NULL){
+				SNo     = p1->SNo;
+		                intCM   = p1->CM; 
+				setTime = p1->nextTestTime;   
+				nowTime = getLocalTimestamp(); 
+		                printf("\n");
+				linkHead= taskScheduler(linkHead,p1);              
+		                printf("\n");
+		          } 
+                          break;
                     }	
                 }
         }  
@@ -725,7 +716,7 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
                     linkHead=removeWaitingNode(linkHead);                   
                     outPutALL(linkHead);
                     sendMessageQueue("220-OK");
-                    flagNew = 1; 
+                    //flagNew = 1; 
 		    break;
                   }
 
@@ -737,6 +728,6 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
 		    break;    
            }
           default:break;
-            }
+      }
 }
 
