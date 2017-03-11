@@ -351,6 +351,8 @@ int recvMessageQueue_D(char * backMSG, key_t key)                               
 }
 
 
+
+
 char *basename(const char *path)
 {
         register const char *s;
@@ -374,7 +376,7 @@ char *basename(const char *path)
       *              < 0: 
       *              >=0: 发现多少PID, pid_list 将保存已发现的PID
       */
-    int get_pid_by_name(const char* process_name, pid_t pid_list[], int list_size)
+int get_pid_by_name(const char* process_name, pid_t pid_list[], int list_size)
     {
     #define  MAX_BUF_SIZE       256
 

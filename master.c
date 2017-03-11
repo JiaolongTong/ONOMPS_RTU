@@ -14,38 +14,13 @@ int main(int argc,char ** argv)
   }
    mb = modbus_new_rtu(argv[1],atoi(argv[3]),'N',8,1);//open port
   //mb = modbus_new_tcp("192.168.0.102", 1502);
-  modbus_set_debug(mb, TRUE);
+  modbus_set_debug(mb, FALSE);
 
   modbus_set_error_recovery(mb,
                               MODBUS_ERROR_RECOVERY_LINK |
                               MODBUS_ERROR_RECOVERY_PROTOCOL);
 
   modbus_set_slave(mb,atoi(argv[2]));//set slave address
-
-
-  printf("Devive Addr :%d  Dirver :%s\n",atoi(argv[2]),argv[1]);
-  if(mode=modbus_rtu_get_serial_mode(mb)<0)
-  {
-      printf("get 1 serial mode faild\n");
-      return -1;
-  }
-  if(mode==1)
-     printf("mode:RS485 %d\n",mode);
-  else
-     printf("mode:RS232 %d\n",mode);
-
-  mb=modbus_rtu_set_serial_mode(mb,MODBUS_RTU_RS485);
-  if(mode=modbus_rtu_get_serial_mode(mb)<0){
-      printf("get 2 serial mode faild\n");
-      return -1;
-  }
-  if(mode==1)
-     printf("mode:RS485 %d\n",mode);
-  else
-     printf("mode:RS232 %d\n",mode);
-
-
-  //modbus_rtu_open_485de(mb,"/sys/class/leds/RS485_TX_RX/brightness");
 
 
   modbus_connect(mb);

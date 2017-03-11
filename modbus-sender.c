@@ -17,7 +17,6 @@
 
 #include <modbus/modbus.h>
 #include "myModbus.h"
-#include "common.h"
 
 int modbus_sem_id; 
 int main(int argc,char **argv)
@@ -53,7 +52,7 @@ int main(int argc,char **argv)
     printf("setSlaverProtectGroup:Spend time:%f ms\n",elapsed/1000.0); 
 
     gettimeofday(&t_start,NULL);    
-    if(rc=setSlaverProtectGate(mb,1,-30.1,-30.2)<0){
+    if(rc=setSlaverProtectGate(mb,1,-65.1,-65.2)<0){
          printf("Error to set slaver protect powergate!\n");   
     }else{
          printf("set slaver protect powergate successful!\n");
@@ -62,7 +61,7 @@ int main(int argc,char **argv)
     elapsed = t_end.tv_usec - t_start.tv_usec;
     printf("setSlaverProtectGate:Spend time:%f ms\n",elapsed/1000.0); 
 
-/*
+
     gettimeofday(&t_start,NULL);    
     if(rc=deleteSlaverProtectModule(mb,1)<0){
          printf("Error to delete slaver protect module!\n");   
@@ -82,7 +81,7 @@ int main(int argc,char **argv)
     gettimeofday(&t_end,NULL);  
     elapsed = t_end.tv_usec - t_start.tv_usec;
     printf("doSlaverProtectSwitch:Spend time:%f ms\n",elapsed/1000.0); 
-*/
+
     gettimeofday(&t_start,NULL);    
     slaverModuleInformatin * slaverModule=NULL;
     slaverModule=newSlaverModule();
@@ -101,8 +100,8 @@ int main(int argc,char **argv)
      printf("SNoB:%d\n",slaverModule->detail.SNoB);
      printf("SwitchPosA:%d\n",slaverModule->detail.SwitchPosA);
      printf("SwitchPosB:%d\n",slaverModule->detail.SwitchPosB);
-     printf("powerValueA:%d\n",slaverModule->detail.powerValueA);
-     printf("powerValueB:%d\n",slaverModule->detail.powerValueB);
+     printf("powerValueA:%f\n",(float)((int16_t)(slaverModule->detail.powerValueA)/100.0));
+     printf("powerValueB:%f\n",(float)((int16_t)(slaverModule->detail.powerValueB)/100.0));
      printf("belongCM:%d\n",slaverModule->detail.belongCM);
      printf("belongCLP:%d\n",slaverModule->detail.belongCLP);
      printf("useFlag:%d\n",slaverModule->detail.useFlag); 

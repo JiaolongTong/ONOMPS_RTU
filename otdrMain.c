@@ -28,6 +28,7 @@ struct otdrNode{
 
 
 /*全局变量*/
+int flagNew=0;
 int sem_id=0;
 int modbus_sem_id=0;
 int otdr_sem_id =0;
@@ -83,7 +84,7 @@ otdrNode *link_creat()
 /*
    (1)以光路号SNo为索引
 */
-otdrNode *delete(otdrNode *head,int SNo){
+otdrNode *delete(otdrNode *head,int SNo,int Type){
 	otdrNode *p1=NULL,*p2=NULL;
 	if(head==NULL){
 		printf("There don't have node in OTDR testLink!\n");
@@ -94,7 +95,7 @@ otdrNode *delete(otdrNode *head,int SNo){
 		p2=p1;
 		p1 =p1->next;
 	}
-	if(p1->SNo==SNo)
+	if(p1->SNo==SNo && p1->type==Type)
 	{
 		if(p1==head){
 			head =p1->next;
@@ -174,17 +175,23 @@ otdrNode * outFirstnode(otdrNode *head)
 /***遍历链表***/
 void outPutALL(otdrNode *head){
 	otdrNode *p=NULL;
-
+        int i=0;
 	p= head;
 	if(p==NULL){
 		printf("There don't have node in OTDR testLink!\n");
 		return ;
 	}
 	else
-		printf("There are %d tests on working line.\n",n);
+		printf("There are %d nodes on OTDR-TEST working link.\n",n);
 	while(p!=NULL){
-		printf("SNo:%d,type:%d,CM:%d,creat_time:%ld backIP:%s masterPID=%d\n",p->SNo,p->type,p->CM,p->creat_time,p->backIP,p->masterPID);
+                printf("---------------------Node:%d------------------------\n",i+1);
+                printf("|SNo:%4d                    Type:%4d             |\n",p->SNo,p->type);  
+                printf("|SNoA:%4d                   CLP :(null)           |\n",p->CM); 
+                printf("|masterPID:%d               creat_time:%d         |\n",p->masterPID,p->creat_time); 
+                printf("|backIP:%s                              |\n",p->backIP); 
+                printf("---------------------------------------------------\n\n");
 		p=p->next;
+                i++;
 	}
 }
 
@@ -197,7 +204,7 @@ otdrNode * Init_CycleLink(void)
 {
          otdrNode *head=NULL,*node=NULL;
          head = link_creat();
-         head = delete(head,0);                                        
+         head = delete(head,0,0);                                        
          return(head);
 }
 
@@ -325,24 +332,27 @@ void main(void)
         modbus_t * mb=NULL ;
         backData *bData=NULL; 
         char *SMQstr=NULL;
+
         sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+
         modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
         if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
         {  
-            fprintf(stderr, "Failed to initialize semaphore\n");  
+            printf("Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
         }  
 
         if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
         {  
-              fprintf(stderr, "Failed to initialize modbus_semaphore\n");  
+              printf("Failed to initialize modbus_semaphore\n");  
               exit(EXIT_FAILURE); 
         } 
 
         //initModbusPV();         //创建ModBus信号量Modbus  信号量 
         /*初始化测试链表*/
-        
+       
         linkHead=Init_CycleLink();
+
         /*初始化信号机制（IPC）*/
         struct sigaction act;
         int sig;
@@ -353,89 +363,87 @@ void main(void)
         if(sigaction(sig,&act,NULL)<0){                              
           printf("install sigal error\n");
         }
+        
        /*执行调度程序*/
         while(1){
-	    p1=outFirstnode(linkHead);  
-                         
-                if(p1!=NULL){
+            while(1){
+		        p1=outFirstnode(linkHead);   
+		        flagNew = 0;          
+		        if(p1!=NULL && flagNew ==0){
+		                   SNo     = p1->SNo; 
+				   intCM   = p1->CM;
+				   type    = p1->type;
+				   masterPID = p1->masterPID;
+				   testPar = lookupParm(SNo,type); 
+				   if(testPar->haveParm == 1 && flagNew ==0 ){                     
+					   printf("NowTime:%ld,Type:%d\n" ,getLocalTimestamp(),type);
+					   printf("SNo      -uint -[%d]\n",SNo);
+					   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
+					   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
+					   printf("P03      -uint -[%d]\n",testPar->Lambda_nm);
+					   printf("P04      -uint -[%d]\n",testPar->MeasureTime_ms);
+					   printf("P05      -float-[%f]\n",testPar->n);
+					   printf("P06      -float-[%f]\n",testPar->NonRelectThreshold);
+					   printf("P07      -float-[%f]\n",testPar->EndThreshold);
+				           printf("masterPID-short-[%d]\n",masterPID);	
+					   if(!setModbus_P())                                                //P
+						 exit(EXIT_FAILURE); 
+					     otdrSWFlag=-1;
+					     mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+				             for(i=0;i<5;i++){
+						 otdrSWFlag = doOtdrSwitch(mb,SNo,1); 
+				                 if(!otdrSWFlag)break;
+				             }   
+					     freeModbus(mb);           
+					   if(!setModbus_V())                                                //V
+						 exit(EXIT_FAILURE); 
 
-                   sleep(1);  //减小信号嵌套的概率
-
-                   SNo     = p1->SNo; 
-                   intCM   = p1->CM;
-                   type    = p1->type;
-                   masterPID = p1->masterPID;
-            
-		   testPar = lookupParm(SNo,type); 
-                   if(testPar->haveParm == 1){                     
-			   printf("NowTime:%ld,Type:%d\n" ,getLocalTimestamp(),type);
-			   printf("SNo      -uint -[%d]\n",SNo);
-			   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
-			   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
-			   printf("P03      -uint -[%d]\n",testPar->Lambda_nm);
-			   printf("P04      -uint -[%d]\n",testPar->MeasureTime_ms);
-			   printf("P05      -float-[%f]\n",testPar->n);
-			   printf("P06      -float-[%f]\n",testPar->NonRelectThreshold);
-			   printf("P07      -float-[%f]\n",testPar->EndThreshold);
-                           printf("masterPID-short-[%d]\n",masterPID);	
-
-		         
-		           if(!setModbus_P())                                                //P
-		                 exit(EXIT_FAILURE); 
-		           //usleep(50000); 
-		             otdrSWFlag=-1;
-		             mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
-                             for(i=0;i<5;i++){
-		                 otdrSWFlag = doOtdrSwitch(mb,SNo,1); 
-                                 if(!otdrSWFlag)break;
-                             } 
-                             printf("------------------------------------>Here 1\n");   
-		             freeModbus(mb);  
-		             //usleep(50000);   
-                             printf("------------------------------------>Here 2\n");         
-		           if(!setModbus_V())                                                //V
-		                 exit(EXIT_FAILURE); 
-
-		           if(otdrSWFlag==0){ 
-		             if(type==2)
-		                printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
-		             if(type==3)
-		                printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
-		             if(type==1)
-		                printf("Excess OTDR Test ------------------------------------------------------------------>点名测试       SNo=%d masterPID:%d\n",SNo,masterPID);
-			     OtdrTest(testPar);
-		             printf("before OK\n");		  
-		               if(type == 1){
-                                  SMQstr = (char*)malloc(sizeof(char)*20);
-                                  sprintf(SMQstr,"1-OK-%d",masterPID);
-		                  sendMessageQueue_B(SMQstr,masterPID);                //根据主控进程进程号区分消息类型
-                                  //deleteSNoRecord("NamedTestSegmentTable",SNo,testPar->masterPID);
-                                  free(SMQstr);
-                                  SMQstr=NULL;
-                               }  
-		               else{
-		                  bData=backData_Create();
-		                  bData->otdrPar =testPar;
-		                  strcpy(bData->backIP,p1->backIP);
-		                  upload(bData,SNo,intCM,type);
-		                  backData_Destory(bData); 
-		                  //free(p1->backIP);
-		                  //p1->backIP=NULL;
-		               }                               
-		           printf("OK\n");
-		           printf("-------OTDR--Test-------\n");
-		           linkHead = delete(linkHead,SNo); 
-		          }
-                  }else{
-                  	linkHead = delete(linkHead,SNo); 
-                  }
-                  OTDR_Destory(testPar);   
-         
-                  outPutALL(linkHead);
-
-                }  
-   	    free(p1); 
-            p1=NULL;
+					   if(otdrSWFlag==0 && flagNew ==0 ){ 
+					     if(type==2)
+						printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
+					     if(type==3)
+						printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
+					     if(type==1)
+						printf("Excess OTDR Test ------------------------------------------------------------------>点名测试       SNo=%d masterPID:%d\n",SNo,masterPID);
+					     OtdrTest(testPar);
+					     printf("before OK\n");		  
+					       if(type == 1){
+				                  SMQstr = (char*)malloc(sizeof(char)*20);
+				                  sprintf(SMQstr,"1-OK-%d",masterPID);
+						  sendMessageQueue_B(SMQstr,masterPID);                //根据主控进程进程号区分消息类型
+				                  free(SMQstr);
+				                  SMQstr=NULL;
+				               }  
+					       else{
+						  bData=backData_Create();
+						  bData->otdrPar =testPar;
+						  strcpy(bData->backIP,p1->backIP);
+						  upload(bData,SNo,intCM,type);
+						  backData_Destory(bData); 
+					       }                               
+					   printf("-------OTDR--Test-------\n");
+					   linkHead = delete(linkHead,SNo,type);                                          
+					  }else{
+                                                if(otdrSWFlag < 0){
+                                                   linkHead = delete(linkHead,SNo,type);
+                                                }
+                                                if(flagNew ==0) break;
+                                          }
+				  }else{
+                                        if(testPar->haveParm == 0){
+                                           linkHead = delete(linkHead,SNo,type);
+                                        }
+                                        if(flagNew ==0) break;
+				  }
+				  OTDR_Destory(testPar); 
+                                  outPutALL(linkHead);	  	
+		        }else break; 
+		        if(p1!=NULL){
+	   	           free(p1); 
+		           p1=NULL;
+		        }
+		        usleep(10000);
+                }
         }
 }
 
@@ -463,10 +471,12 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
        switch(type){
 
            case 0:{ 
+                            flagNew = 1;   
 		            if(value==38){    //重启RTU         
 				    printf("Start Reboot System......\n");  
 				    sendMessageQueue_B("0-OK-38",38);  
-				    execl("/web/cgi-bin/reboot.sh","reboot.sh");      
+				    execl("/web/cgi-bin/reboot.sh","reboot.sh");  
+                                    flagNew = 0;       
 			 	    break;
 		            }
 		            if(value==16){    //网络配置
@@ -495,35 +505,44 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
 				       }
 				       close (fd);                           
 		                 }
+                                 flagNew = 0;   
 		                 break;
-		            }                      
+		            } 
+                            flagNew = 0;                        
                   }
                 
-           case 1:{                                               
+           case 1:{         
+                            flagNew = 1;                                      
 			    linkHead=insertTestNode(linkHead,type,value);
 			    outPutALL(linkHead);
+                            flagNew = 0;       
 		            //sendMessageQueue_B("1-OK");                   在主进程中回复
 			    break;
                   }
-           case 2:{                                                
+           case 2:{       
+                            flagNew = 1;                                            
 		            linkHead=insertTestNode(linkHead,2,value);                   
 		            outPutALL(linkHead);
 		            sendMessageQueue_C("2-OK",2222);
+                            flagNew = 0;   
 			    break;
                   }
 
-           case 4:{                                                
+           case 4:{                    
+                            flagNew = 1;                               
 		            linkHead=insertTestNode(linkHead,2,value);                   
 		            outPutALL(linkHead);
 		            sendMessageQueue_C("4-OK",4444);
+                            flagNew = 0;   
 			    break;
                   }
 
-           case 3:{                                                
+           case 3:{                    
+                            flagNew = 1;                               
 		            linkHead=insertTestNode(linkHead,type,value);                   
 		            outPutALL(linkHead);
 		            sendMessageQueue_C("3-OK",3333);
-
+                            flagNew = 0;   
 			    break;
                   }
 

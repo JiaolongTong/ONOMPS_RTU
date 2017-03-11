@@ -23,7 +23,6 @@
 #endif
 
 #include "myModbus.h"
-#include "common.h"
 
 int    modbus_sem_id;  
 static modbus_mapping_t *modbus_mapping;
@@ -148,7 +147,7 @@ int main(void)
                                      }                                    
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
-                                         printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
+                                         printf("[%d]=%d\n",j+ReadAddress,(int16_t)(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
                                      freeSlaverModule(moduleState);
                                  }break;
@@ -168,7 +167,7 @@ int main(void)
                                      }
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
-                                         printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
+                                         printf("[%d]=%d\n",j+ReadAddress,(int16_t)(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
                                      freeSlaverModule(moduleState);
                                  }break;
@@ -190,7 +189,7 @@ int main(void)
                                      printf("结束自动保护测试,模块%d!\n",moduleState->ModNo); 
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
-                                         printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
+                                         printf("[%d]=%d\n",j+ReadAddress,(int16_t)(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
                                      freeSlaverModule(moduleState);
                                  }break;
@@ -208,7 +207,7 @@ int main(void)
                                      freeSlaverModule(moduleState);
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
-                                         printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
+                                         printf("[%d]=%d\n",j+ReadAddress,(int16_t)(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
                                  }break;
                             case MODULE_1_INFORMATION_ADDRESS+MODULE_INFORMATION_MasterCM:                                
@@ -228,7 +227,7 @@ int main(void)
                                      memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
-                                         printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
+                                         printf("[%d]=%d\n",j+ReadAddress,(int16_t)(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
      
                                  }break;
@@ -236,6 +235,7 @@ int main(void)
                        }
  
                     }else if(query[MBAP_LENGTH] == _FC_READ_HOLDING_REGISTERS){//0x03
+                             printf("I'm here\n");
                     }else if(query[MBAP_LENGTH] ==  _FC_WRITE_SINGLE_REGISTER){//0x06
                     }else{
                          printf("Don't support funtion!\n");

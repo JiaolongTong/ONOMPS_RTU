@@ -45,9 +45,9 @@ int16_t uint16toint16(uint16_t t){
         return t;
     }else{
         a=-t;
-        return -1*a;
+
     }
- 
+    return -1*a;
 }
 time_t str2Timestamp(char *str)          // 字符串形式(str): 20160715210732
 {  

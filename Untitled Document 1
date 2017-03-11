@@ -9,11 +9,7 @@ opticalprotect * OpticalProtect_Create(){
 void OpticalProtect_Destory(opticalprotect *me){
     free(me);
 }
-/*    更新保护组信息
-    A: 更新ProtectGroupTable 表中主从光开关状态和保护组状态信息
-    B: 更新AlarmTestSegmentTable表光路类型信息（"0"：备纤 "1"：在纤）
-    C: 更新PortOccopyTable表光路类型信息（"1"：备纤 "2"：在纤）
-*/
+
 int updateProtectInformation(sqlite3 *mydb,sql *mysql,int recvPNo,int recvSNoOnline,int recvSNoBackup, int sendSNoOnline ,int sendSNoBackup, int masterSwitchPos, int slaverSwitchPos, int haveFlag )
 {
 
@@ -82,7 +78,7 @@ int updateProtectInformation(sqlite3 *mydb,sql *mysql,int recvPNo,int recvSNoOnl
   
       return 1;
 }
-/*判断是否存在测试参数*/
+
 int ifHaveTestSegment(sqlite3 *mydb,sql *mysql,uint32_t SNoA1,uint32_t SNoA2,uint32_t SNoB1,uint32_t SNoB2 ){
 
 
@@ -113,40 +109,7 @@ int ifHaveTestSegment(sqlite3 *mydb,sql *mysql,uint32_t SNoA1,uint32_t SNoA2,uin
                   return  0;
 
 }
-/*      解析保护组设置指令
-指令结构:
------------------------------------------
-CMDcode	170（固定）	指令唯一标识
-R		        预留
-CM		        RTU编号
-CLP		        局站代码
-PN		        保护光路组数
-P1		        第1组保护光路配对
-…Pi		        第i组保护光路配对
-Ppn		        第PN组保护光路配对
------------------------------------------
-Pi结构
-	Recv		接收端信息(RX光路)
-	Send		发送端信息(TX光路)
-	ConnectPos      收发双方连接关系 0:A-A B-B    1: A-C B-D
-	ModNo		从模块所在RTU 模块号
-	IP		从模块所在RTU IP地址
-	------------------------------------------
-	Recv结构
-		PNo		接收端组号（A C组） 
-		SNoA		保护光路A的端口号(A1或A2 C1或C2)
-		SNoB		保护光路B的端口号(A2或A1 C2或C1)
-		SwitchPos	1*2光开关状态
-	-------------------------------------------
-	Send结构
-		PNo		发送端组号（B D组）
-		SNoA		保护光路A的端口号(B1或B2 D1或D2)
-		SNoB		保护光路B的端口号(B2或B1 D2或D1)
-		SwitchPos	1*2光开关状态
 
-----------------------------------------------------
-
-*/
 void getOpticalProtectParameter(mxml_node_t *root,mxml_node_t *tree,opticalprotect *protectmpar)
 {
 	    mxml_node_t *PX,*PN,*PNo,*SNoA,*SNoB,*Recv,*Send,*Node;
@@ -214,8 +177,8 @@ void getOpticalProtectParameter(mxml_node_t *root,mxml_node_t *tree,opticalprote
                       Node  = mxmlFindElement(Send,tree, "SwitchPos",NULL,NULL,MXML_DESCEND); 
                       uint_a =  strtoul(Node->child->value.text.string, NULL, 0);  
                       protectmpar->Group[i].sSwitchPos=uint_a;     
-                     
-                      /*根据实际光开关，选择对状态取反*/
+
+
                       if(protectmpar->Group[i].sSwitchPos ==PARALLEL)protectmpar->Group[i].sSwitchPos = ACROSS;
                       else protectmpar->Group[i].sSwitchPos = PARALLEL;
 
@@ -230,17 +193,11 @@ void getOpticalProtectParameter(mxml_node_t *root,mxml_node_t *tree,opticalprote
 
 Step 1:   解析XML消息  
 Step 2:   循环处理每个保护组
-Step 3:   校验模块类型，端口信息
+Step 3:   校验模块类型，端口信息，测试参数的完整性
 Step 4:   校验未通过，回复相应的错误异常
-Step 5:   校验通过,初始化主/从端RTU
-Step 6:   初始化失败,将主从RTU回复原始状态,回复相应的错误异常
-Step 7:   初始化成功,校验是否有测试参数
-Step 8:   有参数,在保护表中插入保护组,状态为预备自动保护状态(STATUS_PerSTATUS_PROTECT)
-                 根据保护组内容更新相关数据库表的内容
-                 设置后台请求标识
-Step 9:   无参数,在保护表中插入保护组,状态为等待设置自动检测门限状态(STATUS_WAIT_GATE)
 
-Setp 10:  根据设置后台请求标识向后台发送启动自动保护信号
+Step 5:   校验通过:
+          A:
 
 */
 responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)     //170
@@ -404,73 +361,94 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                        }
                 }else if(UseFlag ==1  && PortFlagA1==1 && PortFlagA2==1 &&  PortFlagB1==1 &&  PortFlagB2==1 ){
                       if(ModType==MODE3_PROTECT_MASTER){
-		              /*初始化从端RTU*/    
-                              ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);
-                              if( ctx== NULL){
-				  resp->RespondCode =ERROR_CODE_13_PROTECT_FAILED;
-				  if(resp->SNorPN!=TYPE_SNo){
-					resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
-					resp->SNorPN       = TYPE_PNo;
-					resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
-					resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
-					resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
-					ErrorSNo++;
-				  } 
-                              }else{
-                              flagSetMaster = initSlaver_Full(ctx,
-                                                             protectmpar->Group[i].ModNo,
-                                                             protectmpar->CM,
-                                                             protectmpar->CLP,
-                                                             protectmpar->Group[i].sPowerGateA,
-                                                             protectmpar->Group[i].sPowerGateB,
-                                                             atoi(strSNoB1),
-                                                             atoi(strSNoB2),
-                                                             protectmpar->Group[i].sSwitchPos,
-                                                             protectmpar->Group[i].ConnectPos);                   
-			       freeModbus_TCP_Client(ctx); 
-			       ctx=NULL;
-
-			       /*初始化主端RTU*/
-			       if(!setModbus_P())                                              
-				   exit(EXIT_FAILURE);    
-			       ctx =newModbus(MODBUS_DEV,MODBUS_BUAD);
-			       flagSetSlaver=doOpticalProtectSwitch(ctx,protectmpar->Group[i].PNo,protectmpar->Group[i].SwitchPos,MODE3_PROTECT_MASTER);
-		               if(flagSetSlaver>=0)flagSetSlaver=doOpticalProtectSwitch(ctx,protectmpar->Group[i].PNo+1,protectmpar->Group[i].SwitchPos,MODE3_PROTECT_MASTER);
-			       freeModbus(ctx);
-                               ctx=NULL;    
-			       if(!setModbus_V())                                                              
-					exit(EXIT_FAILURE);
-
-                               /*主从RTU初始化失败*/
-                               if(flagSetSlaver >= 0 && flagSetMaster >= 0 ){ 
-                                        /*均有测试参数，则自动启动保护模式*/
-		                	if(ParmerFlagA1 == 1 && ParmerFlagA2 ==1 && ParmerFlagB1 ==1 && ParmerFlagB2 ==1){    
-				                         
-                                                        ProtectCounter++;                                        //更新后台测试节点
-		                            		                             
+		                 if(ParmerFlagA1 == 1 && ParmerFlagA2 ==1 && ParmerFlagB1 ==1 && ParmerFlagB2 ==1){    //设置保护组的时候，四条光路均有参数，则自动启动保护模式 Status = STATUS_AUTO_PROTECT
+		                                             /*初始化发送端*/    
+                                                ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);
+                                                if( ctx== NULL){
+							resp->RespondCode =ERROR_CODE_13_PROTECT_FAILED;
+							if(resp->SNorPN!=TYPE_SNo){
+							       resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+							       resp->SNorPN       = TYPE_PNo;
+							       resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
+							       resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
+							       resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
+							       ErrorSNo++;
+							} 
+                                                }else{
+                                                      if(flagSetMaster = initSlaver_Full(ctx,
+                                                                     protectmpar->Group[i].ModNo,
+                                                                     protectmpar->CM,
+                                                                     protectmpar->CLP,
+                                                                     protectmpar->Group[i].sPowerGateA,
+                                                                     protectmpar->Group[i].sPowerGateB,
+                                                                     atoi(strSNoB1),
+                                                                     atoi(strSNoB2),
+                                                                     protectmpar->Group[i].sSwitchPos,
+                                                                     protectmpar->Group[i].ConnectPos)<0)
+                                                      {
+							 resp->RespondCode  =ERROR_CODE_13_PROTECT_FAILED;
+							 if(resp->SNorPN!=TYPE_SNo){
+								     resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+								     resp->SNorPN       = TYPE_PNo;
+								     resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
+								     resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
+								     resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
+								     ErrorSNo++;
+						      } 
+                                                } 
+					        freeModbus_TCP_Client(ctx); 
+				                ctx=NULL;
+				                /* 初始化接收端1*2开关位置 */
+						if(!setModbus_P())                                              
+						    exit(EXIT_FAILURE);    
+					        ctx =newModbus(MODBUS_DEV,MODBUS_BUAD);
+						flagSetSlaver=doOpticalProtectSwitch(ctx,protectmpar->Group[i].PNo,protectmpar->Group[i].SwitchPos,MODE3_PROTECT_MASTER);
+		                                if(flagSetSlaver>=0)flagSetSlaver=doOpticalProtectSwitch(ctx,protectmpar->Group[i].PNo+1,protectmpar->Group[i].SwitchPos,MODE3_PROTECT_MASTER);
+					        freeModbus(ctx);
+                                                ctx=NULL;            
+						if(!setModbus_V())                                                              
+						    exit(EXIT_FAILURE);
+		                                /*写入保护组数据库*/
+		                                if(flagSetSlaver>= 0 && flagSetMaster >=0 ){
 				                        mysql->tableName ="ProtectGroupTable";  
-							protectmpar->Action =STATUS_PerSTATUS_PROTECT;           //写入保护组数据库
-							sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n" 
-									  ,protectmpar->Group[i].PNo             
-									  ,protectmpar->Group[i].SNoA            
-									  ,protectmpar->Group[i].SNoB          
-									  ,protectmpar->Group[i].SwitchPos       
+							protectmpar->Action =STATUS_PerSTATUS_PROTECT; 
+							printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n"         //PNo,rtuCM,rtuCLP,SNoA,SNoB,Status
+									  ,protectmpar->Group[i].PNo             //PNo
+									  ,protectmpar->Group[i].SNoA            //SNoA
+									  ,protectmpar->Group[i].SNoB            //SNoB
+									  ,protectmpar->Group[i].SwitchPos       //SwitchPos
 
-									  ,protectmpar->Group[i].sPNo            
-									  ,protectmpar->Group[i].sSNoA           
-									  ,protectmpar->Group[i].sSNoB           
-									  ,protectmpar->Group[i].sSwitchPos     
+									  ,protectmpar->Group[i].sPNo            //sPNo
+									  ,protectmpar->Group[i].sSNoA           //sSNoA
+									  ,protectmpar->Group[i].sSNoB           //sSNoB
+									  ,protectmpar->Group[i].sSwitchPos      //sSwitchPos
 
-				                                          ,protectmpar->Group[i].ConnectPos      
-				                                          ,protectmpar->Group[i].ModNo          
-				                                          ,protectmpar->Group[i].IP              
-									  ,protectmpar->Action                  
+				                                          ,protectmpar->Group[i].ConnectPos      //ConnectPos
+				                                          ,protectmpar->Group[i].ModNo           //sModNo
+				                                          ,protectmpar->Group[i].IP              //sIP
+									  ,protectmpar->Action                   //Status
+									  );
+
+							sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n" //PNo,rtuCM,rtuCLP,SNoA,SNoB,Status
+									  ,protectmpar->Group[i].PNo             //PNo
+									  ,protectmpar->Group[i].SNoA            //SNoA
+									  ,protectmpar->Group[i].SNoB            //SNoB
+									  ,protectmpar->Group[i].SwitchPos       //SwitchPos
+
+									  ,protectmpar->Group[i].sPNo            //sPNo
+									  ,protectmpar->Group[i].sSNoA           //sSNoA
+									  ,protectmpar->Group[i].sSNoB           //sSNoB
+									  ,protectmpar->Group[i].sSwitchPos      //sSwitchPos
+
+				                                          ,protectmpar->Group[i].ConnectPos      //ConnectPos
+				                                          ,protectmpar->Group[i].ModNo            //sModNo
+				                                          ,protectmpar->Group[i].IP              //sIP
+									  ,protectmpar->Action                   //Status
 									  );
 							mysql->filedsValue = strSQL;
 							if(!semaphore_p())  
-							   exit(EXIT_FAILURE);                                   
-							SQL_add(mysql);                                     
-           
+							   exit(EXIT_FAILURE);                                   //P
+							SQL_add(mysql);                                          //更新或者插入新的纪录             
 							if(protectmpar->Group[i].SwitchPos == PARALLEL){                   
 		                                             updateProtectInformation(mydb,mysql,
 		                                                                     protectmpar->Group[i].PNo,
@@ -491,71 +469,125 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 		                                                                     protectmpar->Group[i].SwitchPos,
 		                                                                     protectmpar->Group[i].SwitchPos,1);
 		                                        }
-				                        if(!semaphore_v())                                         
+				                        if(!semaphore_v())                                          //解除数据库修改保护
 							    exit(EXIT_FAILURE);
+				                         /*更新后台测试节点*/
+                                                         ProtectCounter++;
 
+		                                }else{
+		                                             /*删除从端模块*/
+                                                        ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);  
+		                                        if( ctx== NULL ){
+								resp->RespondCode  =ERROR_CODE_13_PROTECT_FAILED;
+								if(resp->SNorPN!=TYPE_SNo){
+								       resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+								       resp->SNorPN       = TYPE_PNo;
+								       resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
+								       resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
+								       resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
+								       ErrorSNo++;
+								} 
+		                                        }else{
+							       if(deleteSlaverProtectModule(ctx,protectmpar->Group[i].ModNo)<0){
+								 printf("Error to delete slaver protect module!\n");   
+							       }else{
+								 printf("delete slaver protect module successful!\n");
+		                                                 
+							       }
+		                                        }
+							freeModbus_TCP_Client(ctx); 
+						        ctx=NULL;		                                         
+							resp->RespondCode = ERROR_CODE_13_PROTECT_FAILED ;                             
+							if(resp->SNorPN!=TYPE_SNo){
+								resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+								resp->SNorPN       = TYPE_PNo;
+								resp->Group[ErrorSNo].SNo = protectmpar->Group[i].PNo;
+								resp->Group[ErrorSNo].Main_inform  = "光保护切换:光开关切换失败";
+								resp->Group[ErrorSNo].Error_inform = "Error: Optical Switch Failed[光保护切换:光开关切换失败]!\n";
+								ErrorSNo++;  
+							} 
+		                                }
+                                          }
+		                   }else{            //若没有参数，则只保存保护组信息 Status=0 (等待配置测试参数) 
+		                                mysql->tableName ="ProtectGroupTable";  
+					        protectmpar->Action =STATUS_WAIT_GATE; 
+						printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n"           /*PNo,rtuCM,rtuCLP,SNoA,SNoB,Status*/
+								  ,protectmpar->Group[i].PNo             //PNo
+								  ,protectmpar->Group[i].SNoA            //SNoA
+								  ,protectmpar->Group[i].SNoB            //SNoB
+								  ,protectmpar->Group[i].SwitchPos       //SwitchPos
 
-                                          
-		                	}else{    /*若没有参数，则只保存保护组信息*/          
-		                                    
-						       mysql->tableName ="ProtectGroupTable";  
-						       protectmpar->Action =STATUS_WAIT_GATE;            //等待配置测试参数
+								  ,protectmpar->Group[i].sPNo            //sPNo
+								  ,protectmpar->Group[i].sSNoA           //sSNoA
+								  ,protectmpar->Group[i].sSNoB           //sSNoB
+								  ,protectmpar->Group[i].sSwitchPos      //sSwitchPos
 
-						       sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n"  
-						         		,protectmpar->Group[i].PNo             
-									,protectmpar->Group[i].SNoA            
-									,protectmpar->Group[i].SNoB            
-									,protectmpar->Group[i].SwitchPos      
-									,protectmpar->Group[i].sPNo           
-									,protectmpar->Group[i].sSNoA           
-									,protectmpar->Group[i].sSNoB           
-									,protectmpar->Group[i].sSwitchPos     
-						                        ,protectmpar->Group[i].ConnectPos     
-						                        ,protectmpar->Group[i].ModNo           
-						                        ,protectmpar->Group[i].IP              
-									,protectmpar->Action);
-							mysql->filedsValue = strSQL;
-							if(!semaphore_p())  
-							    exit(EXIT_FAILURE);                                    
-							SQL_add(mysql);                                  //更新或者插入新的纪录
-							if(!semaphore_v())                                        
-							    exit(EXIT_FAILURE);	
-	                     
-		                	}
-		                                		                                            
-		                }else{  /*主从RTU初始化成功*/
-                                      ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);  
-		                      if( ctx== NULL ){
-						resp->RespondCode  =ERROR_CODE_13_PROTECT_FAILED;
-						if(resp->SNorPN!=TYPE_SNo){
-							resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
-							resp->SNorPN       = TYPE_PNo;
-							resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
-							resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
-							resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
-							ErrorSNo++;
-						} 
-		                      }else{
-						if(deleteSlaverProtectModule(ctx,protectmpar->Group[i].ModNo)<0)
-							printf("Error to delete slaver protect module!\n");   
-                                                else
-							printf("delete slaver protect module successful!\n");                 	
-		                      }
-				      freeModbus_TCP_Client(ctx); 
-				      ctx=NULL;		                                         
-				      resp->RespondCode = ERROR_CODE_13_PROTECT_FAILED ;                             
-				      if(resp->SNorPN!=TYPE_SNo){
-				      		resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
-				      		resp->SNorPN       = TYPE_PNo;
-						resp->Group[ErrorSNo].SNo = protectmpar->Group[i].PNo;
-						resp->Group[ErrorSNo].Main_inform  = "光保护切换:光开关切换失败";
-						resp->Group[ErrorSNo].Error_inform = "Error: Optical Switch Failed[光保护切换:光开关切换失败]!\n";
-						ErrorSNo++;  
-				      } 
+		                                                  ,protectmpar->Group[i].ConnectPos      //ConnectPos
+		                                                  ,protectmpar->Group[i].ModNo            //sModNo
+		                                                  ,protectmpar->Group[i].IP              //sIP
+								  ,protectmpar->Action                   //Status
+								  );
 
+						sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n"   //PNo,rtuCM,rtuCLP,SNoA,SNoB,Status
+								  ,protectmpar->Group[i].PNo             //PNo
+								  ,protectmpar->Group[i].SNoA            //SNoA
+								  ,protectmpar->Group[i].SNoB            //SNoB
+								  ,protectmpar->Group[i].SwitchPos       //SwitchPos
 
-		                }
-                           }
+								  ,protectmpar->Group[i].sPNo            //sPNo
+								  ,protectmpar->Group[i].sSNoA           //sSNoA
+								  ,protectmpar->Group[i].sSNoB           //sSNoB
+								  ,protectmpar->Group[i].sSwitchPos      //sSwitchPos
+
+		                                                  ,protectmpar->Group[i].ConnectPos      //ConnectPos
+		                                                  ,protectmpar->Group[i].ModNo            //sModNo
+		                                                  ,protectmpar->Group[i].IP              //sIP
+								  ,protectmpar->Action                   //Status
+								  );
+						mysql->filedsValue = strSQL;
+						if(!semaphore_p())  
+						   exit(EXIT_FAILURE);                                    //P
+						SQL_add(mysql);                                           //更新或者插入新的纪录
+						if(!semaphore_v())                                        //V
+						    exit(EXIT_FAILURE);	
+
+		                                          //初始化发送端   
+                                                ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);
+                                                if( ctx==NULL){
+							resp->RespondCode  = ERROR_CODE_13_PROTECT_FAILED;
+							if(resp->SNorPN!=TYPE_SNo){
+							       resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+							       resp->SNorPN       = TYPE_PNo;
+							       resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
+							       resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
+							       resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
+							       ErrorSNo++;
+							} 
+                                                }else{
+                                                        if(initSlaver_ModuelAndGroup(ctx,protectmpar->Group[i].ModNo,
+                                                                         protectmpar->CM,
+                                                                         protectmpar->CLP,
+                                                                         atoi(strSNoB1),
+                                                                         atoi(strSNoB2),
+                                                                         protectmpar->Group[i].sSwitchPos,
+                                                                         protectmpar->Group[i].ConnectPos)<0)
+                                                        {
+								resp->RespondCode  = ERROR_CODE_13_PROTECT_FAILED;
+								if(resp->SNorPN!=TYPE_SNo){
+								       resp->ErrorSN      = ERROR_CODE_13_PROTECT_FAILED;                     
+								       resp->SNorPN       = TYPE_PNo;
+								       resp->Group[ErrorSNo].SNo =  protectmpar->Group[i].PNo;
+								       resp->Group[ErrorSNo].Main_inform  = "从端模块操作失败";
+								       resp->Group[ErrorSNo].Error_inform = "Error: Slaver Switch Failed.[从端模块操作失败]\n";
+								       ErrorSNo++;
+								}
+                                                        }
+
+                                                } 
+					        freeModbus_TCP_Client(ctx); 
+				                ctx=NULL;	                     
+		                 }
+                   
                     }else{
 				resp->RespondCode  =ERROR_CODE_14_DBMATCH_FAILED;
 				if(resp->SNorPN!=TYPE_SNo){
@@ -572,9 +604,8 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
              }
 
         }
-
        if(resp->RespondCode != SUCCESS_CODE_OK ){
-		 resp->ErrorSN     =  ErrorSNo;                  
+		 resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
 		 return resp;
        }
        SQL_Destory(mysql);  
@@ -587,23 +618,25 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
        pid_t protectPID[MAX_PID_NUM];  
        char*  recvStr=NULL;
         
-       if(ProtectCounter>0){ 
-                            /*请求自动保护*/     
+        if(ProtectCounter>0){      
 	       process ="/web/cgi-bin/ProtectMasterMain";                        
 	       retProcess = get_pid_by_name(process, protectPID, MAX_PID_NUM);  
 	       if(retProcess>0){
 		       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-		       signum=SIGRTMIN+1;                                      //设置信号值
-		       mysigval.sival_int = 170;                               //设置信号的附加信息 (启动自动保护)                               
+		       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 170;                               //设置信号的附加信息 (启动障碍告警测试)                               
 		       for(n=0;n<retProcess;n++){  
-			       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                
-			       if(sigqueue(protectPID[n],signum,mysigval)==-1)printf("send signal error\n");
-				       
+			       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                //获取障碍告警测试守护进程PID
+			       if(sigqueue(protectPID[n],signum,mysigval)==-1){
+				       printf("send signal error\n");
+			       }else {
+		                   printf("-------->PID:%d  value=%d  type:%d\n",protectPID[n],mysigval.sival_int,signum);
+		               }  
                        }
 			   /*等待成功信号*/
                     recvStr = (char *) malloc(sizeof(char)*10);
 		    recvStr = recvMessageQueue_C();
-		    if(strncmp(recvStr, "170-OK", 6) == 0)                     
+		    if(strncmp(recvStr, "170-OK", 6) == 0)                     //遇"170-OK"结束
 			    printf("Set Protect Group operation sucessful!\n");
 		    else{
 		            printf("Set Protect Group operation failed!\n");
@@ -627,23 +660,6 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
    return resp;
 }
 
-
-/*              解析请求光保护切换指令
-CMDcode	370（固定）     每个指令或数据的唯一标识
-R			预留
-CM			RTU编号
-CLP			局站代码
-PN			可进行切换的组数
-G1			第1个要切换的保护组编号 
-…Gi			第i个要切换的保护组编号 
-Gcsn			第CSN个要切换的保护组编号 
-Gi的结构
-	PNo			保护组号,下行光路(Recv)所在组号
-	SNoA			保护光路A的端口号(A1或A2 C1或C2)
-	SNoB			保护光路B的端口号(A2或A1 C2或C1)
-	SwitchPos		1*2光开关状态
-
-*/
 void getProtectSwitchParameter(mxml_node_t *root,mxml_node_t *tree,opticalprotect *protectmpar){
 	    mxml_node_t *GX,*PN,*PNo,*SNoA,*SNoB,*SwitchPos;
 
@@ -677,24 +693,11 @@ void getProtectSwitchParameter(mxml_node_t *root,mxml_node_t *tree,opticalprotec
                  if(protectmpar->Group[i].SwitchPos ==PARALLEL)protectmpar->Group[i].SwitchPos = ACROSS;
                  else protectmpar->Group[i].SwitchPos = PARALLEL;
 
+                          
             }
 
 }
-/*        执行光保护切换（手动切换）指令
 
-Step 1:   解析XML消息  
-Step 2:   循环处理每个手动切换组
-Step 3:   校验模块类型，端口信息
-Step 4:   校验未通过，回复相应的错误异常
-Step 5:   校验通过,获取保护组当前状态,以及从端RTU相关信息
-Step 6:   若保护组当前状态处于0 1 -1种的任意一种 则Step7  
-Step 7:   根据指令中的光开关位置，以及从端模块信息，控制从端RTU光开关
-Step 8:   根据指令中的光开关位置，控制主端RTU光开关
-Step 9:   若Step 7 Step 8操作成功,更新与保护相关的数据表
-Step 10:  检查是否存在测试参数,若有参数，则设置更新后台节点标志
-Setp 11:  根据设置后台请求标识向后台发送启动自动保护信号
-
-*/
 responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   //370
 {              
    mxml_node_t    *CM,*perCMDcode;
@@ -801,7 +804,6 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 			    mysql->mainKeyValue = strPNo;
                             existFlag=SQL_existIN_db(mysql); 
                             if(existFlag){
-                                    /*获取保护组状态及从端RTU信息*/
 				    mysql->filedsName   =  "Status";
 				    SQL_lookupPar(mysql,&result,&rednum);
 				    SwitchStatus =atoi(result[0]);
@@ -833,9 +835,10 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 				    SwitchStatus =atoi(result[0]);
 				    SQL_freeResult(&result,&rednum);
 
-				    if(SwitchStatus == STATUS_AUTO_PROTECT ||  SwitchStatus == STATUS_PerSTATUS_PROTECT || SwitchStatus == STATUS_WAIT_GATE){	
-
-                                           /*向从端发送光开关切换指令*/			                 
+				    if(SwitchStatus == STATUS_AUTO_PROTECT ||  SwitchStatus == STATUS_PerSTATUS_PROTECT || SwitchStatus == STATUS_WAIT_GATE){				                 
+                                           if(haveFlag=ifHaveTestSegment(mydb,mysql,protectmpar->Group[i].SNoA,protectmpar->Group[i].SNoB,protectmpar->Group[i].SNoA+1,protectmpar->Group[i].SNoB+1)){
+                                              ProtectCounter++;   //存在测试参数，表明后台有测试节点
+                                           }
                                            ctx=newModBus_TCP_Client(sIP);
 		                           if(ctx==NULL){
 						resp->RespondCode  =ERROR_CODE_13_PROTECT_FAILED;
@@ -861,7 +864,6 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 							} 
 						}else{
                                                         printf("do slaver protect switch successful!\n");
-                                                        /*向主端发送光开关切换指令*/
 							if(!setModbus_P())                                              
 							    exit(EXIT_FAILURE);    
 							mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
@@ -873,7 +875,7 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 							    exit(EXIT_FAILURE);    
 
 							if(!semaphore_p())  
-							    exit(EXIT_FAILURE);                                            
+							    exit(EXIT_FAILURE);                                //数据库修改保护                 
 							if(protectmpar->Group[i].SwitchPos == PARALLEL){                   
 		                                             updateProtectInformation(mydb,mysql,
 		                                                                     protectmpar->Group[i].PNo,
@@ -894,19 +896,15 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 		                                                                     protectmpar->Group[i].SwitchPos,
 		                                                                     protectmpar->Group[i].SwitchPos,haveFlag);
 		                                        }
-				                        if(!semaphore_v())                                         
+				                        if(!semaphore_v())                                          //解除数据库修改保护
 							    exit(EXIT_FAILURE);
                                                 }
 		                           }
                                            freeModbus_TCP_Client(ctx); 
                                            ctx=NULL;
-                                           /*存在测试参数，表明后台有测试节点*/
-                                           if(haveFlag=ifHaveTestSegment(mydb,mysql,protectmpar->Group[i].SNoA,protectmpar->Group[i].SNoB,protectmpar->Group[i].SNoA+1,protectmpar->Group[i].SNoB+1)){
-                                              ProtectCounter++;   
-                                           }
 				    }else{
 				          if(resp->SNorPN!=TYPE_SNo){
-						  resp->RespondCode = ERROR_CODE_14_DBMATCH_FAILED ; 
+						  resp->RespondCode = ERROR_CODE_14_DBMATCH_FAILED ; // 参数错误
 						  resp->SNorPN      = TYPE_PNo;
 						  resp->Group[ErrorSNo].PNo = protectmpar->Group[i].PNo;
 						  if(SwitchStatus==2){
@@ -957,7 +955,7 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 	sqlite3_close(mydb);
 
 	if(resp->RespondCode != SUCCESS_CODE_OK ){
-	   resp->ErrorSN     =  ErrorSNo;               
+	   resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
            return resp;
 	}
        
@@ -968,23 +966,22 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
        pid_t protectPID[MAX_PID_NUM];  
        char*  recvStr=NULL;
 
-        if(ProtectCounter>0){   
-                            /*发送更新节点信号*/   
+        if(ProtectCounter>0){      
 	       process ="/web/cgi-bin/ProtectMasterMain";                        
 	       retProcess = get_pid_by_name(process, protectPID, MAX_PID_NUM);  
 	       if(retProcess>0){
 		       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-		       signum=SIGRTMIN+1;                                         //设置信号值
-		       mysigval.sival_int = 370;                                  //设置信号的附加信息 (更新后台测试节点)                               
+		       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 370;                               //设置信号的附加信息 (启动障碍告警测试)                               
 		       for(n=0;n<retProcess;n++){  
-		       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                
+		       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                //获取障碍告警测试守护进程PID
 		       if(sigqueue(protectPID[n],signum,mysigval)==-1)
 			       printf("send signal error\n");
 		      }  
-			   /*等待成功信号*/
+			   //等待成功信号
                     recvStr = (char *) malloc(sizeof(char)*10);
 		    recvStr = recvMessageQueue_C();
-		    if(strncmp(recvStr, "370-OK", 6) == 0)                     
+		    if(strncmp(recvStr, "370-OK", 6) == 0)                     //遇"370-OK"结束
 			    printf("Do  Protect Switch operation sucessful!\n");
 		    else{
 		            printf("Set Protect Switch operation failed!\n");
@@ -1007,24 +1004,7 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
   return resp;
 }
-/*        执行取消保护指令
-Step 1:   解析XML消息  
-Step 2:   循环处理每个取消保护组
-Step 3:   校验模块类型，端口信息
-Step 4:   校验未通过，回复相应的错误异常
-Step 5:   校验通过,则 获取从端模块参数 Step 6
-Step 6:   删除已有配对组
-Step 6:   删除测试参数
-Step 6:   删除从端模块 
-Step 6:   若保护组当前状态处于0 1 -1种的任意一种 则Step7  
-Step 7:   根据指令中的光开关位置，以及从端模块信息，控制从端RTU光开关
-Step 8:   根据指令中的光开关位置，控制主端RTU光开关
-Step 9:   若Step 7 Step 8操作成功,更新与保护相关的数据表
-Step 10:  检查是否存在测试参数,若有参数，则设置更新后台节点标志
-Setp 11:  根据设置后台请求标识向后台发送启动自动保护信号
 
-
-*/
 responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)          //250
 {
    mxml_node_t *CM=NULL,*CLP=NULL,*QX=NULL,*PN=NULL,*perCMDcode=NULL;
@@ -1050,15 +1030,17 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 	      return resp;    
    }
    else{
-            /*解析XML消息*/          
-	PN =mxmlFindElement(cmd, tree, "PN",NULL, NULL,MXML_DESCEND);
-	intPN =  strtoul(PN->child->value.text.string, NULL, 0);
-	protectmpar->PN = intPN;
-	CM =mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
-	rtuCM =  strtoul(CM->child->value.text.string, NULL, 0);   
-	CLP =mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
-	rtuCLP =  strtoul(CLP->child->value.text.string, NULL, 0);    
-	for(i=0;i<intPN;i++){ 
+/**************************解析XML消息***************************************/
+            
+	    PN =mxmlFindElement(cmd, tree, "PN",NULL, NULL,MXML_DESCEND);
+	    intPN =  strtoul(PN->child->value.text.string, NULL, 0);
+	    protectmpar->PN = intPN;
+	    CM =mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
+	    rtuCM =  strtoul(CM->child->value.text.string, NULL, 0);   
+	    CLP =mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
+	    rtuCLP =  strtoul(CLP->child->value.text.string, NULL, 0);    
+	    for (i=0;i<intPN;i++)
+	    { 
 		strQX[0]='\0';
 		strcat(strQX,"Q");
 		sprintf(strNum,"%d",i+1);
@@ -1068,8 +1050,8 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 		uint_a = strtoul (QX->child->value.text.string, NULL, 0);          
 		protectmpar->Group[i].PNo = uint_a;
 		printf("Cancel PNo:%d\n",protectmpar->Group[i].PNo);
-	}
-	/*执行操作*/   
+	    }
+/**************************执行操作********************************/   
 	mysql = SQL_Create();
 	rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
         if( rc != SQLITE_OK ){
@@ -1109,14 +1091,13 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                 }else{
                                 
                        if(ModType==MODE3_PROTECT_MASTER){
-                                sprintf(strPNo,"%d",protectmpar->Group[i].PNo);   
-   
+                                sprintf(strPNo,"%d",protectmpar->Group[i].PNo);        
 		                            /*删除已有配对组*/
                                 mysql->tableName    = "ProtectGroupTable";
 				mysql->mainKeyValue  =  strPNo;
                                 existFlag=SQL_existIN_db(mysql);
                                 if(existFlag){ 
-  
+
                                         mysql->filedsName   = "SNoA";
                                         SQL_lookupPar(mysql,&result,&rednum);
                                         strcpy(strSNoA,result[0]);
@@ -1143,63 +1124,58 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 				         SQL_freeResult(&result,&rednum);
 
 
-                                         mysql->filedsName   = "sIP";
-                                         SQL_lookupPar(mysql,&result,&rednum);
-                                         strcpy(sIP,result[0]);
-                                         SQL_freeResult(&result,&rednum);
+                                        mysql->filedsName   = "sIP";
+                                        SQL_lookupPar(mysql,&result,&rednum);
+                                        strcpy(sIP,result[0]);
+                                        SQL_freeResult(&result,&rednum);
 
-                                          mysql->filedsName   = "Status";
-                                          SQL_lookupPar(mysql,&result,&rednum);
-                                          Status=atoi(result[0]);
-                                          SQL_freeResult(&result,&rednum);
-                                          if(Status==STATUS_AUTO_PROTECT)ProtectCounter++; 
+                                        mysql->filedsName   = "Status";
+                                        SQL_lookupPar(mysql,&result,&rednum);
+                                        Status=atoi(result[0]);
+                                        SQL_freeResult(&result,&rednum);
+                                        if(Status==STATUS_AUTO_PROTECT)ProtectCounter++; 
 
-                                          if(!semaphore_p())  
-				             exit(EXIT_FAILURE); 
-
-                                          SQL_delete(mysql);
+                                        SQL_delete(mysql);
                                         
-                                          /*删除障碍告警测试*/     
-					  mysql->tableName   = "AlarmTestSegmentTable";   
-					  mysql->mainKeyValue= strSNoA;
-					  existFlag=SQL_existIN_db(mysql);  
-					  if(existFlag){   
+                                        /*删除障碍告警测试*/     
+					mysql->tableName   = "AlarmTestSegmentTable";   
+					mysql->mainKeyValue= strSNoA;
+					existFlag=SQL_existIN_db(mysql);  
+					if(existFlag){   
                                              SQL_delete(mysql);                                     
-					  }
+					}
 
-					  mysql->mainKeyValue= strSNoB;
-					  existFlag=SQL_existIN_db(mysql); 
-					  if(existFlag){     
+					mysql->mainKeyValue= strSNoB;
+					existFlag=SQL_existIN_db(mysql); 
+					if(existFlag){     
                                              SQL_delete(mysql); 
-					  } 
+					} 
 
-					  mysql->mainKeyValue= strSNoC;
-					  existFlag=SQL_existIN_db(mysql); 
-					  if(existFlag){     
+					mysql->mainKeyValue= strSNoC;
+					existFlag=SQL_existIN_db(mysql); 
+					if(existFlag){     
                                              SQL_delete(mysql); 
-					  } 
+					} 
 
-					  mysql->mainKeyValue= strSNoD;
-					  existFlag=SQL_existIN_db(mysql); 
-					  if(existFlag){     
+					mysql->mainKeyValue= strSNoD;
+					existFlag=SQL_existIN_db(mysql); 
+					if(existFlag){     
                                              SQL_delete(mysql); 
-					  } 
-                                          if(!semaphore_p())  
-				             exit(EXIT_FAILURE); 
+					} 
 
-				          /*删除从端模块*/ 
-		                          ctx=newModBus_TCP_Client(sIP); 
-				          if( ctx== NULL ){
-		                               printf("Warming: cann't connect to slaver module:%d \n",protectmpar->Group[i].PNo);
-				          }else{
+				        /*删除从端模块*/ 
+		                        ctx=newModBus_TCP_Client(sIP); 
+				        if( ctx== NULL ){
+		                             printf("Warming: cann't connect to slaver module:%d \n",protectmpar->Group[i].PNo);
+				        }else{
 					     if(deleteSlaverProtectModule(ctx,slaverModuleNo)<0){
 						printf("Warming: Error to delete slaver protect module!\n");   
 					     }else{
 						printf("Warming: delete slaver protect module successful!\n");                           
 					     }
-				          }
-					  freeModbus_TCP_Client(ctx); 
-					  ctx=NULL;
+				        }
+					freeModbus_TCP_Client(ctx); 
+					ctx=NULL;
                                 }
                                 
                        }else{
@@ -1220,7 +1196,7 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
       SQL_Destory(mysql);  
       sqlite3_close(mydb);
       if(resp->RespondCode != 0 ){
-	   resp->ErrorSN     =  ErrorSNo;                  
+	   resp->ErrorSN     =  ErrorSNo;                  //错误光路总条数
            return resp;
       }
 
@@ -1231,16 +1207,15 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
       pid_t protectPID[MAX_PID_NUM];  
       char*  recvStr=NULL;
 
-      if(ProtectCounter>0){ 
-                            /*发送取消保护信号*/
+      if(ProtectCounter>0){
 	       process ="/web/cgi-bin/ProtectMasterMain";                        
 	       retProcess = get_pid_by_name(process, protectPID, MAX_PID_NUM);  
 	       if(retProcess>0){
 		       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-		       signum=SIGRTMIN+1;                                          
-		       mysigval.sival_int = 250;                               //设置信号的附加信息 (取消保护)                               
+		       signum=SIGRTMIN+1;                                          //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 250;                               //设置信号的附加信息 (启动障碍告警测试)                               
 		       for(n=0;n<retProcess;n++){  
-		       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                
+		       printf("ProtectMasterMain-PID:%u\n", protectPID[n]);                //获取障碍告警测试守护进程PID
 		       if(sigqueue(protectPID[n],signum,mysigval)==-1)
 			       printf("send signal error\n");
 		      }  

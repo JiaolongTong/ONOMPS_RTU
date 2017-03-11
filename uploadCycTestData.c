@@ -49,23 +49,24 @@ int upload(backData *bData,int SNo,int CM,int type)
    struct curl_httppost *formpost=NULL;  
    struct curl_httppost *lastptr=NULL;  
    struct curl_slist    *headerlist=NULL; 
+  
    char *backIP=NULL;
    switch(type)
      {
-	   case 1: 
+	   case RESPONCE_OpticPowerWarming: 
                  {
                    XMLgenerOpticPowerWarming(RTUSENDFILE,bData->powerValue,bData->powerGate,bData->level,SNo,CM,type);break;
                  }
-	   case 2: 
-           case 3:
+	   case RESPONCE_CycleOTDRData: 
+           case RESPONCE_AlarmOTDRData:
                  {   
                    XMLgenerNewOTDRData(RTUSENDFILE,bData->otdrPar,SNo,CM,type);break;
                  }
-           case 4:{
-                   XMLsendProtectSwitchSwitch(RTUSENDFILE,bData->SwitchStatusRecv,bData->SwitchStatusSend,bData->SNoOnlineSend,bData->SNoOnlineRecv,CM,type);break;
+           case RESPONCE_ProtectSwitch:{
+                   XMLsendProtectSwitchStatu(RTUSENDFILE,bData->SwitchStatusRecv,bData->SwitchStatusSend,bData->SNoOnlineSend,bData->SNoOnlineRecv,CM,type);break;
                  }
 
-           case 5:{
+           case RESPONCE_LineFaultWarming:{
                    XMLsendLineFaultWarming(RTUSENDFILE,bData->SNoOnlineSend,bData->SNoOnlineRecv,CM,type);break;
                  }
 	   default: {printf("Input segment fault!\n");return -1;}break;
@@ -89,13 +90,14 @@ int upload(backData *bData,int SNo,int CM,int type)
     //headerlist = curl_slist_append(headerlist, "Content-type:text/xml"); 
     headerlist = curl_slist_append(headerlist, "Expect:");
     if(curl && multi_handle) {     
-    curl_easy_setopt(curl, CURLOPT_URL, backIP);                         // what URL that receives this POST
+    curl_easy_setopt(curl, CURLOPT_URL, backIP);                        
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,write_data); 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER,   headerlist);  
     curl_easy_setopt(curl, CURLOPT_HTTPPOST,     formpost);  
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA,    fptr);                  //callback file ptr
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA,    fptr);                  
     curl_multi_add_handle(multi_handle, curl);  
     curl_multi_perform(multi_handle, &still_running);  
+  
     do {  
 	      struct timeval timeout;  
 	      int rc;                                                
@@ -107,7 +109,7 @@ int upload(backData *bData,int SNo,int CM,int type)
 	      FD_ZERO(&fdread);  
 	      FD_ZERO(&fdwrite);  
 	      FD_ZERO(&fdexcep);  
-	      timeout.tv_sec = 1;                                                      // set a suitable timeout to play around with
+	      timeout.tv_sec = 1;                                                      
 	      timeout.tv_usec = 0;  	  
 	      curl_multi_timeout(multi_handle, &curl_timeo);  
 	      if(curl_timeo >= 0) {  
@@ -117,18 +119,19 @@ int upload(backData *bData,int SNo,int CM,int type)
 		else  
 		   timeout.tv_usec = (curl_timeo % 1000) * 1000;  
 	      }  	       
-	      curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);     // get file descriptors from the transfers
+	      curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);     
 	      rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);    
 	      switch(rc) {  
-		      case -1:break;                                                               // select error        
+		      case -1:break;                                                                      
 		      case  0:  
 		      default:curl_multi_perform(multi_handle, &still_running);  break;  
-	      }  
+	      } 
+
 	} while(still_running);  
 	curl_multi_cleanup(multi_handle);  
-	curl_easy_cleanup(curl);                                                   //always cleanup 
-	curl_formfree(formpost);                                                   // then cleanup the formpost chain  
-	curl_slist_free_all (headerlist);                                          // free slist 
+	curl_easy_cleanup(curl);                                                   
+	curl_formfree(formpost);                                                     
+	curl_slist_free_all (headerlist);                                          
         fclose(fptr);
         fptr=NULL;
         formpost=NULL;
@@ -137,7 +140,7 @@ int upload(backData *bData,int SNo,int CM,int type)
         multi_handle=NULL;
         curl=NULL;
   }  
-  printf("XML_Send Sucessful URL:%s\n",backIP);
+  printf("XML_Send Type:%d  Sucessful URL:%s\n",type,backIP);
   free(backIP);
   return 0;  
 
@@ -209,7 +212,7 @@ StatusRecv		INT(3Bytes)	当前上行1*2光开关状态（1->2:96 1->3:16）
 StatusSend		INT(3Bytes)	当前下行1*2光开关状态（1->2:96 1->3:16）
 
 */
-int XMLsendProtectSwitchSwitch(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type)
+int XMLsendProtectSwitchStatu(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type)
 {
     FILE * fd;
     char str[100];
@@ -217,6 +220,9 @@ int XMLsendProtectSwitchSwitch(char * filename,int SwitchPosMaster,int SwitchPos
     
     int   PNo;
     int   ModNum  = (SNoSend-1)/8+1 ;
+  
+    SwitchPosMaster = SwitchPosMaster==PARALLEL?ACROSS:PARALLEL;
+    SwitchPosSlaver = SwitchPosSlaver==PARALLEL?ACROSS:PARALLEL;
 
     sumStr  =(char *)malloc(sizeof(char)*1024*8);
     *sumStr ='\0';                                 
@@ -261,7 +267,7 @@ ModNo		INT(3Bytes)	本RTU的模块号
 RSNo		INT(3Bytes)	当前下行在纤端口
 SSNO		INT(3Bytes)	当前上行在纤端口
 */
-int XMLsendLineFaultWarming   (char * filename,int SNoSend,int SNoRecv,int CM,int type){
+int XMLsendLineFaultWarming(char * filename,int SNoSend,int SNoRecv,int CM,int type){
 
     FILE * fd;
     char str[100];

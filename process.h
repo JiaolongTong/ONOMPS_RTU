@@ -13,14 +13,12 @@
 #include <sys/stat.h>  
 #include <fcntl.h>  
 #include <string.h>  
-#include <fcntl.h>  
 #include <sys/sem.h>
 #include <sys/msg.h>
 #include <signal.h>
 #include <time.h>
 #include <sys/time.h>  
 
-#include <signal.h>
  
 
 union semun   

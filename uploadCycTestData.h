@@ -11,6 +11,14 @@
 #include <curl/curl.h>
 #include "otdr.h"
 
+#ifndef  PARALLEL
+#define  PARALLEL 0x10
+#endif  
+
+#ifndef  ACROSS
+#define  ACROSS   0x60
+#endif   
+
 #define  TOMCAT_SERVER    "http://192.168.0.150:8080/fiberMonitor/TomCat"
 #define  BOA_SERVER       "http://192.168.0.107:5000/cgi-bin/BoaCom.cgi?value=SetNamedTestSegment" 
 #define  BACKFILE     "back.xml"  
@@ -18,6 +26,12 @@
 #define  en_ORDRDATA  "OtdrAllData.hex"
 #define  en_MAXSIZE    1024*100
 
+
+#define  RESPONCE_OpticPowerWarming  1
+#define  RESPONCE_CycleOTDRData      2
+#define  RESPONCE_AlarmOTDRData      3
+#define  RESPONCE_ProtectSwitch      4
+#define  RESPONCE_LineFaultWarming   5
 
 typedef struct backData backData;
 struct backData {
@@ -45,7 +59,7 @@ char * setBackAddr(char * backIP);
 int upload(backData *bData,int SNo,int CM,int type);
 
 int XMLgenerOpticPowerWarming (char * filename,float powerValue,float powerGate,int level,int SNo,int CM,int type);
-int XMLsendProtectSwitchSwitch(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type);
+int XMLsendProtectSwitchStatu(char * filename,int SwitchPosMaster,int SwitchPosSlaver,int SNoSend,int SNoRecv,int CM,int type);
 int XMLgenerNewOTDRData       (char * filename,otdr *Par,int SNo,int CM,int type);
 int XMLsendLineFaultWarming   (char * filename,int SNoSend,int SNoRecv,int CM,int type);
 char* base64_encode(const char* data, int data_len); 

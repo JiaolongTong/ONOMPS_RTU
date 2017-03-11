@@ -7,11 +7,6 @@
 #include "process.h"
 #include "myModbus.h"
 
-#define  PD_A  1
-#define  PD_B  2
-
-#define  SW_A  1
-#define  SW_B  2
 
 #define  State0   0      //空闲状态 等待切换到任意有效状态
 #define  StateA   1      //状态A 光电二极管A有光，光开关A切换成1-2接通  光开关B切换成1-2接通   
@@ -51,28 +46,18 @@ struct checkProtectNode{
 /*全局变量*/
 int sem_id =0;                            //信号量ID（数据库互斥访问）      
 int modbus_sem_id =0;                     //信号量ID（ModBus互斥访问） 
-int link_sem_id=0;         //     
-int num_A =0;                             //测试链表节点数
-int flagNew=0;             //新节点插入标志
-checkProtectNode *linkHead_check_A;       //测试节点链表头
+int link_sem_id=0;            
+static int num_A =0;                             //测试链表节点数
+static int flagNew=0;             //新节点插入标志
+static checkProtectNode *linkHead_check_A;       //测试节点链表头
 
 static modbus_mapping_t *modbus_mapping;  //
 
-static modbus_t *modbus_x = NULL;
+static modbus_t *modbus_tcp = NULL;
 
 static netInfor serverInfor;
 
-static void close_sigint(int dummy)
-{
-    if (serverInfor.server_socket != -1) {
-	close(serverInfor.server_socket);
-    }
-    modbus_free(modbus_x);
-    modbus_mapping_free(modbus_mapping);
 
-    printf("exit normally!\n");
-    exit(dummy);
-}
 
 int initLinkPV()  
 {  
@@ -99,7 +84,7 @@ int initLinkPV()
     sem_b.sem_flg = SEM_UNDO;  
     if(semop(link_sem_id, &sem_b, 1) == -1)  
     {  
-        fprintf(stderr, "semaphore_p failed\n");  
+        fprintf(stderr, "semaphore_p %s\n",strerror(errno));  
         return 0;  
     }  
     return 1;  
@@ -113,16 +98,27 @@ int initLinkPV()
     sem_b.sem_flg = SEM_UNDO;  
     if(semop(link_sem_id, &sem_b, 1) == -1)  
     {  
-        fprintf(stderr, "semaphore_v failed\n");  
+        fprintf(stderr, "semaphore_v failed %s\n",strerror(errno));  
         return 0;  
     }  
     return 1;  
 }  
 
+static void close_sigint(int dummy)
+{
+    if (serverInfor.server_socket != -1) {
+	close(serverInfor.server_socket);
+    }
+    modbus_free(modbus_tcp);
+    modbus_mapping_free(modbus_mapping);
+    //delLinkPV();
+    printf("exit normally!\n");
+    exit(dummy);
+}
 /*****************************LinkA-checkLink************************************/
 /***插入测试节点****/
 /*
-     (1) 尾插法.uint32tostring
+     (1) 尾插法.
 */
 checkProtectNode *insert_protect_node(checkProtectNode *head,checkProtectNode *newNode)
 {
@@ -166,7 +162,7 @@ checkProtectNode *creat_protect_link(){
         p1->SwitchPos      =0;
         p1->ConnectPos     =0;
 
-        p1->beforeState     =0;
+        p1->beforeState    =0;
         p1->nowState       =0;
  
 	head = insert_protect_node(head,p1);
@@ -233,7 +229,7 @@ void output_all_protect_node(checkProtectNode *head){
 		return ;
 	}
 	else
-		printf("There are %d lines on alarm testing linkA:\n",num_A);
+		printf("There are %d nodes on ProtectSlaver link:\n",num_A);
 	while(p!=NULL){
                 printf("---------------------Node:%d------------------------\n",i+1);
                 printf("|PNo:%4d                    ModuleNo:%4d            |\n",p->PNo,p->ModuleNo);  
@@ -256,18 +252,6 @@ checkProtectNode * frist_protect_node(checkProtectNode *head)
 		return(head);                               
 	}
         node = (checkProtectNode *) malloc (sizeof(checkProtectNode ));    
-/*
-        node->PNo            = head->PNo;
-        node->ModuleNo       = head->ModuleNo;
-        node->SNoA           = head->SNoA;
-        node->SNoB           = head->SNoB;
-        node->PowerGateA     = head->PowerGateA;
-        node->PowerGateB     = head->PowerGateB;
-        node->SwitchPos      = head->SwitchPos;
-        node->ConnectPos     = head->ConnectPos;
-        node->beforeState    = head->beforeState;
-        node->nowState       = head->nowState;
-*/
         node=head;
 	return(node);                               
 }
@@ -292,9 +276,10 @@ checkProtectNode * InitA_CycleLink(void)
 	 char resultModNo[64][5];
          char **result = NULL;
          checkProtectNode *head=NULL,*node=NULL;
-        
+         enum SlaveProtectTable slt;
          head = creat_protect_link();
-         head = delete_protect_node(head,0);                                     
+         head = delete_protect_node(head,0);   
+                               
 	 mysql = SQL_Create();
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 	 if( rc != SQLITE_OK ){
@@ -306,56 +291,28 @@ checkProtectNode * InitA_CycleLink(void)
          mysql->filedsName  =  "Status";
          PN=SQL_findModNo(mysql,resultModNo);
          if(PN>0){
-		for(i =0 ;i<PN;i++){
-
-		     strcpy(ModNo,resultModNo[i]);    
+		for(i =0 ;i<PN;i++){ 
+		     strcpy(ModNo,resultModNo[i]);   
                      mysql->mainKeyValue  =  ModNo;                   // 获取所属模块类型 
                      mysql->tableName     =  "SubModuleTypeTable";
                      mysql->filedsName    =  "ModuleType";
-                     SQL_lookupPar(mysql,&result,&rednum); 
-                     ModuleType=atoi(result[0]); 
+                     if(SQL_lookupPar(mysql,&result,&rednum)<0)break; 
+                     ModuleType=atoi(result[0]);
                      SQL_freeResult(&result,&rednum);  
-                                   
-                     if(ModuleType == 5 ){
+                                     
+                     if(ModuleType == MODE5_PROTECT_SLAVER ){
 			     mysql->tableName     =  "SlaveProtectTable";
-
-			     mysql->filedsName    =  "PNo"; 
+			     mysql->filedsName    =  "*";
 			     SQL_lookupPar(mysql,&result,&rednum); 
-		             PNo=atoi(result[0]);
-		             SQL_freeResult(&result,&rednum);
-
-			     mysql->filedsName    =  "SNoA"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-		             SNoA=atoi(result[0]);
-		             SQL_freeResult(&result,&rednum);
-
-			     mysql->filedsName    =  "SNoB"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-		             SNoB=atoi(result[0]);
-		             SQL_freeResult(&result,&rednum);
-
-			     mysql->filedsName    = "SwitchPos"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-			     SwitchPos=atoi(result[0]);
-			     SQL_freeResult(&result,&rednum);
-              
-
-			     mysql->filedsName    =  "GateA"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-		             GateA=atof(result[0]);
-		             SQL_freeResult(&result,&rednum);
-		              
-			     mysql->filedsName    =  "GateB"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-			     GateB=atof(result[0]);
-			     SQL_freeResult(&result,&rednum);
-
-		    	     mysql->filedsName    = "ConnectPos"; 
-			     SQL_lookupPar(mysql,&result,&rednum); 
-			     ConnectPos=atoi(result[0]);
-			     SQL_freeResult(&result,&rednum);  
-
-
+			     PNo       =atoi(result[eSPT_PNo]);
+			     SNoA      =atoi(result[eSPT_SNoA]);
+			     SNoB      =atoi(result[eSPT_SNoB]);
+			     GateA     =atof(result[eSPT_GateA]);
+			     GateB     =atof(result[eSPT_GateB]);
+			     SwitchPos =atoi(result[eSPT_SwitchPos]);
+			     ConnectPos=atoi(result[eSPT_ConnectPos]); 
+                             //SQL_freeResult(&result,&rednum);
+   
 		             node=(checkProtectNode *)malloc(sizeof(checkProtectNode));	
                              node->ModuleNo       =atoi(ModNo);        
                              node->PNo            =PNo;       
@@ -409,11 +366,9 @@ checkProtectNode * insertNode_from_modbusTCP(checkProtectNode *head,uint16_t Mod
                GateB     =atof(result[5]);
                SwitchPos =atoi(result[6]);
                ConnectPos=atoi(result[7]);  
+               //SQL_freeResult(&result,&rednum);
  
-               //printf("PNo=%d\nModuleNo=%d\nSNoA=%d\nSNoB=%d\nGateA=%d\nGateB=%d\nSwitchPos=%d\nConnectPos=%d\n",
-               //PNo,ModuleNo,SNoA,SNoB,GateA,GateB,SwitchPos,ConnectPos);
          }
-                                     printf("-------------------->Here!1\n");
          SQL_Destory(mysql);
 	 sqlite3_close(mydb);
                                      
@@ -435,7 +390,6 @@ checkProtectNode * insertNode_from_modbusTCP(checkProtectNode *head,uint16_t Mod
 		head = delete_protect_node(head,node->ModuleNo);         
                 head=  insert_protect_node(head,node); 
          }
-
          return head;
 }
 
@@ -455,17 +409,26 @@ int updateProtectGroup(uint16_t ModNo,uint16_t SNoA,uint16_t SNoB,uint16_t Switc
        char *zErrMsg=NULL;
        char strModNo[10], strSNoA[10], strSNoB[10], strSwitchPos[10],strConnectPos[10],strStatus[10];
        char strSQL[100];
-       uint32tostring(ModNo,strModNo);
-       uint32tostring(SNoA,strSNoA);
-       uint32tostring(SNoB,strSNoB);
-       uint32tostring(SwitchPosA,strSwitchPos);
-       uint32tostring(ConnectPos,strConnectPos);
-       uint32tostring(Status,strStatus);
+       sprintf(strModNo,"%d",ModNo);
+       sprintf(strSNoA,"%d",SNoA);
+       sprintf(strSNoB,"%d",SNoB);
+       sprintf(strSwitchPos,"%d",SwitchPosA);
+       sprintf(strConnectPos,"%d",ConnectPos);
+       sprintf(strStatus,"%d",Status);
+
+       printf("strModNo,%d \n",ModNo);
+       printf("strSNoA,%d \n",SNoA);
+       printf("strSNoB,%d \n",SNoB);
+       printf("strSwitchPos,%d \n",SwitchPosA);
+       printf("strConnectPos,%d \n",ConnectPos);
+       printf("strStatus,%d \n",Status);
+
        mysql = SQL_Create();
        if(SQLITE_OK!=sqlite3_open("/web/cgi-bin/System.db", &mydb)){
           printf( "Lookup SQL error: %s\n", zErrMsg);
 	  sqlite3_free(zErrMsg);
        }
+     
        mysql->db = mydb;
        mysql->tableName    = "SlaveProtectTable";	
        mysql->mainKeyValue =  strModNo; 
@@ -474,21 +437,27 @@ int updateProtectGroup(uint16_t ModNo,uint16_t SNoA,uint16_t SNoB,uint16_t Switc
 		mysql->filedsName="SNoA";     
 		mysql->filedsValue=strSNoA;
 		SQL_modify(mysql);
+
 		mysql->filedsName="SNoB";     
 		mysql->filedsValue=strSNoB;
 		SQL_modify(mysql);
+
 		mysql->filedsName="SwitchPos";     
 		mysql->filedsValue=strSwitchPos;
 		SQL_modify(mysql);
+
 		mysql->filedsName="ConnectPos";     
-		mysql->filedsValue=strConnectPos;
+		mysql->filedsValue="0";
 		SQL_modify(mysql);
+
 		mysql->filedsName="Status";     
 		mysql->filedsValue=strStatus;
-		SQL_modify(mysql);    
+		SQL_modify(mysql); 
+  
        }else{          
-                //PNo,ModuleNo,SNoA,SNoB,GateA,GateB,SwitchPos,ConnectPos,belongCM,belongCLP,Status)
-                sprintf(strSQL,"%d,%d,%d,%d,%f,%f,%d,%d,%d,%d,%d",
+                   //PNo,ModuleNo,SNoA,SNoB,GateA,GateB,SwitchPos,ConnectPos,belongCM,belongCLP,Status)
+ 
+                   sprintf(strSQL,"%d,%d,%d,%d,%f,%f,%d,%d,%d,%d,%d",
                    ModNo+ConnectPos,  //PNo
                    ModNo,             //ModuleNo
                    SNoA,
@@ -505,8 +474,11 @@ int updateProtectGroup(uint16_t ModNo,uint16_t SNoA,uint16_t SNoB,uint16_t Switc
 	        if(SQLITE_OK!=SQL_add(mysql)) printf( "Save SQL error\n");
 	        else { printf("%s",strSQL);return -1;}
        }  
+
        SQL_Destory(mysql);  
+
        sqlite3_close(mydb);
+
        return 0;
 }
 
@@ -591,11 +563,13 @@ int updateBelongRTU(uint16_t ModNo,uint16_t belongCM,uint16_t belongCLP,uint16_t
        sprintf(strBelongCLP,"%d",belongCLP);
        sprintf(strStatus,"%d",Status);
        mysql = SQL_Create();
+
        if(SQLITE_OK!=sqlite3_open("/web/cgi-bin/System.db", &mydb)){
           printf( "Lookup SQL error: %s\n", zErrMsg);
 	  sqlite3_free(zErrMsg);
        }
        mysql->db = mydb;
+  
        mysql->tableName    = "SlaveProtectTable";	
        mysql->mainKeyValue =  strModNo; 
   
@@ -603,15 +577,19 @@ int updateBelongRTU(uint16_t ModNo,uint16_t belongCM,uint16_t belongCLP,uint16_t
 		mysql->filedsName="ModuleNo";     
 		mysql->filedsValue=strModNo;
 		SQL_modify(mysql);
+
 		mysql->filedsName="belongCM";     
-		mysql->filedsValue=strBelongCM;
+		mysql->filedsValue=strBelongCM;       
 		SQL_modify(mysql);
-		mysql->filedsName="belongCLP)";     
+
+		mysql->filedsName="belongCLP";     
 		mysql->filedsValue=strBelongCLP;
 		SQL_modify(mysql);
+
 		mysql->filedsName="Status";     
-		mysql->filedsValue=strStatus;
-		SQL_modify(mysql);    
+		mysql->filedsValue=strStatus;                                
+		SQL_modify(mysql);
+
        }else{          
                 //PNo,ModuleNo,SNoA,SNoB,GateA,GateB,SwitchPos,ConnectPos,belongCM,belongCLP,Status)
                 sprintf(strSQL,"%d,%d,%d,%d,%f,%f,%d,%d,%d,%d,%d",
@@ -636,7 +614,9 @@ int updateBelongRTU(uint16_t ModNo,uint16_t belongCM,uint16_t belongCLP,uint16_t
        }  
 
        SQL_Destory(mysql);  
+
        sqlite3_close(mydb);
+
        return 1;
 
 }
@@ -687,15 +667,13 @@ int deleteSlaverRecode(uint16_t ModNo){
        char strModNo[10];
        sprintf(strModNo,"%d",ModNo);
        mysql = SQL_Create();
-               printf("here1\n");
        if(SQLITE_OK!=sqlite3_open("/web/cgi-bin/System.db", &mydb)){
           printf( "Lookup SQL error: %s\n", zErrMsg);
 	  sqlite3_free(zErrMsg);
        }
-               printf("here2\n");
        mysql->db = mydb;
        mysql->tableName    = "SlaveProtectTable";	
- 
+       mysql->mainKeyValue   = strModNo;
        if(1==SQL_existIN_db(mysql)){
               SQL_delete(mysql);
        }else{          
@@ -703,16 +681,16 @@ int deleteSlaverRecode(uint16_t ModNo){
               return 0;
        }  
        SQL_Destory(mysql);  
-               printf("here3\n");
+               
        sqlite3_close(mydb);
-               printf("here4\n");
 
        return 1;
 }
 
 int modbus_server(void)
 {
-    modbus_t *modbus_x = NULL;
+   // modbus_t *modbus_tcp = NULL;
+    modbus_t *modbus_rtu =NULL;
     int8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
     int master_socket,server_socket;
     fd_set rdset;
@@ -721,19 +699,20 @@ int modbus_server(void)
     int    RegisterNumber,WriteAddress,ReadAddress;
     uint16_t ConnectPos;
     slaverModuleInformatin  *moduleState=NULL;
-    modbus_x = modbus_new_tcp("0.0.0.0", 1502);
+    modbus_tcp = modbus_new_tcp("0.0.0.0", 1502);
     modbus_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0,
                                     MODBUS_MAX_READ_REGISTERS, 0);
     if (modbus_mapping == NULL) {
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
                 modbus_strerror(errno));
-        modbus_free(modbus_x);
+        modbus_free(modbus_tcp);
         return -1;
     }
-    serverInfor.server_socket = modbus_tcp_listen(modbus_x, NB_CONNECTION);
+    modbus_set_debug(modbus_tcp, FALSE);
+    serverInfor.server_socket = modbus_tcp_listen(modbus_tcp, NB_CONNECTION);
     if (serverInfor.server_socket == -1) {
         fprintf(stderr, "Unable to listen TCP connection\n");
-        modbus_free(modbus_x);
+        modbus_free(modbus_tcp);
         return -1;
     }
     FD_ZERO(&refset);
@@ -746,10 +725,10 @@ int modbus_server(void)
             close_sigint(1);
         }
         for (master_socket = 0; master_socket <= fdmax; master_socket++) {
-            if (!FD_ISSET(master_socket, &rdset)) {
+            if(!FD_ISSET(master_socket, &rdset)) {
                 continue;
             }
-            if (master_socket ==serverInfor.server_socket) {                
+            if(master_socket ==serverInfor.server_socket) {                
                 socklen_t addrlen;
                 struct sockaddr_in clientaddr;
                 int newfd;
@@ -763,34 +742,47 @@ int modbus_server(void)
                     if (newfd > fdmax) {
                         fdmax = newfd;
                     }
-                    printf("New connection from %s:%d on socket %d\n",
-                           inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port, newfd);
+                    printf("New connection from %s:%d on socket %d\n",inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port, newfd);
                 }
-            } else {
-                modbus_set_socket(modbus_x, master_socket);                
-                rc = modbus_receive(modbus_x, query);
-                if (rc > 0) {
-                    modbus_reply(modbus_x, query, rc, modbus_mapping);
-             
+            }else{
+                    modbus_set_socket(modbus_tcp, master_socket);                
+                    rc = modbus_receive(modbus_tcp, query);
+                    if (rc > 0) {
+
                     if(query[MBAP_LENGTH] == _FC_WRITE_MULTIPLE_REGISTERS){    //0x10
                        RegisterNumber    = (query[MBAP_LENGTH + NB_HIGH] << 8)     + query[MBAP_LENGTH + NB_LOW];
-                       WriteAddress      = (query[MBAP_LENGTH + OFFSET_HIGH] << 8) + query[MBAP_LENGTH + OFFSET_LOW];                                                                                       
+                       WriteAddress      = (query[MBAP_LENGTH + OFFSET_HIGH] << 8) + query[MBAP_LENGTH + OFFSET_LOW];   
+                       modbus_reply(modbus_tcp, query, rc, modbus_mapping);                                                                                   
                        switch(WriteAddress){
                             case SET_SLAVER_GROUP_ADDRESS:{
-                                     printf("设置从模块保护组!\n",WriteAddress); 
+                                     
+                                     printf("设置从模块保护组!\n"); 
                                      moduleState=newSlaverModule();
+
                                      moduleState->ModNo=modbus_mapping->tab_registers[WriteAddress+MODULE_NUMBER];
-                                     ReadAddress = moduleState->ModNo*0x0010;                                  
+                                     ReadAddress = moduleState->ModNo*0x0010;  
+                                     //setLink_P();   
+                      
                                      memcpy(moduleState,modbus_mapping->tab_registers+ReadAddress,sizeof(uint16_t)*9);  
+       
                                      moduleState->detail.SNoA       = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_SNoA];
-                                     moduleState->detail.SNoB       = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_SNoB];  
+                         
+                                     moduleState->detail.SNoB       = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_SNoB]; 
+                     
                                      moduleState->detail.SwitchPosA = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_SwitchPos];
+                                 
                                      moduleState->detail.SwitchPosB = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_SwitchPos];
+                                 
                                      ConnectPos = modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GROUP_Connect];
+                                  
                                      moduleState->detail.useFlag   |= ON_onlyGROUP; 
+                                   
                                      memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);
 
+                                  
+                                     //setLink_V();
                                      //更新数据库
+/*
                                      if(!semaphore_p())  
 	                                exit(EXIT_FAILURE);  
                                      updateProtectGroup(
@@ -800,31 +792,60 @@ int modbus_server(void)
                                                         moduleState->detail.SwitchPosA,
                                                         moduleState->detail.SwitchPosB,
                                                         ConnectPos,
-                                                        moduleState->detail.useFlag);              
+                                                        moduleState->detail.useFlag);    
+                                     if(!semaphore_v())  
+	                                exit(EXIT_FAILURE);  
+*/
+				     //1*2开关控制 
+
+				     if(!setModbus_P())                                              
+					 exit(EXIT_FAILURE); 
+                                   
+				      modbus_rtu =newModbus(MODBUS_DEV,MODBUS_BUAD);
+ 
+				      doOpticalProtectSwitch(modbus_rtu,(moduleState->ModNo-1)*4+SW_A,moduleState->detail.SwitchPosA,MODE5_PROTECT_SLAVER);
+ 
+		                      doOpticalProtectSwitch(modbus_rtu,(moduleState->ModNo-1)*4+SW_B,moduleState->detail.SwitchPosB,MODE5_PROTECT_SLAVER);
+ 
+				      freeModbus(modbus_rtu);
+ 
+                                      modbus_rtu=NULL;  
+ 
                                      //插入测试节点
                                      if(moduleState->detail.useFlag==ON_autoPROTECT){
                                            printf("开启自动保护测试,模块%d!\n",moduleState->ModNo);
-                                           flagNew=1;
+                                           
                                            linkHead_check_A=insertNode_from_modbusTCP(linkHead_check_A,moduleState->ModNo);
-                                           flagNew=0;
-                                     }  
-                                     if(!semaphore_v())  
-	                                exit(EXIT_FAILURE);           
+                                           
+                                     }
+                                      //flagNew=0;
+                                      //usleep(1000);
+			              if(!setModbus_V())                                                              
+				          exit(EXIT_FAILURE);
+
+          
+  
+         
 
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
                                          printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
                                      freeSlaverModule(moduleState);
+                                     moduleState=NULL;
+                                     
                                  }break;
                             case SET_SLAVER_GATE_ADDRESS:{
+
                                      printf("设置从模块检测门限   mb_mapping[%d]!\n",WriteAddress);
                                      moduleState=newSlaverModule();
                                      moduleState->ModNo=modbus_mapping->tab_registers[WriteAddress+MODULE_NUMBER];
-                                     ReadAddress = moduleState->ModNo*0x0010;                                  
+                                     ReadAddress = moduleState->ModNo*0x0010;      
+                                     //setLink_P();                            
                                      memcpy(moduleState,modbus_mapping->tab_registers+ReadAddress,sizeof(uint16_t)*9);  
                                      moduleState->detail.useFlag    |= ON_onlyGATE;
                                      memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);
+                                     //setLink_V();
                                      printf("powerGateA:%d  powerGateB:%d \n",
                                              modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GATE_powerGateA],
                                              modbus_mapping->tab_registers[WriteAddress+SET_SLAVER_GATE_powerGateB]);
@@ -841,20 +862,22 @@ int modbus_server(void)
                                            printf("开启自动保护测试,模块%d!\n",moduleState->ModNo); 
                                            flagNew=1;
                                            linkHead_check_A=insertNode_from_modbusTCP(linkHead_check_A,moduleState->ModNo);
-                                           flagNew=0;
+                                           flagNew=0; 
                                      }
 
                                      if(!semaphore_v())  
 	                                exit(EXIT_FAILURE); 
 
                                      printf("模块状态:%d\n",moduleState->ModNo);
-                                     freeSlaverModule(moduleState);
                                      for(j=0;j<9;j++){
                                          printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
+                                     freeSlaverModule(moduleState);
+                                     moduleState=NULL;
                                      
                                  }break;
                             case DELETE_SLAVER_GROUP_ADDRESS:{
+
                                      printf("删除从模块保护组     mb_mapping[%d]!\n",WriteAddress);
                                      moduleState=newSlaverModule();
                                      moduleState->ModNo=modbus_mapping->tab_registers[WriteAddress+MODULE_NUMBER];
@@ -868,7 +891,9 @@ int modbus_server(void)
                                      moduleState->detail.belongCM   = 0;
                                      moduleState->detail.belongCLP  = 0;
                                      moduleState->detail.useFlag    = 0;
+                                     //setLink_P();
                                      memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);
+                                     //setLink_V();
                                      printf("结束自动保护测试,模块%d!\n",moduleState->ModNo); 
 
                                      //删除数据库
@@ -882,25 +907,26 @@ int modbus_server(void)
                                      if(!semaphore_v())  
 	                                exit(EXIT_FAILURE); 
                                      printf("模块状态:%d\n",moduleState->ModNo);
-
-                                     freeSlaverModule(moduleState);
                                      for(j=0;j<9;j++){
                                          printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
-                                     
+                                     freeSlaverModule(moduleState);
+                                     moduleState=NULL;
+                                    
                                  }break;
                             case DO_SLAVER_SWITCH_ADDRESS:{
                                      printf("手动切换光开关       mb_mapping[%d]!\n",WriteAddress);
                                      moduleState=newSlaverModule();
                                      moduleState->ModNo=modbus_mapping->tab_registers[WriteAddress+MODULE_NUMBER];
-                                     ReadAddress = moduleState->ModNo*0x0010;                                  
+                                     ReadAddress = moduleState->ModNo*0x0010;      
+                                     //setLink_P();                            
                                      memcpy(moduleState,modbus_mapping->tab_registers+ReadAddress,sizeof(uint16_t)*9);
                                      if(moduleState->detail.useFlag==ON_autoPROTECT || moduleState->detail.useFlag==ON_onlyGROUP){   
                                      	moduleState->detail.SwitchPosA = modbus_mapping->tab_registers[WriteAddress+DO_SLAVER_SWITCH_Pos];
                                      	moduleState->detail.SwitchPosB = modbus_mapping->tab_registers[WriteAddress+DO_SLAVER_SWITCH_Pos];
                                      	memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);   
                                      }    
-
+                                     //setLink_V();
                                      //更新数据库
                                      if(!semaphore_p())  
 	                                exit(EXIT_FAILURE); 
@@ -910,12 +936,24 @@ int modbus_server(void)
                                                      moduleState->detail.SwitchPosB);
                                      if(!semaphore_v())  
 	                                exit(EXIT_FAILURE); 
+				     /* 1*2开关控制 */
+                                     printf("--------------->Here ModNo:%d POS:%d \n ",moduleState->ModNo,moduleState->detail.SwitchPosA);
+				     if(!setModbus_P())                                              
+					 exit(EXIT_FAILURE);    
+				      modbus_rtu =newModbus(MODBUS_DEV,MODBUS_BUAD);
+				      doOpticalProtectSwitch(modbus_rtu,(moduleState->ModNo-1)*4+SW_A,moduleState->detail.SwitchPosA,MODE5_PROTECT_SLAVER);
+		                      doOpticalProtectSwitch(modbus_rtu,(moduleState->ModNo-1)*4+SW_B,moduleState->detail.SwitchPosB,MODE5_PROTECT_SLAVER);
+				      freeModbus(modbus_rtu);
+                                      modbus_rtu=NULL;            
+			              if(!setModbus_V())                                                              
+				          exit(EXIT_FAILURE);
 
-                                     freeSlaverModule(moduleState);
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
                                          printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
+                                     freeSlaverModule(moduleState);
+                                     moduleState=NULL;
                                  }break;
                             case MODULE_1_INFORMATION_ADDRESS+MODULE_INFORMATION_MasterCM:                                
                             case MODULE_2_INFORMATION_ADDRESS+MODULE_INFORMATION_MasterCM:                                 
@@ -929,10 +967,11 @@ int modbus_server(void)
                                      moduleState=newSlaverModule();
                                      moduleState->ModNo=WriteAddress/0x0010;
                                      ReadAddress = moduleState->ModNo*0x0010;
+                                     //setLink_P();
                                      memcpy(moduleState,modbus_mapping->tab_registers+ReadAddress,sizeof(uint16_t)*9);
                                      moduleState->detail.useFlag    = OFF_PROTECT;
                                      memcpy(modbus_mapping->tab_registers+ReadAddress,moduleState,sizeof(uint16_t)*9);
-
+                                     //setLink_V();
                                      //更新数据库
                                      if(!semaphore_p())  
 	                                exit(EXIT_FAILURE); 
@@ -942,27 +981,54 @@ int modbus_server(void)
                                                      moduleState->detail.belongCLP,
                                                      moduleState->detail.useFlag);
                                      //删除节点
-                                     flagNew=1;
-                                     linkHead_check_A=deleteNode_from_modbusTCP(linkHead_check_A,moduleState->ModNo);
                                      if(!semaphore_v())  
 	                                exit(EXIT_FAILURE); 
+
+                                     flagNew=1;
+                                     linkHead_check_A=deleteNode_from_modbusTCP(linkHead_check_A,moduleState->ModNo);
                                      flagNew=0;
-                                     freeSlaverModule(moduleState);
                                      printf("模块状态:%d\n",moduleState->ModNo);
                                      for(j=0;j<9;j++){
                                          printf("[%d]=%d\n",j+ReadAddress,uint16toint16(modbus_mapping->tab_registers[j+ReadAddress]));
                                      }
-                                  
+                                     freeSlaverModule(moduleState);
+                                     moduleState=NULL;
                                  }break;
                             default: printf("该地址不支持写操作   mb_mapping[%d]!\n",WriteAddress);
                        }
  
                     }else if(query[MBAP_LENGTH] == _FC_READ_HOLDING_REGISTERS){//0x03
-                    }else if(query[MBAP_LENGTH] == _FC_WRITE_SINGLE_REGISTER){//0x06
+                             RegisterNumber    = (query[MBAP_LENGTH + NB_HIGH] << 8)     + query[MBAP_LENGTH + NB_LOW];
+                             ReadAddress       = (query[MBAP_LENGTH + OFFSET_HIGH] << 8) + query[MBAP_LENGTH + OFFSET_LOW]; 
+				     //获取光功率                        
+                             float powerValue[2];
+                             int16_t powerValueInt[2];
+                             uint16_t ModuleNo = ReadAddress/0x00010;
+		             uint16_t SNoA= (ModuleNo-1)*8+PD_A; 
+		             uint16_t SNoB= (ModuleNo-1)*8+PD_B; 
+		             if(!setModbus_P())                                              
+			         exit(EXIT_FAILURE);  
+		             modbus_rtu =newModbus(MODBUS_DEV,MODBUS_BUAD);
+		             powerValue[0] =getOneOpticalValue(modbus_rtu,SNoA,MODE5_PROTECT_SLAVER);   
+                             powerValue[1] =getOneOpticalValue(modbus_rtu,SNoB,MODE5_PROTECT_SLAVER);  
+		             freeModbus(modbus_rtu);
+                             modbus_rtu=NULL;            
+			     if(!setModbus_V())                                                              
+				 exit(EXIT_FAILURE);
+                             powerValueInt[0] = (int16_t)(powerValue[0]*100);
+                             powerValueInt[1] = (int16_t)(powerValue[1]*100);
+                             //setLink_P();
+                             memcpy(modbus_mapping->tab_registers+ReadAddress+MODULE_INFORMATION_PowerValueA,powerValueInt,sizeof(uint16_t)*2);
+                             //setLink_V();
+                             modbus_reply(modbus_tcp, query, rc, modbus_mapping);
+                             printf("powerValueA:%d,powerValueB:%d\n", powerValueInt[0],powerValueInt[1]);
+                             
+                    //}else if(query[MBAP_LENGTH] == _FC_WRITE_SINGLE_REGISTER){//0x06
                     }else{
                          printf("Don't support funtion!\n");
                     }
-                } else if (rc == -1) {
+
+                }else if (rc == -1) {
 
                     printf("Connection closed on socket %d\n", master_socket);
                     close(master_socket);
@@ -989,6 +1055,7 @@ void work_line(void)
         uint16_t SwitchPosStatus[2];
         /*初始化测试链表*/
         linkHead_check_A=InitA_CycleLink();
+
         if(linkHead_check_A !=NULL)
             output_all_protect_node(linkHead_check_A);
         else
@@ -1006,8 +1073,8 @@ void work_line(void)
 		           nowState     = node->nowState; 
 		           beforeState  = node->beforeState;  
 		           SwitchPos    = node->SwitchPos; 		            
-		        }else{ break;}    
-		        if(!setModbus_P())                                              //P  
+		        }else{break;}    
+		        if(!setModbus_P())                                             
 			   exit(EXIT_FAILURE); 		        
 		        mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 		        SNoA= (ModuleNo-1)*8+PD_A; 
@@ -1015,16 +1082,16 @@ void work_line(void)
 		        SNoB= (ModuleNo-1)*8+PD_B;      
 		        powerValueB = getOneOpticalValue(mb,SNoB,MODE5_PROTECT_SLAVER);   
                         freeModbus(mb);
-                        if(!setModbus_V())                                                //P
+                        mb=NULL;
+                        if(!setModbus_V())                                               
 		            exit(EXIT_FAILURE); 
 		        if     ((powerValueA > PowerGateA) && (powerValueB < PowerGateB)) nowState = StateA;   
 		        else if((powerValueA < PowerGateA) && (powerValueB > PowerGateB)) nowState = StateB; 
 		        else                                                              nowState = StateC;   
-                        printf("nowState :%d   beforeState:%d\n",nowState,beforeState);
 		        if(nowState != beforeState){
                                 swFlag=1;  
 				if(nowState == StateA){
-                                         if(!setModbus_P())                                                //P
+                                         if(!setModbus_P())                                                
 		                            exit(EXIT_FAILURE); 
                                          mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 		                         SWNoA= (ModuleNo-1)*4+SW_A;
@@ -1032,28 +1099,30 @@ void work_line(void)
 		                         SWNoB= (ModuleNo-1)*4+SW_B;
 		                         doOpticalProtectSwitch(mb,SWNoB,PARALLEL,MODE5_PROTECT_SLAVER);
                                          freeModbus(mb);
-                                         if(!setModbus_V())                                                //P
+                                         mb=NULL;
+                                         if(!setModbus_V())                                                
 		                            exit(EXIT_FAILURE); 		                       
 		                         
 		                         if(node !=NULL && flagNew==0){
-		                            node->beforeState = node->nowState;
-		                            node->nowState    = nowState;
-		                            node->SwitchPos   = PARALLEL;
-                                            printf("切换到:A1为在纤(收)  光开关A状态为:%d\n",node->SwitchPos);
-                                            printf("      :B3为在纤(发)  光开关B状态为:%d\n",node->SwitchPos);
-                                         if(!semaphore_p())  
-	                                     exit(EXIT_FAILURE); 
-                                         updateSwitchPos(node->ModuleNo,node->SwitchPos,node->SwitchPos);
-                                         if(!semaphore_v())  
-	                                     exit(EXIT_FAILURE); 
-                                         SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
-                                         SwitchPosStatus[1]=(uint16_t)node->SwitchPos; 
-                                         memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,
-                                                SwitchPosStatus,sizeof(uint16_t)*2);
+				                 node->beforeState = node->nowState;
+				                 node->nowState    = nowState;
+				                 node->SwitchPos   = PARALLEL;
+		                                 printf("切换到:A1为在纤(收)  光开关A状态为:%d\n",node->SwitchPos);
+		                                 printf("      :B3为在纤(发)  光开关B状态为:%d\n",node->SwitchPos);
+		                                 if(!semaphore_p())  
+			                             exit(EXIT_FAILURE); 
+		                                 updateSwitchPos(node->ModuleNo,node->SwitchPos,node->SwitchPos);
+		                                 if(!semaphore_v())  
+			                             exit(EXIT_FAILURE); 
+		                                 SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
+		                                 SwitchPosStatus[1]=(uint16_t)node->SwitchPos; 
+                                                 //setLink_P();
+		                                 memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,SwitchPosStatus,sizeof(uint16_t)*2);
+                                                 //setLink_V();
 		                         }else{break;}
 		                }
 				else if(nowState == StateB){
-                                         if(!setModbus_P())                                                //P
+                                         if(!setModbus_P())                                                
 		                            exit(EXIT_FAILURE); 
                                          mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 		                         SWNoA= (ModuleNo-1)*4+SW_A;
@@ -1061,41 +1130,43 @@ void work_line(void)
 		                         SWNoB= (ModuleNo-1)*4+SW_B;
 		                         doOpticalProtectSwitch(mb,SWNoB,ACROSS,MODE5_PROTECT_SLAVER);
 		                         freeModbus(mb);  
-                                         if(!setModbus_V())                                                //P
+                                         mb=NULL;
+                                         if(!setModbus_V())                                                
 		                            exit(EXIT_FAILURE); 
 		                         if(node !=NULL && flagNew==0){
-		                            node->beforeState = node->nowState;
-		                            node->nowState    = nowState;
-		                            node->SwitchPos   = ACROSS;
-                                            printf("切换到:A2为在纤(收)  光开关A状态为:%d\n",node->SwitchPos);
-                                            printf("      :B2为在纤(发)  光开关B状态为:%d\n",node->SwitchPos);
-                                         if(!semaphore_p())  
-	                                     exit(EXIT_FAILURE); 
-                                         updateSwitchPos(node->ModuleNo,node->SwitchPos,node->SwitchPos);   
-                                         if(!semaphore_v())  
-	                                     exit(EXIT_FAILURE); 
-                                         SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
-                                         SwitchPosStatus[1]=(uint16_t)node->SwitchPos; 
-                                         memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,
-                                                SwitchPosStatus,sizeof(uint16_t)*2);
-
+				                 node->beforeState = node->nowState;
+				                 node->nowState    = nowState;
+				                 node->SwitchPos   = ACROSS;
+		                                 printf("切换到:A2为在纤(收)  光开关A状态为:%d\n",node->SwitchPos);
+		                                 printf("      :B2为在纤(发)  光开关B状态为:%d\n",node->SwitchPos);
+		                                 if(!semaphore_p())  
+			                             exit(EXIT_FAILURE); 
+		                                 updateSwitchPos(node->ModuleNo,node->SwitchPos,node->SwitchPos);   
+		                                 if(!semaphore_v())  
+			                             exit(EXIT_FAILURE); 
+		                                 SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
+		                                 SwitchPosStatus[1]=(uint16_t)node->SwitchPos;
+                                                 //setLink_P(); 
+		                                 memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,SwitchPosStatus,sizeof(uint16_t)*2);
+                                                 //setLink_V();
 		                         }else{break;}
 		                }else if(nowState == State0){
-                                        printf("插入新的测试节点\n");
+                                         printf("插入新的测试节点\n");
                                 }else{
-                                        if(node !=NULL && flagNew==0){
-                                        node->beforeState = node->nowState;
-                                        node->nowState    = nowState;
-                                         if(!semaphore_p())  
-	                                     exit(EXIT_FAILURE); 
-                                         updateSwitchPos(node->ModuleNo,0,0);   
-                                         if(!semaphore_v())  
-	                                     exit(EXIT_FAILURE); 
-                                         SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
-                                         SwitchPosStatus[1]=(uint16_t)node->SwitchPos; 
-                                         memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,
-                                                SwitchPosStatus,sizeof(uint16_t)*2);
-                                        printf("两路光功率均异常\n");
+                                         if(node !=NULL && flagNew==0){
+		                                 node->beforeState = node->nowState;
+		                                 node->nowState    = nowState;
+		                                 if(!semaphore_p())  
+			                             exit(EXIT_FAILURE); 
+		                                 updateSwitchPos(node->ModuleNo,0,0);   
+		                                 if(!semaphore_v())  
+			                             exit(EXIT_FAILURE); 
+		                                 SwitchPosStatus[0]=(uint16_t)node->SwitchPos;
+		                                 SwitchPosStatus[1]=(uint16_t)node->SwitchPos; 
+                                                 //setLink_P();
+		                                 memcpy(modbus_mapping->tab_registers+(uint16_t)node->ModuleNo*16 + MODULE_INFORMATION_SwitchPosA,SwitchPosStatus,sizeof(uint16_t)*2);
+                                                 //setLink_V();
+		                                 printf("两路光功率均异常\n");
                                         }else{break;}
                                 }
 		        }	                  
@@ -1103,16 +1174,42 @@ void work_line(void)
 		          node = node->next; 
                        }else{break;}
                 }
-
-                if(node!=NULL)free(node);
+                if(node!=NULL){free(node); node=NULL;}
                 if(linkHead_check_A !=NULL && swFlag==1  ){
                    output_all_protect_node(linkHead_check_A);
                    printf("PowerValueA:%f   PowerValueB:%f\n",powerValueA,powerValueB);
                 }
-                usleep(1000);
         }
 }
 
+
+#include <signal.h>  
+#include <execinfo.h>  
+#define SIZE 1000  
+void *buffer[SIZE];  
+void fault_trap(int n,struct siginfo *siginfo,void *myact)  
+{  
+        int i, num;  
+        char **calls;  
+        char buf[1024];
+        char cmd[1024];
+        FILE *fh;
+
+        printf("Fault address:%X\n",siginfo->si_addr);     
+        num = backtrace(buffer, SIZE);  
+        calls = backtrace_symbols(buffer, num);  
+        for (i = 0; i < num; i++)  
+                printf("%s\n", calls[i]);  
+        exit(0);
+}  
+void setuptrap()  
+{  
+        struct sigaction act;  
+        sigemptyset(&act.sa_mask);     
+        act.sa_flags=SA_SIGINFO;      
+        act.sa_sigaction=fault_trap;  
+        sigaction(SIGSEGV,&act,NULL);  
+}
 
 int main()  
 {  
@@ -1121,14 +1218,9 @@ int main()
     /*初始化信号量*/
     sem_id        = semget((key_t)1234, 1, 4777 | IPC_CREAT);                         
     modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);     
-    link_sem_id   = semget((key_t)9101, 1, 7774 | IPC_CREAT);
-/*
-    if(1!=initLinkPV()){
-        printf("int initLinkPV() error\n");
-         delLinkPV()  ;
-        return -1 ;  
-    }
-*/
+    link_sem_id   = semget((key_t)2345, 1, 7774 | IPC_CREAT);
+    //initLinkPV();
+    setuptrap() ;
     signal(SIGINT, close_sigint);
 
     pthread_create(&tha,NULL,work_line,0);  

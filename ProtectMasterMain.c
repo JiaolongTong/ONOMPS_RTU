@@ -211,13 +211,13 @@ void output_all_protect_node(checkProtectNode *head){
 		printf("There are %d lines on alarm testing linkA:\n",num_A);
 	while(p!=NULL){
                 printf("---------------------Node:%d------------------------\n",i+1);
-                printf("|         PNo:%4d      ANo:%4d      CM:%4d          |\n",p->PNo,p->CM,p->ANo);  
+                printf("|         PNo:%4d      ANo:%4d      CM:%3d          |\n",p->PNo,p->CM,p->ANo);  
                 printf("|SNoRecvOnline:%4d          SNoRecvBackup:%4d       |\n",p->SNoRecvOnline,p->SNoRecvBackup); 
-                printf("|PowerGateOnline:%2.3f      PowerGateBackup:%2.3f   |\n",p->PowerGateOnline,p->PowerGateBackup); 
+                printf("|PowerGateOnline:%2.2f      PowerGateBackup:%2.2f   |\n",p->PowerGateOnline,p->PowerGateBackup); 
                 printf("|MasterSwitchPos:%4d        SlaverSwitchPos:%4d     |\n",p->masterSwitchPos,p->slaverSwitchPos); 
                 printf("|SNoSendOnline:%4d          SNoSendBackup:%4d       |\n",p->SNoSendOnline,p->SNoSendBackup); 
                 printf("|SlaverModuleNo:%4d         ConnectPos:%4d          |\n",p->slaverModuleNo,p->ConnectPos); 
-                printf("|FristAlarmFlag:%4d         NextAlarmTime:%4d |\n",p->fristAlarmFlag,p->nextAlarmTime);
+                printf("|FristAlarmFlag:%4d         NextAlarmTime:%4d  |\n",p->fristAlarmFlag,p->nextAlarmTime);
                 printf("|slaverIP:%s      alarmClick:%d           |\n",p->slaverIP,p->alarmClick);  
                 printf("---------------------------------------------------\n\n",i+1);
                 p=p->next;
@@ -370,7 +370,16 @@ void outPutALL_B(alarmNode *head){
 	  }
        }
 }
-
+alarmNode * insertOTDtestNode(alarmNode *head,int SNo,int CM,int ANo){
+       alarmNode * node=NULL;
+       node=(alarmNode *)malloc(sizeof(alarmNode));
+       node->SNo = SNo;
+       node->CM  = CM;
+       node->ANo = ANo;     
+       node->Order = ANo*100 +SNo; 
+       head=insert_B(head,node);
+       return head;
+}
 alarmNode * deleteALL_B(alarmNode *head){
 	alarmNode *p=NULL;
 	union sigval mysigval;
@@ -1109,8 +1118,7 @@ int uploadSwitchInfromation(int CM,int recvSNoOnline, int sendSNoOnline , int ma
         sqlite3_close(mydb);
 
 }
-
-float realValue[8] ={4,4,4,4,4,4,4,4};                              //for test
+                 
 alarmNode  *rollPolingProtect(checkProtectNode *headA,alarmNode *headB)
 {
      	checkProtectNode *p=NULL;
@@ -1121,45 +1129,41 @@ alarmNode  *rollPolingProtect(checkProtectNode *headA,alarmNode *headB)
         time_t    nowTime=0,nextAlarmTime=0,alarmClick=0;
 	char      **result = NULL;
         char      slaverIP[16];
-	int       rc=0,rednum=0,fristAlarmFlag=0, getPowerValueCounter=0,recvPNo=0,sendPNo=0;
+	int       rc=0,rednum=0,fristAlarmFlag=0,swFlag=0, getPowerValueCounter=0,recvPNo=0,sendPNo=0;
         int       CM=0,ANo=0,slaverSwitchPos=0,masterSwitchPos=0,slaverModuleNo=0,ConnectPos=0,SNoRecvOnline=0,SNoRecvBackup=0,SNoSendOnline=0,SNoSendBackup=0,TempInt=0;
-        int       sendSwitchPos=0,recvSwitchPos=0,DoSwitchCounter=5;
-        float     PowerGateBackup=0.0,PowerGateOnline=0.0,powerValue=0.0,TempFolat=0.0;
+        int       sendSwitchPos=0,recvSwitchPos=0,DoSwitchCounter=5,subPort=0,moduleNo=0,SWPos_Send=0,SWPos_Recv=0,SWNo_Recv=0,SWNo_Send=0;
+        float     PowerGateBackup=0.0,PowerGateOnline=0.0,powerValue=0.0,powerValueBak=0.0,TempFolat=0.0;
   
 	p= headA;
         q= headB;
         mysql = SQL_Create();
-	if(p==NULL){
-		//printf("This is a void excel!\n");
-		return q;
-	} 
-	else
-	  while(p!=NULL){    
+	while(p!=NULL){    
              if(p!=NULL){
                   if(flagNew == 0 ){
-		      if(p!=NULL)ANo=p->ANo; 
-		      if(p!=NULL)CM =p->CM;
-                      if(p!=NULL)recvPNo=p->PNo;                                                                       
-		      if(p!=NULL)SNoRecvOnline=p->SNoRecvOnline;
-		      if(p!=NULL)SNoRecvBackup=p->SNoRecvBackup;
-		      if(p!=NULL)PowerGateOnline=p->PowerGateOnline;   
-		      if(p!=NULL)PowerGateBackup=p->PowerGateBackup; 
-		      if(p!=NULL)SNoSendOnline=p->SNoSendOnline;
-		      if(p!=NULL)SNoSendBackup=p->SNoSendBackup;
-		      if(p!=NULL)masterSwitchPos=p->masterSwitchPos;  
-		      if(p!=NULL)slaverSwitchPos=p->slaverSwitchPos;  
-		      if(p!=NULL)fristAlarmFlag=p->fristAlarmFlag; 
-		      if(p!=NULL)nextAlarmTime=p->nextAlarmTime; 
-		      if(p!=NULL)alarmClick=p->alarmClick;
+		      ANo=p->ANo; 
+		      CM =p->CM;
+                      recvPNo=p->PNo;                                                                       
+		      SNoRecvOnline=p->SNoRecvOnline;
+		      SNoRecvBackup=p->SNoRecvBackup;
+		      PowerGateOnline=p->PowerGateOnline;   
+		      PowerGateBackup=p->PowerGateBackup; 
+		      SNoSendOnline=p->SNoSendOnline;
+		      SNoSendBackup=p->SNoSendBackup;
+		      masterSwitchPos=p->masterSwitchPos;  
+		      slaverSwitchPos=p->slaverSwitchPos;  
+		      fristAlarmFlag=p->fristAlarmFlag; 
+		      nextAlarmTime=p->nextAlarmTime; 
+		      alarmClick=p->alarmClick;
+
 	              if(!setModbus_P())                                              //P  
 		         exit(EXIT_FAILURE); 		        
 		      mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-		      powerValue = getOneOpticalValue(mb,SNoRecvOnline,2);                   //获取下行在纤光功率光功率值                      
+		      powerValue = getOneOpticalValue(mb,SNoRecvOnline,MODE3_PROTECT_MASTER);                   //获取下行在纤光功率光功率值    
+                      powerValueBak = getOneOpticalValue(mb,SNoRecvBackup,MODE3_PROTECT_MASTER);    //获取备纤上的光功率值           
 		      freeModbus(mb);  	                 
 		      if(!setModbus_V())                                              //V
                          exit(EXIT_FAILURE);  
                       if(powerValue==0)powerValue=-70.0; 
-                      //powerValue = 15.1;
                   }else{
                        if(p!=NULL){
 		               if(p!=NULL)p=p->next; 
@@ -1180,13 +1184,13 @@ alarmNode  *rollPolingProtect(checkProtectNode *headA,alarmNode *headB)
 				      if(!setModbus_P())                                                //P  
 					 exit(EXIT_FAILURE);   				
 				      mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-				      powerValue = getOneOpticalValue(mb,SNoRecvOnline,2);                        //获取当前光路光功率值							           
+				      powerValue = getOneOpticalValue(mb,SNoRecvOnline,MODE3_PROTECT_MASTER);        //获取当前光路光功率值
+                                      powerValueBak = getOneOpticalValue(mb,SNoRecvBackup,MODE3_PROTECT_MASTER);    //获取备纤上的光功率值							           
 			              freeModbus(mb);  		       				                     
 			              if(!setModbus_V())                                                //V
 				         exit(EXIT_FAILURE); 
                                       if(powerValue==0)powerValue=-70.0;  
-                                      flagNew=0;
-		                      //powerValue = 15.1;          
+                                      flagNew=0;     
 		               }else{
 		                    p=NULL;
                                     flagNew=0;
@@ -1202,274 +1206,209 @@ alarmNode  *rollPolingProtect(checkProtectNode *headA,alarmNode *headB)
 		  p==NULL;
                   flagNew=0;
 		  break;
-             }              
-             if( powerValue < PowerGateOnline ){    //异常	 
-		             nowTime = getLocalTimestamp();                    
-		             if(fristAlarmFlag == 0){                                   //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
-				      printf("StateC--->SNo    powerValue:%f <---> PowerGateOnline:%f\n",
-				                         SNoRecvOnline ,powerValue,PowerGateOnline);                       
+             } 
+             swFlag=0;     
+             if( powerValue < PowerGateOnline ){     
+		     nowTime = getLocalTimestamp();  
+		     subPort =(SNoRecvBackup-1)%8+1; //(1-8)   SNoRecvBackup(1-64)
+                     moduleNo=(SNoRecvBackup-1)/8+1; //(1-8)
+		     if(subPort==1 || subPort==5){
+			SWNo_Recv=(moduleNo-1)*4 + SW_A; 
+			SWNo_Send=(moduleNo-1)*4 + SW_B; 
+			SWPos_Recv=subPort==1?PARALLEL:ACROSS;
+                        SWPos_Send=subPort==1?PARALLEL:ACROSS;
+		     }
+		     if(subPort==3 || subPort==7){
+                        SWNo_Recv =(moduleNo-3)*4  + SW_C;
+                        SWNo_Send =(moduleNo-3)*4 + SW_D;
+                        SWPos_Recv=subPort==3?PARALLEL:ACROSS;
+                        SWPos_Send=subPort==3?PARALLEL:ACROSS;
+                     }
+
+                     if(powerValueBak < PowerGateBackup){             
+		             if(fristAlarmFlag == 0){         //异常状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
+				      printf("StateC--->在纤光路%d首次出现异常...powerValue:%f <---> PowerGateOnline:%f\n",SNoRecvOnline ,powerValue,PowerGateOnline); 	                                              
 				      fristAlarmFlag = 1;
-				          
-				      if(!setModbus_P())                                              //P  
+				      swFlag=1;   
+				      if(!setModbus_P())                                       
 					 exit(EXIT_FAILURE); 	
 
 				         mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-
-                                         sendPNo = SNoSendOnline>SNoSendBackup ? ((SNoSendBackup-1)/8)*4+((SNoSendBackup)%8): ((SNoSendOnline-1)/8)*4+((SNoSendOnline)%8); 
-
-				         doOpticalProtectSwitch(mb,sendPNo,masterSwitchPos==PARALLEL? ACROSS : PARALLEL);           //切换光路上行光开关为原来的相反状态
-				         doOpticalProtectSwitch(mb,recvPNo,masterSwitchPos==PARALLEL? ACROSS : PARALLEL);           //切换光路下行光开关为原来的相反状态
-				         
-				         getPowerValueCounter=10;                                     //超时计数
+				         doOpticalProtectSwitch(mb,SWNo_Recv,SWPos_Recv,MODE3_PROTECT_MASTER);           //切换光路上行光开关为原来的相反状态
+				         doOpticalProtectSwitch(mb,SWNo_Send,SWPos_Send,MODE3_PROTECT_MASTER);           //切换光路下行光开关为原来的相反状态				         
+				         getPowerValueCounter=40;                                                        //超时计数
 					 while(getPowerValueCounter-- > 0){
-				              powerValue = getOneOpticalValue(mb,SNoRecvBackup,2);    //获取备纤上的光功率值
+				              powerValue = getOneOpticalValue(mb,SNoRecvBackup,MODE3_PROTECT_MASTER);    //获取备纤上的光功率值
 				              if(powerValue <  PowerGateBackup){
-				                  usleep(5000);
-                                                  printf("Wiat for successful ! BKSNo:%d---->%d \n",SNoRecvBackup,getPowerValueCounter);
+				                  usleep(1024);
+                                                  printf("Wiat for successful!----> SNoRecvBackup:%d powerValue:%f PowerGateBackup:%f\n",SNoRecvBackup,powerValue,PowerGateBackup);
 				                     
 				              }else{
 				                  fristAlarmFlag = 0;                                 
 				                  getPowerValueCounter= 10;
-                                                  printf("Do protect successful!\n  BKSNo:%d---->%d\n",SNoRecvBackup,getPowerValueCounter);
-				                  break;
+                                                  printf("光保护切换成功!\n",SNoRecvBackup);
+                                                  break;
 				              }
 				                 
 					}
 				        freeModbus(mb);                         
 					if(!setModbus_V())                                            //V  
 					     exit(EXIT_FAILURE); 
-				        if(getPowerValueCounter > 0 && fristAlarmFlag ==0 ){          //光路切换成功
+				        if(fristAlarmFlag ==0 ){          //光路切换成功
 				                 //更新节点
-				                 masterSwitchPos= masterSwitchPos==PARALLEL? ACROSS : PARALLEL ; 
-                                                 slaverSwitchPos= slaverSwitchPos==PARALLEL? ACROSS : PARALLEL ;  
-
-				                 TempFolat=PowerGateOnline;   
-				                 PowerGateOnline=PowerGateBackup; 
-                                                 PowerGateBackup=TempFolat;
-
-                                                 if(masterSwitchPos==PARALLEL ){                       //以光开关状态为依据 将原来的在纤更新为备纤 将原来的备纤更新为在纤 
-                                                     if( SNoRecvOnline > SNoRecvBackup){ 
-                                                            TempInt=SNoRecvBackup;   
-                                                            SNoRecvBackup   =  SNoRecvOnline;
-                                                            SNoRecvOnline   =  TempInt; 
-                                                     }                                 
-                                                 }else if(masterSwitchPos==ACROSS){
-                                                     if( SNoRecvOnline < SNoRecvBackup){ 
-                                                            TempInt=SNoRecvBackup;   
-                                                            SNoRecvBackup   =  SNoRecvOnline;
-                                                            SNoRecvOnline   =  TempInt; 
+				                 masterSwitchPos= SWPos_Recv; 
+                                                 slaverSwitchPos= SWPos_Send;  
+                                                 if(masterSwitchPos==ACROSS ){                      
+                                                     if(SNoRecvBackup > SNoRecvOnline){ 
+                                                        TempInt=SNoRecvBackup;SNoRecvBackup=SNoRecvOnline;SNoRecvOnline=TempInt; //SNoRecvBackup SNoRecvOnline互换
+                                                        TempInt=SNoSendBackup;SNoSendBackup=SNoSendOnline;SNoSendOnline=TempInt; //SNoSendBackup SNoSendOnline互换  
+						        TempFolat=PowerGateOnline;PowerGateOnline=PowerGateBackup;PowerGateBackup=TempFolat; //PowerGateBackup PowerGateOnline互换      
+                                                     }
+                                                 }                               
+                                                 if(masterSwitchPos==PARALLEL){
+                                                     if( SNoRecvBackup < SNoRecvOnline){ 
+                                                         TempInt=SNoRecvBackup;SNoRecvBackup=SNoRecvOnline;SNoRecvOnline=TempInt; 
+                                                         TempInt=SNoSendBackup;SNoSendBackup=SNoSendOnline;SNoSendOnline=TempInt; 
+						         TempFolat=PowerGateOnline;PowerGateOnline=PowerGateBackup; PowerGateBackup=TempFolat;
                                                      }  
                                                    
-                                                 }
-
-                                                 if(slaverSwitchPos==PARALLEL ){                       //以光开关状态为依据 将原来的在纤更新为备纤 将原来的备纤更新为在纤 
-                                                     if( SNoSendOnline > SNoSendBackup){ 
-                                                            TempInt=SNoSendBackup;   
-                                                            SNoSendBackup   =  SNoSendOnline;
-                                                            SNoSendOnline   =  TempInt; 
-                                                     }                                 
-                                                 }else if(slaverSwitchPos==ACROSS){
-                                                     if( SNoSendOnline < SNoSendBackup){ 
-                                                            TempInt=SNoSendBackup;   
-                                                            SNoSendBackup   =  SNoSendOnline;
-                                                            SNoSendOnline   =  TempInt; 
-                                                     }  
-                                                   
-                                                 }
-
-                                                 if(slaverSwitchPos==PARALLEL){
-                                                     SNoSendOnline  = SNoSendOnline < SNoSendBackup ?  SNoSendBackup : SNoSendBackup; 
-                                                 }else if(slaverSwitchPos==ACROSS){
-                                                     SNoSendOnline  = SNoSendOnline > SNoSendBackup ?  SNoSendBackup : SNoSendBackup;
                                                  }
 				                 //修改数据库状态  
                                                  updateProtectInformation(recvPNo,SNoRecvOnline,SNoRecvBackup,SNoSendOnline,SNoSendBackup,masterSwitchPos,slaverSwitchPos);   
 				                 //上报业务自动切换消息 
-                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,4);   // 
-				                 //执行OTDR测试(上行在纤  下行在纤  上行备纤  下行备纤) 
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvOnline;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvBackup;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendOnline;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendBackup;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-				                     
+                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,RESPONCE_ProtectSwitch);   // 
+				                 //执行OTDR测试(上行在纤  下行在纤  上行备纤  下行备纤)
+                                                 
+                                                 /*if(p!=NULL) q=insertOTDtestNode(q,SNoRecvOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoRecvBackup,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendBackup,CM,ANo);
+                                                 else{ p=NULL;break;}*/
+                                                 outPutALL_B(linkHead_alarm_B);
+				                 
+                                                         
 				       }else{                                                         //光路切换失败(备纤异常)
 
-                                                 printf("-------------> Back to old status\n");
+                                                 printf("保护切换失败，状态回退...\n");
                                                  //状态回退
 					         if(!setModbus_P())                                   //P  
 						    exit(EXIT_FAILURE); 	
 						 mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-						 doOpticalProtectSwitch(mb,sendPNo,masterSwitchPos==PARALLEL? PARALLEL : ACROSS);               
-						 doOpticalProtectSwitch(mb,recvPNo,masterSwitchPos==PARALLEL? PARALLEL : ACROSS);               
+						 doOpticalProtectSwitch(mb,SWNo_Recv,masterSwitchPos,MODE3_PROTECT_MASTER);               
+						 doOpticalProtectSwitch(mb,SWNo_Send,slaverSwitchPos,MODE3_PROTECT_MASTER);               
                                                  freeModbus(mb);   
 					         if(!setModbus_V())                                   //V  
 					            exit(EXIT_FAILURE); 
 
 				                 //上报主备纤均损坏故障消息 
-                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,5); 
+                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,RESPONCE_LineFaultWarming); 
 				                 //执行OTDR测试(上行在纤  下行在纤 上行备纤  下行备纤 )  
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvOnline;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvBackup;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendOnline;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendBackup;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-				             
+                                                 /*if(p!=NULL) q=insertOTDtestNode(q,SNoRecvOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoRecvBackup,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendBackup,CM,ANo);
+                                                 else{ p=NULL;break;}*/
+                                                 outPutALL_B(linkHead_alarm_B);
+				                
+                                                      
 				       }
 				       nextAlarmTime  = getLocalTimestamp()+alarmClick;                  
 		             }else if(nowTime >= nextAlarmTime){                       //状态D:长期处于异常 -->fristAlarmFlag=1   实际光功率值<阈值  
-					         printf("StateD--->SNo    powerValue:%f <---> PowerGateOnline:%f\n",
-						                   SNoRecvOnline ,powerValue,PowerGateOnline);                                       
+				                 swFlag=1;
+					         printf("StateD--->在纤光路%d长期处于异常...powerValue:%f <---> PowerGateOnline:%f\n",SNoRecvOnline ,powerValue,PowerGateOnline);                            
 				                 //上报主备纤均损坏故障消息 
-                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,5); 
+                                                 uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,RESPONCE_LineFaultWarming); 
 				                 //执行OTDR测试(上行在纤  下行在纤 上行备纤  下行备纤 )  
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvOnline;    //下行在纤
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
+                                                 /*if(p!=NULL) q=insertOTDtestNode(q,SNoRecvOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendOnline,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoRecvBackup,CM,ANo);
+                                                 else{ p=NULL;break;}
+                                                 if(p!=NULL) q=insertOTDtestNode(q,SNoSendBackup,CM,ANo);
+                                                 else{ p=NULL;break;}*/ 
+                                                                     
+				                 nextAlarmTime  = getLocalTimestamp()+alarmClick;   
+		             } 
+                         }else if(fristAlarmFlag!=0){
+                              //状态E:备纤先于在纤修复，业务光自动切换到备纤 --> fristAlarmFlag=0  备纤实际光功率值>=阈值    
+                              printf("StateE--->备纤光路%d先于在纤光路%d修复，业务光自动切换到备纤\n",SNoRecvBackup,SNoRecvOnline);
+			      swFlag=1;
+			      if(!setModbus_P())                             
+				  exit(EXIT_FAILURE); 	
+			      mb=newModbus(MODBUS_DEV,MODBUS_BUAD); 
+			      doOpticalProtectSwitch(mb,SWNo_Recv,SWPos_Recv,MODE3_PROTECT_MASTER);               
+			      doOpticalProtectSwitch(mb,SWNo_Send,SWPos_Send,MODE3_PROTECT_MASTER);     
+                              masterSwitchPos= SWPos_Recv;   
+                              slaverSwitchPos= SWPos_Send;                                          
+                              freeModbus(mb);   
+			      if(!setModbus_V())                               
+				  exit(EXIT_FAILURE);    
+			      masterSwitchPos= SWPos_Recv; 
+                              slaverSwitchPos= SWPos_Send;  
+                              if(masterSwitchPos==ACROSS ){                       //以光开关状态为依据 将原来的在纤更新为备纤 将原来的备纤更新为在纤 
+                                       if(SNoRecvBackup > SNoRecvOnline){ 
+                                                 TempInt=SNoRecvBackup;   
+                                                 SNoRecvBackup   =  SNoRecvOnline;
+                                                 SNoRecvOnline   =  TempInt; 
 
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoRecvBackup;    //下行备纤
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoRecvBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
+                                                 TempInt=SNoSendBackup;   
+                                                 SNoSendBackup   =  SNoSendOnline;
+                                                 SNoSendOnline   =  TempInt; 
 
+						 TempFolat=PowerGateOnline;   
+						 PowerGateOnline=PowerGateBackup; 
+		                                 PowerGateBackup=TempFolat;
+                                      }
+                              }                               
+                              if(masterSwitchPos==PARALLEL){
+                                       if( SNoRecvBackup  < SNoRecvOnline){ 
+                                                 TempInt=SNoRecvBackup;   
+                                                 SNoRecvBackup   =  SNoRecvOnline;
+                                                 SNoRecvOnline   =  TempInt; 
+ 
+                                                 TempInt=SNoSendBackup;   
+                                                 SNoSendBackup   =  SNoSendOnline;
+                                                 SNoSendOnline   =  TempInt; 
 
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendOnline;   //上行在纤
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendOnline; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);    //上行备纤
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }
-
-
-				                 node=(alarmNode *)malloc(sizeof(alarmNode));
-						 node->SNo = SNoSendBackup;
-						 node->CM  = CM;
-						 node->ANo = ANo;     
-						 node->Order = ANo*100 +SNoSendBackup; 
-				                 if(p!=NULL){
-						       q=insert_B(q,node);
-				                 }else{
-						       p=NULL;
-						       break;
-				                 }                      
-				     nextAlarmTime  = getLocalTimestamp()+alarmClick;   
-		             }  
+						 TempFolat=PowerGateOnline;   
+						 PowerGateOnline=PowerGateBackup; 
+		                                 PowerGateBackup=TempFolat;
+                                        }  
+                                                   
+                             }
+                             uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,RESPONCE_ProtectSwitch);  //异常恢复
+                             /*if(p!=NULL) q=insertOTDtestNode(q,SNoRecvOnline,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoSendOnline,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoRecvBackup,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoSendBackup,CM,ANo);
+                             else{ p=NULL;break;}*/
+                             fristAlarmFlag= 0;
+                         } 
                  }else if(fristAlarmFlag!=0){       //正常             
-                                                    //状态A:从异常中首次恢复 --> fristAlarmFlag=1 实际光功率值>=阈值      
-                          printf("StateA--->SNoRecvOnline:%d  powerValue:%f <---> PowerGateOnline:%f\n",
-                                         SNoRecvOnline,    powerValue,         PowerGateOnline);  
-                          uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,4);  //异常恢复 
-                          fristAlarmFlag= 0;
+                                                    //状态A:在纤光路%d从异常中恢复 -->        
+                             printf("StateA--->在纤光路%d从异常中恢复...powerValue:%f <---> PowerGateOnline:%f\n",SNoRecvOnline,    powerValue,         PowerGateOnline); 
+			     swFlag=1; 
+                             uploadSwitchInfromation(CM,SNoRecvOnline,SNoSendOnline,masterSwitchPos,slaverSwitchPos,RESPONCE_ProtectSwitch);  //异常恢复 
+                             /*if(p!=NULL) q=insertOTDtestNode(q,SNoRecvOnline,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoSendOnline,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoRecvBackup,CM,ANo);
+                             else{ p=NULL;break;}
+                             if(p!=NULL) q=insertOTDtestNode(q,SNoSendBackup,CM,ANo);
+                             else{ p=NULL;break;}*/
+                          
+                             fristAlarmFlag= 0;
                 } 
                 else ;                              //状态B:正常  -->  fristAlarmFlag=0 实际光功率值>=阈值            
 
@@ -1495,8 +1434,13 @@ alarmNode  *rollPolingProtect(checkProtectNode *headA,alarmNode *headB)
                      p=NULL; 
                      flagNew=0; 
                      break;
-                }                    
+                }
+                if(linkHead_check_A !=NULL && swFlag==1){
+                     output_all_protect_node(linkHead_check_A);
+                 }                    
        }
+       SQL_Destory(mysql);
+       mysql=NULL;
        return q;
 }
 
@@ -1510,13 +1454,10 @@ void main(void)
 
         int flagCycle = 0,flagAlarm=0 ; 
         pid_t cyclePID[MAX_PID_NUM],alarmPID[MAX_PID_NUM];  
-
-
-
         /*初始化信号机制（与BOA通信）*/
        struct sigaction act;
        int sig;
-       sig=SIGUSR1;  
+       sig=SIGRTMIN+1;  
        sigemptyset(&act.sa_mask);
        act.sa_sigaction=addNewtoLink;
        act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                 
@@ -1558,11 +1499,12 @@ void main(void)
             
             linkHead_alarm_B=rollPolingProtect(linkHead_check_A,linkHead_alarm_B); 
       
-            outPutALL_B(linkHead_alarm_B);     
+            //outPutALL_B(linkHead_alarm_B);     
 
             linkHead_alarm_B=deleteALL_B(linkHead_alarm_B);
+            //output_all_protect_node(linkHead_check_A);
  
-            usleep(100000);
+            //usleep(1000);
             
            
             
@@ -1575,13 +1517,16 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact){
        switch(info->si_int){
            case 170:{ 
                     flagNew = 1;  
-                    linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
+                    printf("here 1\n");
+                    linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动自动光保护模式
+                    printf("here 2\n");
                     output_all_protect_node(linkHead_check_A);
+                    printf("here 3\n");
                     sendMessageQueue("170-OK");
 		    break;
                   }  
 
-          case  250:{
+          case  250:{                                                            //取消自动光保护模式
                     flagNew = 1;
                     linkHead_check_A = removeWaitingNode(linkHead_check_A);                   
                     output_all_protect_node(linkHead_check_A);
@@ -1591,13 +1536,13 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact){
 
            case 370:{ 
                     flagNew = 1;  
-                    linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
+                    linkHead_check_A = insertWaitingNode(linkHead_check_A);     //请求光保护切换
                     output_all_protect_node(linkHead_check_A);
                     sendMessageQueue("370-OK");
 		    break;
                   }     
-          default:{                                                              //异步接收光功率异常(测试)
-                    //realValue[SNo]=(float)value;
+          default:{                                                              
+                   
                     break;
                   }
       }

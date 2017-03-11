@@ -53,7 +53,7 @@
 
 #define  TIMEFORMAT "%Y-%m-%d %H:%M:%S"
 
-
+int16_t uint16toint16(uint16_t t);
 time_t str2Timestamp(char *str);          // 字符串形式(str): 2016-07-15 21:07:32
 time_t getLocalTimestamp();               // 获取本地时间戳
 time_t computTime(char * str);             // 按照字符串计算时间（日、时、分）

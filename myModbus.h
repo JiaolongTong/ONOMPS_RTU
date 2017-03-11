@@ -33,6 +33,12 @@
 #define  PARALLEL  0x10
 #define  ACROSS    0x60 
 
+#define  MODE1_ONLINE                   1
+#define  MODE2_BACKUP                   2
+#define  MODE3_PROTECT_MASTER           3
+#define  MODE4_ONLINE_POWER             4
+#define  MODE5_PROTECT_SLAVER           5
+
 /*Modbus RTU协议 寄存器地址划分 */
 #define  OPTICALPOWER_R_ADDRESS       0x0001
 #define  DISGUISE_WRITE_ADDRESS       0x000C
@@ -57,6 +63,8 @@
 #define  NB_LOW                       4
 #define  OFFSET_HIGH                  1
 #define  OFFSET_LOW                   2
+#define  READ_ADDR_HIGH               1
+#define  READ_ADDR_LOW                2
 
 #ifndef _FC_WRITE_MULTIPLE_REGISTERS
 #define _FC_WRITE_MULTIPLE_REGISTERS  0x10
@@ -71,6 +79,18 @@
 #define  ON_onlyGROUP                 0x0001
 #define  ON_onlyGATE                  0x0002
 #define  ON_autoPROTECT               0x0003
+
+
+#define  PD_A  1
+#define  PD_B  2
+#define  PD_C  3
+#define  PD_D  4
+
+#define  SW_A  1
+#define  SW_B  2
+#define  SW_C  3
+#define  SW_D  4
+
 
 #define  MODULE_NUMBER                0x0000
 
@@ -169,13 +189,7 @@ typedef struct netInfor{
 
 }netInfor; 
 
-                                                                                                       
-#define  MODE1_ONLINE                   1
-#define  MODE2_BACKUP                   2
-#define  MODE3_PROTECT_MASTER           3
-#define  MODE4_ONLINE_POWER             4
-#define  MODE5_PROTECT_SLAVER           5
- 
+                                                                                                     
 union sem_modbus   
 {  
     int val;  
@@ -200,13 +214,15 @@ netInfor * newNetInfor();
 void freeNetInfor(netInfor *me);
 
 netInfor * modbus_TCP_listen(modbus_t * ctx);
-
 int createSlaverProtectModule(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP);
 int setSlaverProtectGroup(modbus_t *ctx,int16_t ModNo,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos);
 int setSlaverProtectGate(modbus_t *ctx,int16_t ModNo,float powerGateA,float powerGateB);
 int deleteSlaverProtectModule(modbus_t *ctx,int16_t ModNo);
 int doSlaverProtectSwitch(modbus_t *ctx,int16_t ModNo,int16_t SwitchPos);
 int getSlaverModuleInformation(modbus_t *ctx,slaverModuleInformatin * slaverModule);
+int initSlaver_Full(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP,float powerGateA,float powerGateB,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos);
+int initSlaver_ModuelAndGroup(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos);
+
 
 float   getOneOpticalValue(modbus_t *mb,int SNo,int Mode);                               //光功率采集  OK
 int     getMulOpticalValue(modbus_t *mb,int SNo,int16_t num,float * value);

@@ -4,8 +4,15 @@
 #include  <mxml.h> 
 #include  "responed.h"
 
+#define STATUS_AUTO_PROTECT 1
+#define STATUS_PerSTATUS_PROTECT -1
+#define STATUS_WAIT_GATE    0
+
+
 typedef struct opticalprotect{
-  
+
+   uint32_t  CM;
+   uint32_t  CLP; 
    uint32_t  PN;                                                   //SN<MAX_OTDR_SN
    uint32_t  Action;                                               // 1 :start   2:abrot       -1:perStart    -2:perAbort  
    struct
@@ -24,6 +31,9 @@ typedef struct opticalprotect{
 	    uint32_t  sSNoA;                                       //主站上行在纤（备纤）光路号
             uint32_t  sSNoB;                                       //主站上行在纤（备纤）光路号
             uint32_t  sSwitchPos;                                   //主站上行1*2光开关状态  
+
+            float     sPowerGateA;
+            float     sPowerGateB;
 
     	}Group[MAX_OTDR_SN/2];                           
 }opticalprotect;

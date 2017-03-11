@@ -2,10 +2,10 @@
 extern  int modbus_sem_id;  
 
 int16_t  OpticalPower_PATH_Mode2_Mode4[] = { 0x0008, 0x0007, 0x0006, 0x0005, 0x0004,0x0003, 0x0002, 0x0001};       //光功率采集通道选择，备纤模式+在纤（OPM）模式   (脚标是光路号1-8)
-int16_t  OpticalPower_PATH_Mode3[]       = { 0x0008, 0x0007, 0x0006, 0x0005};                                      //光功率采集通道选择,保护模式 (脚标是保护组号1-4)
+int16_t  OpticalPower_PATH_Mode3[]       = { 0x0008, 0x0000, 0x0006, 0x0000, 0x0007,0x0000, 0x0005, 0x0000};       //光功率采集通道选择,保护模式 (脚标是光路号1-8)
 int16_t  OpticalPower_PATH_Mode5[]       = { 0x0008, 0x0007};
 int16_t  OpticalProtect_PATH_Mode3[]     = { 0x0003, 0x0002, 0x0001, 0x0004};                                      //光保护通道选择2*2光开关,保护模式
-int16_t  OpticalProtect_PATH_Mode5[]     = { 0x0003, 0x0002};                                                      //光保护通道选择2*2光开关,保护模式
+int16_t  OpticalProtect_PATH_Mode5[]     = { 0x0003, 0x0004};                                                      //光保护通道选择2*2光开关,保护模式
 int16_t  OpticalOTDR_PATH[]              = { 0x0001, 0x0002, 0x0003, 0x0004, 0x0005,0x0006, 0x0007, 0x0008};       //OTDR通道选择1*8光开关
 
 int initModbusPV()
@@ -35,7 +35,7 @@ void delModbusPV()
 {  
     //删除信号量  
     union sem_modbus sem_union;  
-  
+    
     if(semctl(modbus_sem_id, 0, IPC_RMID, sem_union) == -1)  {
         fprintf(stderr, "Failed to delete modbus_semaphore:%d\n",errno);  
         perror("ModBus_PV_del()");
@@ -85,18 +85,6 @@ modbus_t *newModbus(char *dev, int buad)
                               MODBUS_ERROR_RECOVERY_LINK |
                               MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-  if(mode=modbus_rtu_get_serial_mode(mb)<0)
-  {
-      printf("get 1 serial mode faild\n");
-      return (modbus_t *)-1;
-  }
-
-  mb=modbus_rtu_set_serial_mode(mb,MODBUS_RTU_RS232);
-  if(mode=modbus_rtu_get_serial_mode(mb)<0){
-      printf("get 2 serial mode faild\n");
-      return (modbus_t *)-1;
-  }
-  modbus_rtu_open_485de(mb,"/sys/class/leds/RS485_TX_RX/brightness");
   modbus_connect(mb);
   
   return mb;
@@ -291,7 +279,7 @@ int doOpticalProtectSwitch(modbus_t *mb,int SWNo,int flag,int Mode)
          return -1;
        }
     
-      return 0;
+      return regs;
 }
 
 
@@ -327,14 +315,14 @@ modbus_t *newModBus_TCP_Client(char *slaverIP)
     int16_t *tab_reg;
     modbus_t *ctx;
     int rc;
-    ctx = modbus_new_tcp("192.168.0.118", 1502);
+    ctx = modbus_new_tcp(slaverIP, 1502);
     if (modbus_connect(ctx) == -1) {
         fprintf(stderr, "Connection failed: %s\n",
                 modbus_strerror(errno));
         modbus_free(ctx);
-        return (modbus_t *)-1;
+        return NULL;
     }
-    modbus_set_debug(ctx, TRUE);
+    modbus_set_debug(ctx, FALSE);
     return ctx;
 
 }
@@ -347,7 +335,7 @@ void freeModbus_TCP_Client(modbus_t *ctx)
 modbus_t * newModBus_TCP_Server(modbus_mapping_t *mb_mapping)
 {
     modbus_t *ctx =NULL;
-    ctx = modbus_new_tcp("192.168.0.111", 1502);
+    ctx = modbus_new_tcp("0.0.0.0", 1502);
 
     mb_mapping = modbus_mapping_new(MODBUS_MAX_READ_BITS, 0,
                                     MODBUS_MAX_READ_REGISTERS, 0);
@@ -356,8 +344,9 @@ modbus_t * newModBus_TCP_Server(modbus_mapping_t *mb_mapping)
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
                 modbus_strerror(errno));
         modbus_free(ctx);
-        return (modbus_t *)-1;
+        return NULL;
     }
+    modbus_set_debug(ctx, FALSE);
     return ctx; 
 }
 
@@ -484,4 +473,50 @@ int getSlaverModuleInformation(modbus_t *ctx,slaverModuleInformatin * slaverModu
      read_date=NULL;
      return regs;
 }
+
+int initSlaver_Full(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP,float powerGateA,float powerGateB,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos){
+
+        int flagMasterA,flagMasterB,flagMasterC;
+	if(flagMasterA=createSlaverProtectModule(ctx,ModNo,CM,CLP)<0){
+		printf("Error to create new slaver protect module!\n");   
+	}else{
+		printf("Create slaver protect module successful!\n");
+	}
+	if(flagMasterB=setSlaverProtectGroup(ctx,ModNo,SNoA,SNoB,SwitchPos,ConnectPos)<0){
+		printf("Error to set slaver protect group!\n");   
+	}else{
+		printf("set slaver protect group successful!\n");
+	}
+	if(flagMasterC=setSlaverProtectGate(ctx,ModNo,powerGateA,powerGateB)<0){
+		printf("Error to set slaver protect gate!\n"); 
+	}else{
+		printf(" set slaver protect gate successful!\n");
+	}
+        if(flagMasterA>=0 && flagMasterB>=0 && flagMasterC>=0)return 0;
+        else return -1;
+}
+
+int initSlaver_ModuelAndGroup(modbus_t *ctx,int16_t ModNo,int16_t CM,int16_t CLP,int16_t SNoA,int16_t SNoB,int16_t SwitchPos,int16_t ConnectPos){
+        int flagMasterA,flagMasterB;
+	if(flagMasterA=createSlaverProtectModule(ctx,ModNo,CM,CLP)<0){
+		printf("Error to create new slaver protect module!\n");   
+	}else{
+		printf("Create slaver protect module successful!\n");
+	}
+	if(flagMasterB=setSlaverProtectGroup(ctx,ModNo,SNoA,SNoB,SwitchPos,ConnectPos)<0){
+		printf("Error to set slaver protect group!\n");   
+	}else{
+		printf("set slaver protect group successful!\n");
+	}
+        if(flagMasterA>=0 && flagMasterB>=0)return 0;
+        else return -1;
+}
+
+
+
+
+
+
+
+
 

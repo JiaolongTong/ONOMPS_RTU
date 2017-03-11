@@ -654,37 +654,32 @@ checkNode *insertWaitingNode(checkNode *head)
 				        T4= computTime(result[0]);
 					printf("T4:%ld  ",T4);
 		                        SQL_freeResult(&result,&rednum);
-
-                                         /*
-		                        if(!setModbus_P())                                                //P
-		                           exit(EXIT_FAILURE);  
-		                        //usleep(50000); 
-		                        modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-		                        ret = setOneOpticalThreshold(mb,node->SNo,node->PowerGate);      //设置备纤光功率阈值
-		                        freeModbus(mb);   
-		                        //usleep(50000);                   
-		                        if(!setModbus_V())                                                //V
-		                           exit(EXIT_FAILURE);  
-                                       */
-                                        ret=0;
-                                        printf("----------->Here\n");
-				        if(ret==0){ 	
-				            node=(checkNode *)malloc(sizeof(checkNode));		    
-					    node->SNo           = atoi(SNo);
-					    node->CM            = CM;
-					    node->ANo           = ANo;
-					    node->PowerGate     = PowerGate;
-					    node->fristAlarmFlag= 0;
-					    node->nextAlarmTime = getLocalTimestamp();                    
-					    node->alarmClick    = T3;                                
-		                            find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
-				            if(find ==NULL){
+  
+                                        mysql->filedsName    = "Status"; 
+                                        mysql->filedsValue   = "1";
+				        if(!semaphore_p())  
+				          exit(EXIT_FAILURE);                                 //P
+				        rc=SQL_modify(mysql);
+				        if( rc != SQLITE_OK )
+					  printf( "Modify SQL error\n");
+				        if(!semaphore_v())                                     //V
+				          exit(EXIT_FAILURE); 
+	
+				        node=(checkNode *)malloc(sizeof(checkNode));		    
+					node->SNo           = atoi(SNo);
+					node->CM            = CM;
+					node->ANo           = ANo;
+					node->PowerGate     = PowerGate;
+					node->fristAlarmFlag= 0;
+					node->nextAlarmTime = getLocalTimestamp();                    
+					node->alarmClick    = T3;                                
+		                        find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
+				        if(find ==NULL){
 				               head = insert_A(head,node);                
-					    }else{
+					}else{
 					       head = delete_A(head,find->SNo);         
 				               head = insert_A(head,node); 
-				            }
-				        } 
+				        }
                                 }//end if
                           }//endif
                        
@@ -759,14 +754,12 @@ checkNode * removeWaitingNode(checkNode *head)
 		             head = delete_A(head,intSNo);    
                        }          
                        mysql->tableName    = "AlarmTestSegmentTable";                                    
-                       mysql->filedsValue  =  "2";                                             
-                       mysql->filedsName   =  "Status";
                        mysql->mainKeyValue = SNo;
                        if(!semaphore_p())  
                           exit(EXIT_FAILURE);                                 //P
-                       rc=SQL_modify(mysql);
+                       rc=SQL_delete(mysql);
                        if( rc != SQLITE_OK )
-			  printf( "Modify SQL error\n");
+			  printf( "Delete SQL error\n");
                        if(!semaphore_v())                                     //V
                           exit(EXIT_FAILURE);    
                               	
@@ -869,12 +862,9 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
 		  break;
              }              
              if( powerValue < PowerGate ){    //异常	 
-                     nowTime = getLocalTimestamp(); 
-                     printf("intSNo:%d---intANo:%d--intCM:%d--fristAlarmFlag:%d--PowerGate:%f--nextAlarmTime:%ld--nowTime:%ld--powerValue:%f\n",
-                             intSNo,     intANo,     intCM,   fristAlarmFlag,    PowerGate,    nextAlarmTime,     nowTime,     powerValue);                    
+                     nowTime = getLocalTimestamp();                   
                      if(fristAlarmFlag ==0){                                   //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
-                          printf("StateC--->SNo  powerValue:%f <---> gateValue:%f\n",
-                                         intSNo ,powerValue,         PowerGate);
+                          printf("障碍告警(备纤、在纤OPM):StateC--->光路%d 首次出现异常...光功率值:%f <---> 参考门限:%f\n\n",intSNo ,powerValue,PowerGate);
                          
 		          fristAlarmFlag = 1;
 			  node=(alarmNode *)malloc(sizeof(alarmNode));
@@ -890,8 +880,7 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
                           }
 	                  nextAlarmTime  = getLocalTimestamp()+alarmClick;                  
                      }else if(nowTime >= nextAlarmTime){                       //状态D:长期处于异常 -->fristAlarmFlag=1   实际光功率值<阈值  
-                          printf("StateD--->SNo:%d  powerValue:%f <---> gateValue:%f\n",
-                                         intSNo,    powerValue,         PowerGate);                                   
+                          printf("障碍告警(备纤、在纤OPM):StateD--->光路%d 长期处于异常...光功率值:%f <---> 参考门限:%f\n\n",intSNo,powerValue,PowerGate);                                   
 			  node=(alarmNode *)malloc(sizeof(alarmNode));
 			  node->SNo = intSNo;
 			  node->CM  = intCM;
@@ -907,8 +896,7 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
                      }  
                  }                               //正常             
                  else if(fristAlarmFlag!=0){                                 //状态A:从异常中首次恢复 --> fristAlarmFlag=1 实际光功率值>=阈值      
-                          printf("StateA--->SNo:%d  powerValue:%f <---> gateValue:%f\n",
-                                         intSNo,    powerValue,         PowerGate);  
+                          printf("障碍告警(备纤、在纤OPM):StateA--->光路%d 从异常中恢复...光功率值:%f <---> 参考门限:%f\n\n",intSNo,powerValue,PowerGate);  
                           bData=backData_Create();
                           bData->powerValue =powerValue;
                           bData->powerGate  =PowerGate;
@@ -1050,7 +1038,6 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact)
 		    break;    
                    }         
           default:{                                                             //异步接收光功率异常(测试)
-                    //realValue[SNo]=(float)value;
                     break;
                   }
       }
