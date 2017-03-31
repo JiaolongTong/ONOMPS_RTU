@@ -31,6 +31,8 @@ start_system()
 		 otdrMain)eval  otdrFlag=${varvalue};;
 		 cycleMain)eval cycleFlag=${varvalue};;
 		 alarmMain)eval alarmFlag=${varvalue};;
+                 ProtectMasterMain)eval  ProtectMasterFlag=${varvalue};;
+                 ProtectSlaveMain)eval  ProtectSlaveFlag=${varvalue};;
                  autoPowerOn)  autoPowerOn=${varvalue};;
 		 --)break ;;
 		 *)  echo "非法参数!"; echo "终止执行..." exit ;;  
@@ -103,17 +105,36 @@ start_system()
 	       then
 		    echo "启动OTDR进程 ..."
 		   ./otdrMain &
+                   sleep 1
 	       fi
 	       if [  $cycleFlag = "y" ]
 	       then
 		   echo "启动周期测试进程 ..."
 		   ./cycMain &
+                   sleep 1
 	       fi
 	       if [  $alarmFlag = "y" ]
 	       then
 		   echo "启动障碍告警测试进程 ..."
 		  ./alarmMain &
+                  sleep 1
 	       fi
+               sleep 1
+	       if [  $ProtectMasterFlag = "y" ]
+	       then
+		   echo "启动主端保护进程 ..."
+		  ./ProtectMasterMain &
+                  sleep 1
+	       fi
+               sleep 1
+	       if [  $ProtectSlaveFlag = "y" ]
+	       then
+		   echo "启动从端保护进程 ..."
+		  ./ProtectSlaveMain &
+                  sleep 1
+	       fi
+               sleep 1
+               ./selfCheck &
        fi
        echo $! | tee $pid_file
 }

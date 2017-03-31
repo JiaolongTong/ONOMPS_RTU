@@ -275,62 +275,79 @@ responed * cancelRTUMode(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 	    intCM = strtoul(CM->child->value.text.string, NULL, 0); 	
 
 /***************************向后台发送取消请求*******************************/
-
-/*周期测试守护进程*/
        int signum;
        union sigval mysigval;
-       char* process;  
+
        int ret = 0;  
        int n;  
        pid_t cycPID[MAX_PID_NUM];  
        char * recvStr; 
        recvStr = (char *) malloc (sizeof (char)*10);
+/*周期测试守护进程*/
 
-       process ="/web/cgi-bin/cycMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-       mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
-       for(n=0;n<ret;n++){  
-        printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-        if(sigqueue(cycPID[n],signum,mysigval)==-1)
-               printf("send signal error\n");
-        } 
-               /*等待周期测试守护进程取消RTU模式成功信号*/
- 
+                      
+       ret = get_pid_by_name("/web/cgi-bin/cycMain", cycPID, MAX_PID_NUM);
+       if(ret>0){  
+	       printf("process '/web/cgi-bin/cycMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+	       signum=SIGRTMIN+1;                                      //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
+	       for(n=0;n<ret;n++){  
+		printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+		if(sigqueue(cycPID[n],signum,mysigval)==-1)
+		       printf("send signal error\n");
+		} 
+		       /*等待周期测试守护进程取消RTU模式成功信号*/
 
-      recvStr = recvMessageQueue_C();
-      if(strncmp(recvStr, "260-OK", 6) != 0){                  //遇"260-OK"结束
-          printf("CancelRTUMode failed!\n");
-          printf("<RespondCode>3</RespondCode>\n");
-          resp->RespondCode=-1;
-       return resp;
+	      if(recvMessageQueue_Backstage("260-OK-C",CYCLE_MESSAGE_TYPE)== 0){                  //遇"260-OK"结束
+		  printf("CancelRTUMode failed!\n");
+		  printf("<RespondCode>3</RespondCode>\n");
+		  resp->RespondCode=-1;
+	          return resp;
+	      }
        }
-
 
 /*障碍告警测试守护进程*/
-       process ="/web/cgi-bin/alarmMain";                        
-       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-       printf("process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-       mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
-       for(n=0;n<ret;n++){  
-	       printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
-		       printf("send signal error\n");
-       } 
+                      
+       ret = get_pid_by_name("/web/cgi-bin/alarmMain", cycPID, MAX_PID_NUM); 
+       if(ret>0){ 
+	       printf("process '/web/cgi-bin/alarmMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+	       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
+	       for(n=0;n<ret;n++){  
+		       printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+		       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("send signal error\n");
+	       } 
 
-       recvStr = recvMessageQueue_C();
-       if(strncmp(recvStr, "260-OK", 6) != 0){                 //遇"260-OK"结束
-	       printf("CancelRTUMode failed!\n");
-	       printf("<RespondCode>3</RespondCode>\n");
-	       resp->RespondCode=-1;
-       return resp;
+	       if(recvMessageQueue_Backstage("260-OK-A",ALARM_MESSAGE_TYPE)== 0){                 //遇"260-OK"结束
+		       printf("CancelRTUMode failed!\n");
+		       printf("<RespondCode>3</RespondCode>\n");
+		       resp->RespondCode=-1;
+	               return resp;
+	       }
+       }
+/*向主端保护守护进程*/                         
+       ret = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", cycPID, MAX_PID_NUM); 
+       if(ret>0){ 
+	       printf("process '/web/cgi-bin/ProtectMasterMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+	       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 260;                               //设置信号的附加信息 (取消RTU模式)                               
+	       for(n=0;n<ret;n++){  
+		       printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+		       if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("send signal error\n");
+	       } 
+
+	       if(recvMessageQueue_Backstage("260-OK-P",PROTECT_MESSAGE_TYPE) == 0){                 //遇"260-OK"结束
+		       printf("CancelRTUMode failed!\n");
+		       printf("<RespondCode>3</RespondCode>\n");
+		       resp->RespondCode=-1;
+	               return resp;
+	       }
        }
 
-
       free(recvStr);
-
+  
 
 /***********修改数据库标识/清空数据库*******************/
 
@@ -421,7 +438,8 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
          mxml_node_t *PX,*PN,*SNo,*Type;
 	 int  intSNo=0,intPN=0,intType=0,setRTUPort=0,i=0;
-         char strPX[3]="Px";
+
+         char strPX[10],strNum[10];
 
          for(i=0;i<MAXRTUPORT;i++) rtuMode->rtuPort[i] =0;
 
@@ -434,7 +452,12 @@ responed * setRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
          for (i=0;i<intPN;i++)                                               
          { 
-  	        strPX[1]=i+0x31;
+  
+                strPX[0]='\0';
+                strcat(strPX,"P");
+                uint32tostring(i+1,strNum);
+                strcat(strPX,strNum);
+
 		PX     = mxmlFindElement(cmd, tree, strPX ,NULL, NULL,MXML_DESCEND); 
                 SNo    = mxmlFindElement(PX,tree,"SNo",NULL, NULL,MXML_DESCEND); 
                 intSNo =  strtoul(SNo->child->value.text.string, NULL, 0);  
@@ -551,7 +574,7 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
          mxml_node_t *PX,*PN,*SNo,*Type;
 	 int  intSNo,intPN,intType,i=0;
-         char strPX[3]="Px";
+         char strPX[3],strNum[10];
 
          for(i=0;i<MAXRTUPORT;i++) rtuMode->rtuPort[i] =0;
 
@@ -562,23 +585,28 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
          intPN =  strtoul(PN->child->value.text.string, NULL, 0);
          rtuMode->sumPort =intPN;                                            //RTU中Port数量
 
-            printf("hello!\n");
 
          for (i=0;i<intPN;i++)                                               
          { 
-  	        strPX[1]=i+0x31;
+  
+                strPX[0]='\0';
+                strcat(strPX,"P");
+                uint32tostring(i+1,strNum);
+                strcat(strPX,strNum);
+
 		PX     = mxmlFindElement(cmd, tree, strPX ,NULL, NULL,MXML_DESCEND); 
                 SNo    = mxmlFindElement(PX,tree,"SNo",NULL, NULL,MXML_DESCEND); 
                 intSNo =  strtoul(SNo->child->value.text.string, NULL, 0);  
 
-                rtuMode->rtuPort[intSNo-1]=1;                          
+                rtuMode->rtuPort[intSNo-1]=1;    
+                printf("delete SNo=%d \n",intSNo);                  
          }
 
             printf("--------RTU局站号:%d-------\n",rtuMode->rtuCM);
             for(i=0;i<MAXRTUPORT;i++)
             {
-                if(rtuMode->rtuPort[i] ==1)
-                    printf("删除Port:%d\n",i+1,rtuMode->rtuPort[i]);  
+                if(rtuMode->rtuPort[i] == 1)
+                    printf("删除Port:%d Type:%d\n",i+1,rtuMode->rtuPort[i]);  
             }
 /***************************删除测试节点***************************************/
 /*向后台进程发送相应节点信息，删除相应的测试节点*/
@@ -586,7 +614,6 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 
        int signum;
        union sigval mysigval;
-       char* process;  
        int ret = 0;  
        int n;  
        pid_t cycPID[MAX_PID_NUM];  
@@ -596,33 +623,12 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
        for(i=0;i<MAXRTUPORT;i++)
        {
            if(rtuMode->rtuPort[i]==1){
-/*障碍告警测试 */
-	       process ="/web/cgi-bin/alarmMain";                        
-	       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
-               if(ret>0){
-		       printf("alarmMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-		       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
-		       for(n=0;n<ret;n++){  
-			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
-			if(sigqueue(cycPID[n],signum,mysigval)==-1)
-			       printf("alarmMain:send signal error\n");
-		       } 
-
-		       recvStr = recvMessageQueue_C();
-		       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
-			  printf("alarmMain: CancelRTUPort failed!:%s\n",recvStr);
-			  printf("<RespondCode>3</RespondCode>\n");
-			  resp->RespondCode=-1;
-		       return resp;
-		       }
-               }
 /*周期测试*/
-	       process ="/web/cgi-bin/cycMain";  
-	       ret = get_pid_by_name(process, cycPID, MAX_PID_NUM); 
+	       ret = get_pid_by_name("/web/cgi-bin/cycMain", cycPID, MAX_PID_NUM); 
+       
                if( ret >0 ){ 
-		       printf("cycMain:process '%s' is existed? (%d): %c\n", process, ret, (ret > 0)?'y':'n');  
-		       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+		       printf("cycMain:process '/web/cgi-bin/cycMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+		       signum=SIGRTMIN+1;                                       //设置信号值:插入或修改周期测试链表节点值
 		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
 		       for(n=0;n<ret;n++){  
 			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
@@ -630,17 +636,57 @@ responed * cancelRTUPort(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 			       printf("cycMain: send signal error\n");
 		       } 
 
-		       recvStr = recvMessageQueue_C();
-		       if(strncmp(recvStr, "270-OK", 6) != 0){                 //遇"270-OK"结束
+                       if( recvMessageQueue_Backstage("270-OK-C",CYCLE_MESSAGE_TYPE) == 0){                 
 			  printf("cycMain: CancelRTUPort failed!\n");
 			  printf("<RespondCode>3</RespondCode>\n");
 			  resp->RespondCode=-1;
-		       return resp;
+		          return resp;
+		       }		     
+
+               }
+/*障碍告警测试 */
+   
+	       ret = get_pid_by_name("/web/cgi-bin/alarmMain", cycPID, MAX_PID_NUM);  
+               if(ret>0){
+		       printf("alarmMain:process '/web/cgi-bin/alarmMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+		       signum=SIGRTMIN+1;                                      //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
+		       for(n=0;n<ret;n++){  
+			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+			if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("alarmMain:send signal error\n");
+		       } 
+
+                       if( recvMessageQueue_Backstage("270-OK-A",ALARM_MESSAGE_TYPE) == 0){                 
+			  printf("alarmMain: CancelRTUPort failed!\n");
+			  printf("<RespondCode>3</RespondCode>\n");
+			  resp->RespondCode=-1;
+		          return resp;
+		       }
+               }
+
+/*向主端保护守护进程*/  
+	       ret = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", cycPID, MAX_PID_NUM); 
+               if( ret >0 ){ 
+		       printf("cycMain:process '/web/cgi-bin/ProtectMasterMain' is existed? (%d): %c\n", ret, (ret > 0)?'y':'n');  
+		       signum=SIGRTMIN+1;                                      //设置信号值:插入或修改周期测试链表节点值
+		       mysigval.sival_int = 270+i+1;                           //设置信号的附加信息 (取消RTU模式)                               
+		       for(n=0;n<ret;n++){  
+			printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
+			if(sigqueue(cycPID[n],signum,mysigval)==-1)
+			       printf("cycMain: send signal error\n");
+		       } 
+
+                       if( recvMessageQueue_Backstage("270-OK-P",PROTECT_MESSAGE_TYPE) == 0){                 
+			  printf("ProtectMasterMain: CancelRTUPort failed!\n");
+			  printf("<RespondCode>3</RespondCode>\n");
+			  resp->RespondCode=-1;
+		          return resp;
 		       }
                }
 
            }
-           usleep(1000);
+           //usleep(1000);
        }
 
 
@@ -747,7 +793,7 @@ responed * requestRebootRTU(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 		}	 
 		                    /*等待信号的成功处理消息*/		    
 		recvStr = (char *) malloc (sizeof (char)*20);                                              
-		recvStr = recvMessageQueue_A("0-OK-38",38);                          //阻塞等待测试执行完毕      
+		recvStr = recvMessageQueue_Block("0-OK-38",38);                //阻塞等待测试执行完毕      
 		if(strncmp(recvStr, "0-OK-38",7) == 0){                    //遇"0-OK-38"结束		      
 		      printf("ReBoot RTU  sucessful!\n");
 		}

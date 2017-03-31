@@ -133,18 +133,32 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
            rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
            if( rc != SQLITE_OK )
 	      printf( "Open SQL error\n");
-	  
+	   printf("-----------------------------:here 1\n");
            mysql->db =mydb;
 
            mysql->tableName ="SubModuleTypeTable";                 //检查子单元模块是否存在
            ModuleNo = ((SNo-1)/8)+1;
            uint32tostring(ModuleNo,strSNO);
            mysql->mainKeyValue = strSNO;
-           mysql->filedsName   = "UseFlag";
-           SQL_lookupPar(mysql,&result,&rednum);
-           UseFlag=atoi(result[0]);
-           SQL_freeResult(&result,&rednum);
-     
+           if(SQL_existIN_db(mysql)){
+		   mysql->filedsName   = "UseFlag";
+	           printf("-----------------------------:here 2\n");
+		   SQL_lookupPar(mysql,&result,&rednum);
+		   UseFlag=atoi(result[0]);
+		   SQL_freeResult(&result,&rednum);
+	           printf("-----------------------------:here 3  \n"); 
+           }else{
+                   resp->RespondCode  = 14;
+                   resp->ErrorSN      = 1;                     
+                   resp->SNorPN       = TYPE_SNo;
+                   resp->Group[0].SNo = nmdpar->SNo;
+                   resp->Group[0].Main_inform  = "模块未激活";
+		   resp->Group[0].Error_inform = "Error: Don't have such Module\n";
+		   NamedP_Destory(nmdpar);  
+		   NamedP_Destory(namedTemp);
+		   return  resp;   
+
+           }   
            if(UseFlag!=1)
            {
                   resp->RespondCode  = 14;
@@ -277,8 +291,8 @@ responed * setNamedTestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 		recvStr = (char *) malloc (sizeof (char)*20);
                 constStr = (char *) malloc (sizeof (char)*20); 
                 sprintf(constStr,"1-OK-%d",namedTemp->masterPID);
-                msgType = namedTemp->masterPID;                                          //       
-		recvStr = recvMessageQueue_A(constStr,msgType);                          //阻塞等待测试执行完毕      
+                msgType = namedTemp->masterPID;                                           //       
+		recvStr = recvMessageQueue_Block(constStr,msgType);                       //阻塞等待测试执行完毕      
 		if(strncmp(recvStr, constStr, strlen(constStr)) == 0){                    //遇"1-OK-[PID]"结束		      
 		      printf("Named test from otdrMain  sucessful!\n");
 		}

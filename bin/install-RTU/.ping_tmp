@@ -1,7 +1,4 @@
-PING 192.168.0.106 (192.168.0.106): 56 data bytes
-64 bytes from 192.168.0.106: seq=0 ttl=64 time=204.590 ms
-64 bytes from 192.168.0.106: seq=1 ttl=64 time=2.533 ms
+PING 192.168.0.140 (192.168.0.140): 56 data bytes
 
---- 192.168.0.106 ping statistics ---
-2 packets transmitted, 2 packets received, 0% packet loss
-round-trip min/avg/max = 2.533/103.561/204.590 ms
+--- 192.168.0.140 ping statistics ---
+2 packets transmitted, 0 packets received, 100% packet loss

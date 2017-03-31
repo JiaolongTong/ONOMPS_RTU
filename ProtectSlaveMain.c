@@ -708,7 +708,7 @@ int modbus_server(void)
         modbus_free(modbus_tcp);
         return -1;
     }
-    modbus_set_debug(modbus_tcp, FALSE);
+    modbus_set_debug(modbus_tcp, TRUE);
     serverInfor.server_socket = modbus_tcp_listen(modbus_tcp, NB_CONNECTION);
     if (serverInfor.server_socket == -1) {
         fprintf(stderr, "Unable to listen TCP connection\n");

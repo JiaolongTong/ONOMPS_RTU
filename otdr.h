@@ -1,12 +1,22 @@
 #ifndef OTDR_H
 #define OTDR_H
 #include "tcp-otdr.h"
+
 #include "common.h"
 
 #include <sys/sem.h>
-#define BUF_SIZE          (128*1024)       //OTDR测试缓冲区大小
-//#define OTDR_IP           "192.168.1.180"
+
+#define BUF_SIZE          (128*1024)              //OTDR测试缓冲区大小
+
+#define BEIJING
+
+#ifndef BEIJING
 #define OTDR_IP           "192.168.1.249"
+#else
+#define OTDR_IP           "192.168.1.180"
+#endif             
+#define onlyOne_Moudle    1                       // 1 只有一个功能模块  0 不止一个功能模块
+ 
 typedef struct otdr otdr;
 struct otdr {
         int      haveParm;                        //是否存在测试参数
@@ -36,7 +46,8 @@ void   OTDR_Destory(otdr *me);
 int NetworkIdle(int s,char *buf);
 otdr *lookupParm(int SNo,int type);
 int HostStartMeasure(int sockt,otdr const * me,char * buf);
-int ProcessData(char pbuf[], uint32_t len,int * flag);
+
+int ProcessData(char pbuf[], uint32_t len,int * flag,char * fileName);
 int OtdrTest(otdr const * me);
 
 

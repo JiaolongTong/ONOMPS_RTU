@@ -316,7 +316,7 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
        retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
        printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
        if(retProcess>0){
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
 	       mysigval.sival_int = 120;                               //设置信号的附加信息 (启动周期测试)                               
 	       for(n=0;n<retProcess;n++){  
 		printf("cycPID:%u\n", cycPID[n]);                      //获取周期测试守护进程PID
@@ -324,20 +324,17 @@ responed *getCycletestParameter(mxml_node_t *root,mxml_node_t *tree,cycletest *c
 		       printf("send signal error\n");
 	      }  
 	             /*等待启动周期测试成功信号*/
-	      char * recvStr;  
-	      recvStr = (char *) malloc (sizeof (char)*10);
 
-	      recvStr = recvMessageQueue_C();
-	      if(strncmp(recvStr, "120-OK", 6) == 0)                 //遇"120-OK"结束
+	      if(recvMessageQueue_Backstage("120-OK",CYCLE_MESSAGE_TYPE) == 1) {                //遇"120-OK"结束
 		 printf("SetCycleSegment sucessful!\n");
-	      else{
+	      }else{
 		    resp->RespondCode=3;
 		    resp->Group[0].Main_inform  = "周期测试设置失败-->未收到回复消息";
 		    resp->Group[0].Error_inform = "Error:Don't get back massgae![周期测试设置失败-->未收到回复消息]";
-                    free(recvStr);
+
 		    return resp;
               }
-              free(recvStr);
+
       }else{
 
 		    resp->RespondCode=3;
@@ -474,7 +471,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
        int signum;
        union sigval mysigval;
        char  *process=NULL;
-       char  *recvStr=NULL;  
+ 
        int retProcess = 0,n=0;  
        pid_t cycPID[MAX_PID_NUM];  
 
@@ -482,7 +479,7 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
        retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
        if(retProcess>0){
 	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
 	       mysigval.sival_int = 220;                               //设置信号的附加信息 (启动障碍告警测试)                               
 	       for(n=0;n<retProcess;n++){  
 	       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
@@ -490,19 +487,18 @@ responed *endCycle(mxml_node_t *root,mxml_node_t *tree,cycletest *cycfpar)
 		       printf("send signal error\n");
 	      }  
 	           /*等待启动障碍告警测试成功信号*/
-            recvStr = (char *) malloc(sizeof(char)*10); 
-	    recvStr = recvMessageQueue_C();
-	    if(strncmp(recvStr, "220-OK", 6) == 0)                     //遇"130-OK"结束
-	       printf("Set Alarmtest sucessful!\n");
-	    else{
+
+	    if( recvMessageQueue_Backstage("220-OK",CYCLE_MESSAGE_TYPE) == 1){                     //遇"130-OK"结束
+	            printf("Set Alarmtest sucessful!\n");
+	    }else{
                     printf("SetCycleSegment failed!\n");
 		    resp->RespondCode=3;
 		    resp->Group[0].Main_inform  = "周期测试取消失败-->未收到回复消息";
 		    resp->Group[0].Error_inform = "Error:Don't get back massage![周期测试取消失败-->未收到回复消息]";
-	            free(recvStr);
+
 		    return resp;  
             }
-	    free(recvStr);
+
       }else{
 	      resp->RespondCode=3;
 	      resp->Group[0].Main_inform  = "周期测试取消失败-->未找到后台进程";

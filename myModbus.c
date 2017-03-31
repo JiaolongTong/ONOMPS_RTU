@@ -1,12 +1,14 @@
-#include "myModbus.h"
-extern  int modbus_sem_id;  
 
-int16_t  OpticalPower_PATH_Mode2_Mode4[] = { 0x0008, 0x0007, 0x0006, 0x0005, 0x0004,0x0003, 0x0002, 0x0001};       //光功率采集通道选择，备纤模式+在纤（OPM）模式   (脚标是光路号1-8)
-int16_t  OpticalPower_PATH_Mode3[]       = { 0x0008, 0x0000, 0x0006, 0x0000, 0x0007,0x0000, 0x0005, 0x0000};       //光功率采集通道选择,保护模式 (脚标是光路号1-8)
-int16_t  OpticalPower_PATH_Mode5[]       = { 0x0008, 0x0007};
-int16_t  OpticalProtect_PATH_Mode3[]     = { 0x0003, 0x0002, 0x0001, 0x0004};                                      //光保护通道选择2*2光开关,保护模式
-int16_t  OpticalProtect_PATH_Mode5[]     = { 0x0003, 0x0004};                                                      //光保护通道选择2*2光开关,保护模式
-int16_t  OpticalOTDR_PATH[]              = { 0x0001, 0x0002, 0x0003, 0x0004, 0x0005,0x0006, 0x0007, 0x0008};       //OTDR通道选择1*8光开关
+#include "myModbus.h"
+extern   int modbus_sem_id;  
+#define  Delag_TIME  0     //us
+const int16_t  OpticalPower_PATH_Mode2_Mode4[] = { 0x0008, 0x0007, 0x0006, 0x0005, 0x0004,0x0003, 0x0002, 0x0001};       //光功率采集通道选择，备纤模式+在纤（OPM）模式   (脚标是光路号1-8)
+const int16_t  OpticalPower_PATH_Mode3[]       = { 0x0008, 0x0000, 0x0006, 0x0000, 0x0007,0x0000, 0x0005, 0x0000};       //光功率采集通道选择,保护模式 (脚标是光路号1-8)
+const int16_t  OpticalPower_PATH_Mode5[]       = { 0x0008, 0x0007};
+const int16_t  OpticalProtect_PATH_Mode3[]     = { 0x0003, 0x0002, 0x0001, 0x0004};                                      //光保护通道选择1*2光开关,保护模式
+const int16_t  OpticalProtect_PATH_Mode5[]     = { 0x0003, 0x0004};                                                      //光保护通道选择1*2光开关,保护模式
+const int16_t  OpticalOTDR_PATH_Ordinary[]     = { 0x0001, 0x0002, 0x0003, 0x0004, 0x0005,0x0006, 0x0007, 0x0008};       //一般模式OTDR通道选择1*8光开关
+const int16_t  OpticalOTDR_PATH_Protect[]      = { 0x0001, 0x0004, 0x0005, 0x0008, 0x0002,0x0003, 0x0006, 0x0007};       //保护模式OTDR通道选择1*8光开关
 
 int initModbusPV()
 {
@@ -78,6 +80,7 @@ modbus_t *newModbus(char *dev, int buad)
 {
   modbus_t *mb;
   int mode;
+  //usleep(Delag_TIME);
   mb = modbus_new_rtu(dev,buad,'N',8,1);
   modbus_set_debug(mb, FALSE);
 
@@ -104,6 +107,7 @@ float   getOneOpticalValue(modbus_t *mb,int SNo,int Mode)   //光功率采集
        int16_t subPort;
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
+       //usleep(Delag_TIME);
        modbus_set_slave(mb,devAddr);   
        switch(Mode){
           case  MODE2_BACKUP          :
@@ -124,6 +128,7 @@ int getMulOpticalValue(modbus_t *mb,int SNo,int16_t num,float * value)
        int16_t subPort;
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
+       //usleep(Delag_TIME);
        modbus_set_slave(mb,devAddr);       
        regs=modbus_read_registers(mb,OPTICALPOWER_R_ADDRESS+subPort,num, tab_reg);
        for(i=0;i<regs;i++){
@@ -133,41 +138,40 @@ int getMulOpticalValue(modbus_t *mb,int SNo,int16_t num,float * value)
 }
 
 
-int doOtdrSwitch(modbus_t * mb,int SNo,int onlyOne)
+int doOtdrSwitch(modbus_t * mb,int SNo,int onlyOne,int ModType)
 {
-       int regs;
-       int PortA,PortB;
-       PortA =((SNo-1)/8)+1;                    //OTDR子单元的1*8光开关号
-       PortB =((SNo-1)%8)+1;                      //光功率模块上的1*8光开关号
-       modbus_set_slave(mb,0);              //OTDR子单元地址 
+       int regs=-1;
+       int otdrPort,subPort;
+       otdrPort =((SNo-1)/8)+1;                    //OTDR子单元的1*8光开关号
+       subPort =((SNo-1)%8)+1;                     //功能子单元模块上的1*8光开关号
+       //usleep(Delag_TIME);
+       modbus_set_slave(mb,0);                     //OTDR单元地址 
        if(!onlyOne){ 
-               regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,PortA);
-     
+               if(ModType == MODE3_PROTECT_MASTER )
+                  regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,otdrPort);
+               else
+                  regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,otdrPort);
+
 	       if(1 == regs){
-		  //if(mb->debug){
-		    printf("第一组1*8光开关切换成功-->PortA=%d\n",PortA);
-		  //}
+		     printf("OTDR单元模块1*8光开关切换成功-->otdrPort=%d\n",otdrPort);
 	       }else
 	       {
-		 // if(mb->debug){
-		     printf("第一组1*8光开关切换失败->back=%d\n",regs);
-		 //  }
+		     printf("OTDR单元模块1*8光开关切换失败->back=%d\n",regs);
 		   return -1;
 	       }
        }
-       modbus_set_slave(mb,PortA);          //光功率模块子单元地址   1-8
-       usleep(100000);
-       regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,PortB);
+       modbus_set_slave(mb,otdrPort);              //功能子单元地址   1-8
+       //usleep(Delag_TIME);
+       if( ModType ==  MODE3_PROTECT_MASTER )
+             regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS, OpticalOTDR_PATH_Protect[subPort-1]);
+       else
+             regs=modbus_write_register(mb,OTDRSWITCH_W_ADDRESS,OpticalOTDR_PATH_Ordinary[subPort-1]);
        if(1 == regs){
-           //if(mb->debug){
-              printf("第二组1*8光开关切换成功-->PortB=%d\n",PortB);
-          // }
+              printf("功能子单元模块1*8光开关切换成功-->subPort=%d\n",subPort);
        }else
        {
-           //if(mb->debug){
-              printf("第二组1*8光开关切换失败-->back=%d\n",regs);
-           //}
-           return -1;
+              printf("功能子单元模块1*8光开关切换失败-->back=%d\n",regs);
+              return -1;
        }
 
       return 0;
@@ -184,6 +188,7 @@ int setOneOpticalThreshold(modbus_t *mb,int SNo,float value)
        int16_t subPort;
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
+       //usleep(Delag_TIME);
        modbus_set_slave(mb,devAddr);       
        regs = modbus_write_register(mb,OPTICALTHRESHOLD_WR_ADDRESS+subPort, (int)(value*100));
        if(1 == regs){
@@ -210,7 +215,8 @@ float getOneOpticalThreshold(modbus_t *mb,int SNo)
        int16_t subPort;
        devAddr =((SNo-1)/8)+1;
        subPort =((SNo-1)%8);
-       modbus_set_slave(mb,devAddr);       
+       //usleep(Delag_TIME); 
+       modbus_set_slave(mb,devAddr);      
        regs=modbus_read_registers(mb, OPTICALTHRESHOLD_WR_ADDRESS+subPort,1, value);
        if(1 == regs){
           //if(mb->debug){
@@ -233,6 +239,7 @@ int16_t setSubDeviceMode(modbus_t *mb,int devAddr,int Mode)
 
      uint16_t  value[100]={0};
      int reg;
+     //usleep(Delag_TIME); 
      modbus_set_slave(mb,devAddr);   // 1-8
      reg=modbus_read_registers(mb, DEVICE_ID_WR_ADDR,1, value);
      if(value[0] == devAddr && reg != -1){
@@ -258,8 +265,8 @@ int doOpticalProtectSwitch(modbus_t *mb,int SWNo,int flag,int Mode)
        int16_t subPort;
        devAddr =((SWNo-1)/4)+1;
        subPort =((SWNo-1)%4);
+       //usleep(Delag_TIME); 
        modbus_set_slave(mb,devAddr);       
-
        switch(Mode){
            case MODE3_PROTECT_MASTER : regs = modbus_write_register(mb,OPTICALPROTECT_WR_ADDRESS+OpticalProtect_PATH_Mode3[subPort]-1,flag);break;
            case MODE5_PROTECT_SLAVER : regs = modbus_write_register(mb,OPTICALPROTECT_WR_ADDRESS+OpticalProtect_PATH_Mode5[subPort]-1,flag);break;

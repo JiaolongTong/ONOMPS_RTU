@@ -339,6 +339,7 @@ int SQL_modify(sql * const me)
      char sql_s[1024]; 
      char *mainKeyName = getMainKeyname(me);
      sprintf(sql_s,"UPDATE %s set %s=%s where %s=%s;",me->tableName,me->filedsName,me->filedsValue,mainKeyName,me->mainKeyValue); 
+     //printf("UPDATE %s set %s=%s where %s=%s;",me->tableName,me->filedsName,me->filedsValue,mainKeyName,me->mainKeyValue);
      rc= sqlite3_exec(me->db, sql_s, NULL, 0, &zErrMsg);
      if( rc != SQLITE_OK ){
          printf("SQL error: %s\n", zErrMsg); 

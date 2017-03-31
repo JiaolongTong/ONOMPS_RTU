@@ -132,7 +132,7 @@ void readFile(configure *cfg,char * configFile ) {
             strcpy(cfg->recode[i].key,name);
             strcpy(cfg->recode[i].value,value);
         }
- 
+
 /*  
         keyFlag=1;
         j=0;i=0;k=0;

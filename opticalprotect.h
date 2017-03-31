@@ -19,21 +19,21 @@ typedef struct opticalprotect{
 	{
 
             uint32_t  ConnectPos;                                  //主从站连接关系
-            uint32_t  ModNo;                                      //从站RTU上与之配对模块编号
-            char   *  IP;                                         //从站RTU与之配对IP地址
+            uint32_t  ModNo;                                       //从站RTU上与之配对模块编号
+            char   *  IP;                                          //从站RTU与之配对IP地址
 
             uint32_t  PNo;                                         //主站下行光路保护组编号
 	    uint32_t  SNoA;                                        //主站下行在纤（备纤）光路号
             uint32_t  SNoB;                                        //主站下行备纤（在纤）光路号
-            uint32_t  SwitchPos;                                   //主站下行1*2光开关状态                     
+            uint32_t  SwitchPos;                                   //主站1*2光开关状态                     
 
             uint32_t  sPNo;                                        //主站上行光路保护组编号
 	    uint32_t  sSNoA;                                       //主站上行在纤（备纤）光路号
             uint32_t  sSNoB;                                       //主站上行在纤（备纤）光路号
-            uint32_t  sSwitchPos;                                   //主站上行1*2光开关状态  
+            uint32_t  sSwitchPos;                                  //从站1*2光开关状态  
 
-            float     sPowerGateA;
-            float     sPowerGateB;
+            float     sPowerGateA;                                 //从站A类光路光功率门限（小）
+            float     sPowerGateB;                                 //从站B类光路光功率门限（大）
 
     	}Group[MAX_OTDR_SN/2];                           
 }opticalprotect;

@@ -34,7 +34,9 @@ int flagNew=0;             //新节点插入标志
 testLinknode *linkHead;    //链表头
 int n =0;                  //链表节点数
 
-
+static int   sigLock=0;
+static queue *myQueue=NULL;
+static pthread_mutex_t mutex;
 
 
 /***插入有序节点****/
@@ -172,7 +174,7 @@ testLinknode *findNode(testLinknode *head,int SNo)
 /***遍历链表***/
 void outPutALL(testLinknode *head){
 	testLinknode *p;
-
+        int i=0;
 	p= head;
 	if(p==NULL){
 		printf("Don't have node in cycle test link!\n");
@@ -181,7 +183,12 @@ void outPutALL(testLinknode *head){
 	else
 		printf("There are %d lines on cycle testing:\n",n);
 	while(p!=NULL){
-		printf("SNo:%d,rtuCM:%d,firstTime:%ld,nextTime%ld\n",p->SNo,p->CM,p->fristTestTime,p->nextTestTime);
+
+                printf("-----------------Cycle Node:%d----------------------\n",++i);
+                printf("|SNo:%4d                    CM :%4d                 \n",p->SNo,p->CM);  
+                printf("|fristTestTime:%d           nextTestTime:%d         \n",p->fristTestTime,p->nextTestTime); 
+                printf("|timePeriod:%d              nowTime:%d              \n",p->timePeriod,getLocalTimestamp()); 
+                printf("--------------------------------------------------\n\n");
 		p=p->next;
 	}
 }
@@ -431,27 +438,26 @@ testLinknode * removeWaitingNode(testLinknode *head)
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
 		    {
-		       printf("SNo:%s",resultSNo[i]);
+		       
 		       strcpy(SNo,resultSNo[i]);		
 		       intSNo =atoi(SNo);                                    
                        find=findNode(head,intSNo);                  
                         if(find ==NULL)
                         {
-                          printf("Don't have SNo=%d node in this Link!\n",intSNo);                
+                          printf("Don't have  SNo=%d node in Cycle Link!\n",intSNo);                
 		        }else{
+                          printf("Delete node SNo=%s from Cycle Link! \n",resultSNo[i]);
                           head = delete(head,intSNo);                                             
-                          mysql->filedsValue  =  "2";                                             
-                          mysql->filedsName   =  "Status";
                           mysql->mainKeyValue =  SNo;
                           if(!semaphore_p())  
                               exit(EXIT_FAILURE);                                                 //P
-                          rc=SQL_modify(mysql);
+                          rc=SQL_delete(mysql);
                           if( rc != SQLITE_OK ){
-			      printf( "Modify SQL error\n");
-			      sqlite3_free(zErrMsg);
+			      printf( "Delete SQL error\n");
 		          }
-                         if(!semaphore_v())                                                       //V
-                             exit(EXIT_FAILURE);                  	
+                          if(!semaphore_v())                                                       //V
+                             exit(EXIT_FAILURE); 
+                          //if(atoi(SNo) == head->SNo )flagNew=1;                  	
                         }
 	            }
          }
@@ -508,16 +514,14 @@ void flushWaitingSNo(void)
          SN=SQL_findSNo(mysql,resultSNo);                          
          if(SN>0){
 		 for(i =0 ;i<SN;i++)
-		    {
-		       printf("SNo:%s",resultSNo[i]);	                                  
-                       mysql->filedsValue  =  "2";                                             
+		    {                                          
                        mysql->mainKeyValue =  resultSNo[i];                                 //需要修改状态的光路号
                        if(!semaphore_p())  
                             exit(EXIT_FAILURE);                                             //P
-                       rc=SQL_modify(mysql);
+                       rc=SQL_delete(mysql);
                        if( rc != SQLITE_OK ){
-			    printf( "Modify SQL error\n");
-			   sqlite3_free(zErrMsg);
+			    printf( "Delete SQL error\n");
+			    sqlite3_free(zErrMsg);
 		       }
                        if(!semaphore_v())                                                   //V
                              exit(EXIT_FAILURE);                  	
@@ -528,9 +532,6 @@ void flushWaitingSNo(void)
 	 sqlite3_close(mydb);   
          return ;
 } 
-
-void addNewtoLink(int,siginfo_t*,void*);
-
 /***otdr测试调度主进程***/
 /*
     (1)  初始化链表
@@ -560,67 +561,24 @@ void addNewtoLink(int,siginfo_t*,void*);
           --->当有信号到来，并处理成功，则flagNEW标识置位，主进程检擦到后会调度一次测试节点，获取最新链表的头节点进行测试任务
           --->再将flagNew标志置为0
 */
-void main(void)
+void work_line(void)
 {
         testLinknode *p1;
-         
-        p1 =( testLinknode *) malloc (sizeof(testLinknode));
+        union sigval mysigval; 
         otdr * testPar;
-
-        sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
-        if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
-        {  
-            fprintf(stderr, "Failed to initialize semaphore\n");  
-            exit(EXIT_FAILURE);  
-        } 
+        pid_t cycPID[MAX_PID_NUM];
+        int nowTime=0;
+        int setTime = 0;
+        int SNo=0;
+        int intCM=0;
+        int flagCycle=0,signum,n,recvInt;
+        p1 =( testLinknode *) malloc (sizeof(testLinknode));
         linkHead=Init_CycleLink();                                                        //初始化有序链表      
-                     
+               
         if(linkHead !=NULL)
             outPutALL(linkHead);
         else
             printf("Head:NULL");
-
-/***************************************************************/
-       int nowTime=0;
-       int setTime = 0;
-       int SNo=0;
-       int intCM=0;
-
-       int signum;
-       union sigval mysigval;
-       char* process;  
-       int flagAlarm = 0,flagProtect=0 ,flagCycle=0;  
-       int n;  
-       pid_t cycPID[MAX_PID_NUM],alarmPID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
-       int recvInt; 
-
-        /*初始化信号机制（与BOA通信）*/
-       struct sigaction act;
-       int sig;
-       sig=SIGUSR1;  
-       sigemptyset(&act.sa_mask);
-       act.sa_sigaction=addNewtoLink;
-       act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                 
-       if(sigaction(sig,&act,NULL)<0)                          
-       {
-              printf("install sigal error\n");
-       }
-        /*创建信号量 */
-       sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);    
-       otdr_sem_id = semget((key_t)2468,1,4777 |IPC_CREAT);     
-
-                      
-       flagAlarm = get_pid_by_name("/web/cgi-bin/alarmMain", alarmPID, MAX_PID_NUM);  
-       flagProtect = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", protectPID, MAX_PID_NUM);  
-       if(flagAlarm <=0 && flagProtect<=0)
-          if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
-            exit(0);
-       }                      
-       /*if(!set_semvalue())                                                               
-         {  
-            fprintf(stderr, "Failed to initialize semaphore\n");  
-            exit(EXIT_FAILURE);  
-          } */
         /*周期调度主进程*/
         while(1)
         {
@@ -633,9 +591,11 @@ void main(void)
                     
                 }                             
                 while(p1!=NULL){                                 
-                    nowTime= getLocalTimestamp();             
+                    nowTime= getLocalTimestamp();   
+                              
 	            if((p1!=NULL && nowTime >= setTime) || flagNew ==1)             //守护查询是否到时
                     {  
+                        
                                   /*信号处理*/                                      
                            if( flagNew ){
                                 p1=outFirstnode(linkHead);
@@ -651,28 +611,28 @@ void main(void)
                             }
                           if(p1!=NULL){
 				   printf("SNo=%d   rtuCM=%d   Proid:%ld on cycTest!   NowTime:%ld    setTime:%4d\n",SNo,intCM,p1->timePeriod,getLocalTimestamp(),setTime); 
-		                                 /*向otdrMain发送启动信号*/
-				   if(!setOTDR_P())                                                //P
-		                         exit(EXIT_FAILURE);                         
+		                                 /*向otdrMain发送启动信号*/                        
 				   flagCycle = get_pid_by_name("/web/cgi-bin/otdrMain", cycPID, MAX_PID_NUM);  
-				   printf("cycMain:process '%s' is existed? (%d): %c ", process, flagCycle, (flagCycle > 0)?'y':'n');  
-				   signum=SIGRTMIN;//SIGUSR1;                                         
-				   mysigval.sival_int = SNo+300;                                                      
+				   printf("cycMain:process '/web/cgi-bin/otdrMain' is existed? (%d): %c ", flagCycle, (flagCycle > 0)?'y':'n');  
+				   signum=SIGRTMIN;                                      
+				   mysigval.sival_int = SNo+300; 
+                                                  
 				   for(n=0;n<flagCycle;n++){                                      
 					printf("otdrMain PID:%u\n", cycPID[n]);                  
 					if(sigqueue(cycPID[n],signum,mysigval)==-1)
 					       printf("send signal error\n");
 				   }  
+
 		                                /*等待信号的成功处理消息*/			    
-				   recvInt = recvMessageQueue_D("3-OK",3333);
+				   recvInt = recvMessageQueue_OTDR("3-OK",CYCLE_MESSAGE_KEY);
 		                   if(recvInt==0){
 		                        printf("cycMain Recv back message from otdrMain  sucessful!");
 		                   }else{
 		                        printf("cycMain Recv back message from otdrMain  Faild:Time out!");
-		                   } 
-		                   usleep(10000);                                                 //确保信号被处理完 
-				   if(!setOTDR_V()) 
-                                     exit(EXIT_FAILURE);                                          //V
+		                   }
+		                   //usleep(10000);                                                 //确保信号被处理完 
+                                   
+                                    
                           }                                   
                                               /*更新头节点参数，执行周期调度*/
 			  p1=outFirstnode(linkHead);        
@@ -681,53 +641,94 @@ void main(void)
 		                intCM   = p1->CM; 
 				setTime = p1->nextTestTime;   
 				nowTime = getLocalTimestamp(); 
-		                printf("\n");
+
 				linkHead= taskScheduler(linkHead,p1);              
-		                printf("\n");
+	
 		          } 
                           break;
                     }	
                 }
+                usleep(10000);
         }  
 }
 
-void addNewtoLink(int signum,siginfo_t *info,void *myact)
+void sigrecv_headle()
 {
-       printf("cycMain(R)the int value is %d \n",info->si_int);
-       int SNo =0;
-       if(info->si_int>270 && info->si_int <370)              //最大一次删除99个节点
-       {
-           SNo = info->si_int%270;
-           linkHead = delete(linkHead,SNo);                   //删除节点
-           outPutALL(linkHead);
-           sendMessageQueue("270-OK");
-	   return;
-       }
-       
-       switch(info->si_int){
-           case 120:{                                        //启动周期测试
-		    linkHead=insertWaitingNode(linkHead);
-		    outPutALL(linkHead);
-                    sendMessageQueue("120-OK");
-		    flagNew = 1;
-		    break;
-                  }
-           case 220:{                                        //终止周期测试
-                    linkHead=removeWaitingNode(linkHead);                   
-                    outPutALL(linkHead);
-                    sendMessageQueue("220-OK");
-                    //flagNew = 1; 
-		    break;
-                  }
+       int ret,data,SNo =0;
+       while(1){
+               if(myQueue->count!=0){
+		       ret=Queue_Delete(myQueue,&data);
+		       printf("cycMain(R): the int value is %d \n",data);
+		       if(data>270 && data <370){                             //最大一次删除99个节点   
+                           sendMessageQueue_Boa("270-OK-C",CYCLE_MESSAGE_TYPE);
+			   SNo = data%270;
+			   linkHead = delete(linkHead,SNo);                   //删除节点
+			   outPutALL(linkHead);
+			   
+		       }
+		       switch(data){
+			   case 120:{                                        //启动周期测试
+				    linkHead=insertWaitingNode(linkHead);
+				    outPutALL(linkHead);
+				    sendMessageQueue_Boa("120-OK",CYCLE_MESSAGE_TYPE);
+				    flagNew = 1;
+				    break;
+				  }
+			   case 220:{                                        //终止周期测试
+				    linkHead=removeWaitingNode(linkHead);                   
+				    outPutALL(linkHead);
+				    sendMessageQueue_Boa("220-OK",CYCLE_MESSAGE_TYPE);
+				    //flagNew = 1; 
+				    break;
+				  }
 
-           case 260:{                                        //清除RTU模式
-                    linkHead = removeAllNode(linkHead);                   
-                    outPutALL(linkHead);
-                    sendMessageQueue("260-OK");
-                    flagNew = 1;
-		    break;    
-           }
-          default:break;
+			   case 260:{                                        //清除RTU模式
+				    linkHead = removeAllNode(linkHead);                   
+				    outPutALL(linkHead);
+				    sendMessageQueue_Boa("260-OK-C",CYCLE_MESSAGE_TYPE);
+				    flagNew = 1;
+				    break;    
+			   }
+			  default:break;
+                      }
+                      usleep(10000);
+		}
+                
       }
+}
+void addNewtoLink(int signum,siginfo_t *info,void *myact);
+void main(){
+       int flagAlarm = 0,flagProtect=0 ;  
+       pid_t alarmPID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
+       pthread_t tha,thb;  
+       void *retval;
+        /*初始化信号机制（与BOA通信）*/
+       struct sigaction act;
+       int sig;
+       sig=SIGRTMIN+1;  
+       sigemptyset(&act.sa_mask);
+       act.sa_sigaction=addNewtoLink;
+       act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                 
+       if(sigaction(sig,&act,NULL)<0){                          
+              printf("install sigal error\n");
+       }
+        /*创建信号量 */
+       sem_id      = semget((key_t)1234, 1, (4777 | IPC_CREAT));  
+
+       myQueue = Queue_Initiate();                    
+
+       pthread_create(&thb,NULL,work_line,(void *)(NULL)); 
+       pthread_create(&tha,NULL,sigrecv_headle,(void *)(NULL));  
+ 
+       pthread_join(thb,&retval); 
+       pthread_join(tha,&retval);  
+
+
+}
+void addNewtoLink(int signum,siginfo_t *info,void *myact){
+      while(sigLock==1);
+      sigLock=1;
+      Queue_Append(myQueue,info->si_int);
+      sigLock=0; 
 }
 

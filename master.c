@@ -14,7 +14,7 @@ int main(int argc,char ** argv)
   }
    mb = modbus_new_rtu(argv[1],atoi(argv[3]),'N',8,1);//open port
   //mb = modbus_new_tcp("192.168.0.102", 1502);
-  modbus_set_debug(mb, FALSE);
+  modbus_set_debug(mb, TRUE);
 
   modbus_set_error_recovery(mb,
                               MODBUS_ERROR_RECOVERY_LINK |

@@ -40,12 +40,9 @@ void getAlarmtestParameter(mxml_node_t *root,mxml_node_t *tree,alarmtest *alarmp
 	    uint32_t  uint_a;
 	    float     float_a;
             int       intAN,intASN,intANo,i,j;
-            char      strCX[3]="Cx",strDX[3]="Dx";
+            char      strCX[10],strDX[10],strNum[10];
 
-           //char *strCX=NULL,*strDX=NULL,*strNum=NULL;
-           // strCX=malloc(sizeof(char)*10);
-           //strDX=malloc(sizeof(char)*10);
-           //strNum=malloc(sizeof(char)*10);
+
 
             AN =mxmlFindElement(root, tree, "AN",NULL, NULL,MXML_DESCEND);
             intAN =  strtoul(AN->child->value.text.string, NULL, 0);
@@ -53,11 +50,13 @@ void getAlarmtestParameter(mxml_node_t *root,mxml_node_t *tree,alarmtest *alarmp
             
             for (i=0;i<intAN;i++)
                { 
-		      strCX[1]=i+0x31;
-                     // *strCX='\0';
-                     // strcat(strCX,"C");
-                     // uint32tostring(i+1,strNum);
-                     // strcat(strCX,strNum);
+
+
+		      strCX[0]='\0';
+		      strcat(strCX,"C");
+		      uint32tostring(i+1,strNum);
+		      strcat(strCX,strNum);
+
 
 		      CX   = mxmlFindElement(root, tree, strCX ,NULL, NULL,MXML_DESCEND); 
    
@@ -70,12 +69,12 @@ void getAlarmtestParameter(mxml_node_t *root,mxml_node_t *tree,alarmtest *alarmp
                       alarmpar->levelGroup[i].ANo=intANo;
 
 	              for(j=0;j<intASN;j++){
-                              strDX[1]=j+0x31;
+              
 
-                             // *strDX='\0';
-                             // strcat(strDX,"D");
-                             // uint32tostring(i+1,strNum);
-                             // strcat(strDX,strNum);
+			      strDX[0]='\0';
+			      strcat(strDX,"D");
+			      uint32tostring(j+1,strNum);
+			      strcat(strDX,strNum);
 
                               DX  = mxmlFindElement(CX, tree, strDX ,NULL, NULL,MXML_DESCEND); 
   
@@ -210,13 +209,13 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                 }
             }
 
-
+/*
             for(i=0;i<AN;i++){
-                printf("----------After Sort:%d------------\n"       ,alarmpar->levelGroup[i].ANo);              
+                printf("----------ANo:%d------------\n"       ,alarmpar->levelGroup[i].ANo);              
                 ASN=alarmpar->levelGroup[i].ASN;          
                 for(j=0;j<ASN;j++){
                             printf("----------SNo:%d------------\n"  ,alarmpar->levelGroup[i].portGroup[j].ASNo);
-			    printf("Type-uint   -[%d]\n"             ,alarmpar->levelGroup[i].portGroup[j].fibreType);              //控制参数
+			    printf("Type-uint   -[%d]\n"             ,alarmpar->levelGroup[i].portGroup[j].fibreType);                        //控制参数
                             printf("PS-uint     -[%d]\n"             ,alarmpar->levelGroup[i].portGroup[j].PS);
 			    printf("Flag-uint   -[%d]\n"             ,alarmpar->levelGroup[i].portGroup[j].protectFlag);
 
@@ -246,7 +245,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
  
                }		    
           }
-
+*/
 /****************************数据库校验*****************************************/
 /*
 (1) 检查模块是否存在，若存在则取出模块类型  
@@ -326,7 +325,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
 		          ErrorSNo++;  
                       }                                                         
 		   }else if(UseFlag==1 && PortFlag==1 ){   
-                       printf("存在模块%d和端口%d: ---，模块类型为：%d  端口类型为:%d \n",ModuleNo,alarmpar->levelGroup[i].portGroup[j].ASNo,ModType,alarmpar->levelGroup[i].portGroup[j].fibreType);
+                     
                        if(ModType==1){        //一般在纤模式 
  				checkFlag =0;
 				resp->RespondCode = 14 ;                                               
@@ -345,8 +344,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                          	   mysql->mainKeyValue = strSNo;        
 				   SQL_lookupPar(mysql,&result,&rednum);
 				   fiberType=atoi(result[0])-1;
-				   printf("PortTable SNo=%s,fiberType=%d\n",strSNo,fiberType);
-                                   printf("Segment   SNo=%s,fiberType=%d\n",strSNo,alarmpar->levelGroup[i].portGroup[j].fibreType);
+
 				   SQL_freeResult(&result,&rednum);
                                    if(alarmpar->levelGroup[i].portGroup[j].fibreType==0 && fiberType==0) checkFlag=1;
                                    else if(alarmpar->levelGroup[i].portGroup[j].fibreType==0 && fiberType==1){
@@ -375,26 +373,11 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                        } //end if(ModType=2) 
 
                        if(ModType==3){         //保护模式(主) 
-                                   checkFlag           = 1;    /*
-				   mysql->tableName    = "PortOccopyTable";     //端口表中获取当前SNo的fiberType
-				   mysql->filedsName   = "FiberType";
-                         	   mysql->mainKeyValue = strSNo;        
-				   SQL_lookupPar(mysql,&result,&rednum);
-                                   fiberType=atoi(result[0])-1;                                                         
-                                   SQL_freeResult(&result,&rednum);
-                                   if(alarmpar->levelGroup[i].portGroup[j].fibreType == fiberType) checkFlag=1;
-                                   else{
-                                        checkFlag =0;
-					resp->RespondCode = 14 ;                                               
-					if(resp->SNorPN!=TYPE_PNo){
-						resp->SNorPN              = TYPE_SNo;
-						resp->Group[ErrorSNo].PNo = atoi(resultPNo[0]); 
-						resp->Group[ErrorSNo].SNo = alarmpar->levelGroup[i].portGroup[j].ASNo; 
-						resp->Group[ErrorSNo].Main_inform  = "保护模式（主）:参数指定光纤类型与端口设置类型不匹配";
-						resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->PortTable don't match whih Segment.[保护模式（主）:指令为在纤但端口表为备纤]";
-						ErrorSNo++; 
-					}
-                                   }*/
+
+
+                                   checkFlag           = 1;   
+
+
                        }//end if(ModType=3) 
 
                        if(ModType==4){  //带光功率采集的在纤模式
@@ -403,8 +386,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                          	   mysql->mainKeyValue = strSNo;        
 				   SQL_lookupPar(mysql,&result,&rednum);
 				   fiberType=atoi(result[0])-1;
-				   printf("PortTable SNo=%s,fiberType=%d\n",strSNo,fiberType);
-                                   printf("Segment   SNo=%s,fiberType=%d\n",strSNo,alarmpar->levelGroup[i].portGroup[j].fibreType);
+
 				   SQL_freeResult(&result,&rednum);
                                    if(alarmpar->levelGroup[i].portGroup[j].fibreType==1 && fiberType==1 ) checkFlag=1;
                                    else if(alarmpar->levelGroup[i].portGroup[j].fibreType==1 && fiberType==0){
@@ -470,7 +452,8 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
                      }
                      
                                           /*数据库存储有效光路*/             
-                     if(saveFlag==1){ 
+                     if(saveFlag==1){
+
                           if(alarmpar->levelGroup[i].portGroup[j].PS ==0 && existPS==1){
 				     strSQL   = (char *) malloc(sizeof(char)*400);
 				     mysql->tableName   = "AlarmTestSegmentTable";   
@@ -510,6 +493,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
 				     if(!semaphore_p())  
 				        exit(EXIT_FAILURE);                                //P
 				     rc = SQL_add(mysql);                                  //更新或者插入新的纪录
+ 
 				     if(rc!=SQLITE_OK) printf( "Save SQL error\n");
 				     else              printf("%s",strSQL);
 				     if(!semaphore_v())                                    //V
@@ -553,8 +537,10 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
 				     );
 				     mysql->filedsValue = strSQL;
 				     if(!semaphore_p())  
-				        exit(EXIT_FAILURE);                                //P
+				        exit(EXIT_FAILURE);                                       //P
+
 				     rc = SQL_add(mysql);                                         //更新或者插入新的纪录
+
 				     if(rc!=SQLITE_OK)  printf( "Save SQL error\n");
 				     else               printf("%s",strSQL);
 				     if(!semaphore_v())                                           //V
@@ -590,7 +576,7 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
 /***************************向障碍告警测试守护进程发送启动障碍告警测试信号***************************
 (1)向障碍告警测试守护进程发送加入新节点信号   
 (2)注意一定要将发送程序和接收程序划到一个用户组，并且都具有root权限，否则信号发射会失败
-(3)程可以通过sigqueue函数向包括它本身在内的其他进程发送一个信号,
+(3)程可以通过sigqueue函数向包括它本身在内的其他进程发送一个信号,cle	
    如果程序没有发送这个信号的权限，对sigqueue函数的调用就将失败,
    而失败的常见原因是目标进程由另一个用户所拥有.
 (4)现阶段使用的是不可靠信号,不支持排队，信号可能丢失。
@@ -605,29 +591,28 @@ responed *setAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)   
        retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM); 
        
        if(retProcess>0 && ModType !=3 ){
+
 	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
-	       mysigval.sival_int = 130;                               //设置信号的附加信息 (启动障碍告警测试)                               
+	       signum=SIGRTMIN+1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       mysigval.sival_int = 130;                               //设置信号的附加信息 (启动障碍告警测试)                              
 	       for(n=0;n<retProcess;n++){  
-	       printf("alarmMaim-PID:%u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
+	       printf("alarmMaim-PID: %u\n", cycPID[n]);                //获取障碍告警测试守护进程PID
 	       if(sigqueue(cycPID[n],signum,mysigval)==-1)
 		       printf("send signal error\n");
 	      }  
 	           /*等待启动障碍告警测试成功信号*/
 
-	    char * recvStr;  
-	    recvStr = (char *) malloc (sizeof (char)*10);
-	    recvStr = recvMessageQueue_C();
-	    if(strncmp(recvStr, "130-OK", 6) == 0)                     //遇"130-OK"结束
+	
+	    if(recvMessageQueue_Backstage("130-OK",ALARM_MESSAGE_TYPE) == 1)                     //遇"130-OK"结束
 	            printf("Set Alarmtest sucessful!\n");
 	    else{
-                    printf("SetCycleSegment failed!\n");
+                    printf("Set Alarmtest failed!\n");
 		    resp->RespondCode=3;
 		    resp->Group[0].Main_inform  = "障碍告警测试设置失败-->未收到回复消息";
 		    resp->Group[0].Error_inform = "Error:Don't get back massgae![障碍告警测试设置失败-->未收到回复消息]";
 		    return resp;   
             }
-	       free(recvStr);
+
 	   
       }else if(ModType !=3){
 	      resp->RespondCode=3;
@@ -680,9 +665,8 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
    mxml_node_t  *SN=NULL,*CM=NULL,*CLP=NULL,*FX=NULL,*perCMDcode=NULL;
    responed *resp=NULL; 
    int rtuCM,rtuCLP,intSN,i,uint_a;
-   char *strFX=NULL,*strNum=NULL;
-   strFX=malloc(sizeof(char)*10);
-   strNum=malloc(sizeof(char)*10);
+   char strFX[10],strNum[10];
+
 
    cancelAlarmtest * alarmEndpar=NULL;
    alarmEndpar=endAlarm_Create();
@@ -706,8 +690,8 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 	    CLP =mxmlFindElement(cmd, tree, "CLP",NULL, NULL,MXML_DESCEND);
 	    rtuCLP =  strtoul(CLP->child->value.text.string, NULL, 0);    
 	    for (i=0;i<intSN;i++){ 
-		//strFX[1]=i+0x31;
-                *strFX='\0';
+
+                strFX[0]='\0';
                 strcat(strFX,"F");
                 uint32tostring(i+1,strNum);
                 strcat(strFX,strNum);
@@ -746,13 +730,6 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 		     }
 		    if(!semaphore_v())                                      //V
 		       exit(EXIT_FAILURE);
-		 }else{
-		     resp->RespondCode = 14 ;                               // 参数错误
-		     resp->SNorPN      = TYPE_SNo;
-		     resp->Group[ErrorSNo].SNo = alarmEndpar->Group[i].SNo;
-		     if(existFlag!=1)
-		        resp->Group[ErrorSNo].Error_inform = "Error: Sqlite don't match -->lack of SNo\n";
-		     ErrorSNo++;  
 		 }
 	  }
 	  free(strSNo);
@@ -760,7 +737,7 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
 	  sqlite3_close(mydb);
           endAlarm_Destory(alarmEndpar);
 	  if(resp->RespondCode != 0 ){
-		resp->ErrorSN     =  ErrorSNo;                              //错误光路总条数
+		resp->ErrorSN     =  ErrorSNo;                          //错误光路总条数
                 return resp;
 	  }
 /***************************障碍告警测试进程发送信号**********************
@@ -774,33 +751,31 @@ responed * endAlarmtestSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)  
          char* process;  
          int retProcess = 0,n=0;  
          pid_t cycPID[MAX_PID_NUM];  
-	 char * recvStr;  
-	 recvStr = (char *) malloc (sizeof (char)*10);      
-
+   
          process ="/web/cgi-bin/alarmMain";                        
          retProcess = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
          if(retProcess>0){
 	       printf("process '%s' is existed? (%d): %c\n", process, retProcess, (retProcess > 0)?'y':'n');  
-	       signum=SIGUSR1;                                         //设置信号值:插入或修改周期测试链表节点值
+	       signum=SIGRTMIN+1;                                      //设置信号值:插入或修改周期测试链表节点值
 	       mysigval.sival_int = 230;                               //设置信号的附加信息 (启动障碍告警测试)                               
 	       for(n=0;n<retProcess;n++){  
 		       printf("alarmMaim-PID:%u\n", cycPID[n]);        //获取障碍告警测试守护进程PID
 		       if(sigqueue(cycPID[n],signum,mysigval)==-1)
 			       printf("send signal error\n");
 	       }  
+
 	           /*等待启动障碍告警测试成功信号*/
-	      recvStr = recvMessageQueue_C();
-	      if(strncmp(recvStr, "230-OK", 6) == 0)                     //遇"130-OK"结束
+
+	      if(recvMessageQueue_Backstage("230-OK",ALARM_MESSAGE_TYPE) == 1)                    //遇"230-OK"结束
 	         printf("Set Alarmtest sucessful!\n");
 	      else{
                  printf("SetCycleSegment failed!\n");
 	         resp->RespondCode=3;
 	         resp->Group[0].Main_inform  = "障碍告警测试取消失败-->未收到回复消息";
 	         resp->Group[0].Error_inform = "Error:Don't get back massgae![障碍告警测试取消失败-->未收到回复消息]";
-	         free(recvStr);
 	         return resp;  
               }
-	      free(recvStr);	   
+   
         }else{
 	      resp->RespondCode=3;
 	      resp->Group[0].Main_inform  = "障碍告警测试取消失败-->未找到后台进程";

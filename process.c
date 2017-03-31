@@ -1,6 +1,6 @@
 #include "process.h"
 extern  int sem_id;  
-int  flag = 0;
+int  flag = 1;
 int set_semvalue()  
 {  
     //用于初始化信号量，在使用信号量前必须这样做  
@@ -18,7 +18,7 @@ int set_semvalue()
     union semun sem_union;  
   
     if(semctl(sem_id, 0, IPC_RMID, sem_union) == -1)  
-        fprintf(stderr, "Failed to delete semaphore\n");  
+        fprintf(stderr, "Failed to delete semaphore :%s\n",strerror(errno),errno);
 }  
   
  int semaphore_p()  
@@ -30,13 +30,13 @@ int set_semvalue()
     sem_b.sem_flg = SEM_UNDO;  
     if(semop(sem_id, &sem_b, 1) == -1)  
     {  
-        fprintf(stderr, "semaphore_p failed\n");  
+        fprintf(stderr, "semaphore_p failed :%s %d\n",strerror(errno),errno);  
         return 0;  
     }  
     return 1;  
 }  
   
- int semaphore_v()  
+int semaphore_v()  
 {  
     //这是一个释放操作，它使信号量变为可用，即发送信号V（sv）  
     struct sembuf sem_b;  
@@ -45,14 +45,14 @@ int set_semvalue()
     sem_b.sem_flg = SEM_UNDO;  
     if(semop(sem_id, &sem_b, 1) == -1)  
     {  
-        fprintf(stderr, "semaphore_v failed\n");  
+        fprintf(stderr, "semaphore_v failed :%s %d\n",strerror(errno),errno);  
         return 0;  
     }  
     return 1;  
 }  
 
 
-int sendMessageQueue(char * message)
+int sendMessageQueue_Boa(char * message,long msgType)
 {
 
         struct msg_st data;  
@@ -67,7 +67,7 @@ int sendMessageQueue(char * message)
             return  -1;
         }  
             //输入数据  
-        data.msg_type = 1;                            //注意2  
+        data.msg_type  =  msgType;                      
         strcpy(data.text, message);  
             //向队列发送数据  
         if(msgsnd(msgid, (void*)&data, MAX_TEXT, 0) == -1)  
@@ -77,13 +77,13 @@ int sendMessageQueue(char * message)
            }
          else
            {
-                printf("msgsnd successful :%s len:%d!\n",data.text,strlen(data.text));
+                printf("msgsnd successful :%s Type:%ld!\n",data.text,msgType);
            }  
         return 0;
 	
 }
 
-int sendMessageQueue_B(char * message,long msgType)
+int sendMessageQueue_Named(char * message,long msgType)
 {
 /*
 a. msg_type == 0    返回消息队列中第一个消息，先进先出
@@ -119,7 +119,7 @@ c. msg_type < 0    返回消息队列中类型 <=  |type| 的数据；若这种�
         return 0;
 	
 }
-int sendMessageQueue_C(char * message ,key_t key)
+int sendMessageQueue_Function(char * message ,key_t key)
 {
 
         struct msg_st data;  
@@ -148,7 +148,7 @@ int sendMessageQueue_C(char * message ,key_t key)
            }  
         return 0;
 }
-char * recvMessageQueue_A(char * waitStr ,long msgType)                                         //阻塞方法  (点名测试)
+char * recvMessageQueue_Block(char * waitStr ,long msgType)                                         //阻塞方法  (点名测试 重启)
 {
         int msgid = -1;  
         int running = 1;  
@@ -161,7 +161,7 @@ char * recvMessageQueue_A(char * waitStr ,long msgType)                         
             printf("msgget failed with error: %d\n", errno);  
             return  "MSG Error"; 
         } 
-        //data.msg_type=msgType;                                          //只获取某一特定类型消息的第一个
+        data.msg_type=msgType;                                          //只获取某一特定类型消息的第一个
         while(running)  
         {  
             msgrcv(msgid, (void*)&data, BUFSIZ, msgType,IPC_NOWAIT|MSG_NOERROR);
@@ -176,133 +176,88 @@ char * recvMessageQueue_A(char * waitStr ,long msgType)                         
                strcpy(data.text,"");   
              }      
         } 
-/*
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                           //删除消息队列 
-        {  
-            printf("msgctl(IPC_RMID) failed\n");  
-            return "MSG Error";    
-        } 
-*/            
+
+        pid_t backPID[MAX_PID_NUM];  
+        int   retProcess;
+                            
+        retProcess = get_pid_by_name("/web/cgi-bin/BoaCom.cgi", backPID, MAX_PID_NUM);  
+        
+        if(retProcess == 1  ){
+		if(msgctl(msgid, IPC_RMID, 0) == -1)                           //删除消息队列 
+		{  
+		    printf("msgctl(IPC_RMID) failed\n");  
+		    return "MSG Error";    
+		} 
+        }
+           
         return str;
 }
-
-
-
-
-
-char * recvMessageQueue_B(void)                                         //非阻塞方法
-{
-        int msgid = -1;  
-        int running = 1;  
-        struct msg_st data;  
-        long int msgtype = 0;                                            //只获取某一特定类型消息  
-        int rflags;
-        char * str;
-         msgid = msgget((key_t)444, 4777 | IPC_CREAT);                   //建立消息队列 (与otdrMain通信)   444  
-        if(msgid == -1)  
-        {  
-            printf( "msgget failed with error: %d\n", errno);  
-            return "MSG Error";
-             
-        }  
-
-        rflags=IPC_NOWAIT|MSG_NOERROR;                                   //从队列中获取消息，直到遇到消息为止
-          
-
-        while(1)  
-        {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
-            if(strlen(data.text) !=0){                                   //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
-               printf("RecvMessage: %s\n",data.text);                       
-               //running = 0;  
-               break;              
-             }           
-        }  
-        
-
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                          //删除消息队列 
-        {  
-            printf("msgctl(IPC_RMID) failed\n");  
-            return "MSG Error";    
-        } 
-
-        str = (char * ) malloc (sizeof(char)*10);
-        strcpy(str,data.text);
-        return str; 
-}
-
-
-
-
 
 void sigOutime(int signo){
     switch (signo){
         case SIGVTALRM:
             printf("Catch a signal -- SIGVTALRM \n");
-            //signal(SIGVTALRM, sigOutime);
-            flag = 1;
+            flag = 0;
             break;
     }
     return;
 }
-char * recvMessageQueue_C(void)                                      //非阻塞方法+超时判断
+int  recvMessageQueue_Backstage(char *waitStr,long msgType)                                      //非阻塞方法+超时判断
 {
 
         struct itimerval value, ovalue;  
         int msgid = -1;  
         int running = 1;  
         struct msg_st data;  
-        long int msgtype = 0;                                        //只获取某一特定类型消息  
+                                           
         int rflags;
-        char * str;        
+        int ret;        
         signal(SIGVTALRM, sigOutime);
-        value.it_value.tv_sec = 0;
-        value.it_value.tv_usec = 400000;
-        value.it_interval.tv_sec = 0;
-        value.it_interval.tv_usec = 400000;
+        value.it_value.tv_sec = 1;
+        value.it_value.tv_usec = 0;
+        value.it_interval.tv_sec = 1;
+        value.it_interval.tv_usec = 0;
         setitimer(ITIMER_VIRTUAL, &value, &ovalue);
-        str = (char * ) malloc (sizeof(char)*10);
-        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);              //建立消息队列(与BOA服务器通信) 1234
+
+        msgid = msgget((key_t)1234, 4777 | IPC_CREAT);                     //建立消息队列(与BOA服务器通信) 1234
         if(msgid == -1)  
         {  
             printf( "msgget failed with error: %d\n", errno);  
-            return "MSG Error";
+            return 0;
              
         }  
 
-        rflags=IPC_NOWAIT|MSG_NOERROR;                              //从队列中获取消息，直到遇到消息为止
-          
+        data.msg_type = msgType;  
 
-        while(1)  
+        while(flag)                                                           //只获取某一特定类型消息 
         {  
-            msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
-            if(strlen(data.text) !=0){                              //因为在非阻塞情况下，消息队列一旦发现有错误消息就会立即产生信号（在不设置MSG_NOERR情况下），将自己杀死，进而无法向中心服务器回复HTTP帧头。
-               printf("RecvMessage: %s\n",data.text);                       
-               strcpy(str,data.text);
-               break;              
-             } 
-            if(flag){
-               printf("Wait backProcessor xxxMain message time out");
-               strcpy(str,"Timeout");
-               flag=0;
-               break;
-	    }          
-        }  
-        
+            msgrcv(msgid, (void*)&data, BUFSIZ, msgType,IPC_NOWAIT|MSG_NOERROR);   //一定要加上MSG_NOERROR 这样服务器才能正常响应HTTP帧头!  否则出现异常情况:502错误，同时产生BoaCom.cgi僵尸进程
 
-        if(msgctl(msgid, IPC_RMID, 0) == -1)                        //删除消息队列 
+            if(strlen(data.text) !=0){  
+               printf("RecvMessage: %s type:%ld\n",data.text,data.msg_type);                     
+               if(strncmp(data.text, waitStr, strlen(waitStr)) == 0){
+                     printf("Useful RecvMessage: %s\n",data.text);                      
+                     ret = 1;                                       
+                     break;
+                }
+               strcpy(data.text,"");
+             } 
+   
+        }  
+
+        if(msgctl(msgid, IPC_RMID, 0) == -1)                             //删除消息队列 
         {  
             printf("msgctl(IPC_RMID) failed\n");  
-            return "MSG Error";    
+            return 0;    
         } 
 
+        if(flag == 0) ret = 0;
 
-
-        return str; 
+        return ret; 
 
 
 }
-int recvMessageQueue_D(char * backMSG, key_t key)                                         //阻塞方法  
+int recvMessageQueue_OTDR(char * backMSG, key_t key)                                         //阻塞方法  
 {
 
         int msgid = -1;  
@@ -325,16 +280,16 @@ int recvMessageQueue_D(char * backMSG, key_t key)                               
         while(1)  
         {  
             msgrcv(msgid, (void*)&data, BUFSIZ, msgtype, IPC_NOWAIT|MSG_NOERROR);  
-           // printf("------------------------------------->Here!\n");
-            if(strncmp(data.text,backMSG, 4) == 0){   
+           
+            if(strncmp(data.text,backMSG, strlen(backMSG) ) == 0){   
                             
-               if(key==3333)
+               if(key==CYCLE_MESSAGE_KEY)
                   printf("cycMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);  
-               if(key==2222)   
+               if(key==ALARM_MESSAGE_KEY)   
                   printf("alarmMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);    
-               if(key==4444)
+               if(key==PROTECT_MESSAGE_KEY)
                   printf("ProtectMasterMain RecvMessage: %s = SendMessage:%s\n",data.text,backMSG);                  
-               //running = 0;  
+                 
                ret=0;
                break;              
              }           
@@ -346,11 +301,57 @@ int recvMessageQueue_D(char * backMSG, key_t key)                               
             printf("msgctl(IPC_RMID) failed\n");  
             return -1;    
         } 
-        strcpy(data.text,"");
+        //strcpy(data.text,"");
         return ret; 
 }
 
+queue *Queue_Initiate(){
+   queue * q=NULL;
+   q=malloc(sizeof(queue));
+   memset(q->value,0,MaxQueueSize);
+   q->tail=0;
+   q->head=0;
+   q->count=0;
+   return q;
+}
 
+int  Queue_Append(queue *q,int  value){
+     if(q->count>0 && q->tail == q->head ){
+        return 0;	
+     }else{
+     	q->value[q->tail] = value;
+     	q->tail=(q->tail+1)%MaxQueueSize;
+        q->count++;
+     } 
+     return 1;
+
+}
+int  Queue_Delete(queue *q,int *value){
+    if(q->count==0){
+        return 0;
+    }else{ 
+    	*value=q->value[q->head];
+        q->head=(q->head+1)%MaxQueueSize;
+        q->count--;
+    }
+
+    return 1;
+}
+
+int  Queue_isEmpty(queue *q){
+     
+     if(q->count == 0)return 1;
+     else return 0;
+
+}
+int  Queue_getData(queue *q,int * value){
+     if(q->count!=0){
+         return 0;
+     }else{
+         *value =q->value[q->head];
+         return 1;
+     }
+}
 
 
 char *basename(const char *path)

@@ -1,7 +1,6 @@
 #ifndef PROCESS_H_INCLUDED
 #define PROCESS_H_INCLUDED
-#define MAX_PID_NUM     32  
-#define MAX_TEXT 512   //消息队列最大内容
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -19,7 +18,19 @@
 #include <time.h>
 #include <sys/time.h>  
 
- 
+#define MaxQueueSize    1024  //信号处理队列最大长度
+#define MAX_PID_NUM     32  
+#define MAX_TEXT        512   //消息队列最大长度
+
+
+#define OTDR_MESSAGE_TYPE     1
+#define CYCLE_MESSAGE_TYPE    2
+#define ALARM_MESSAGE_TYPE    3
+#define PROTECT_MESSAGE_TYPE  4
+
+#define ALARM_MESSAGE_KEY     2222
+#define CYCLE_MESSAGE_KEY     3333 
+#define PROTECT_MESSAGE_KEY   4444
 
 union semun   
 {  
@@ -38,6 +49,14 @@ struct msg_st                                  //消息队列，服务器判断�
 };  
   
 
+typedef struct queue{                          //队列，用户处理信号（SIGMIN和SIGMIN+1）
+   int value[MaxQueueSize];
+   int head;
+   int tail;
+   int count;
+}queue;
+
+
 
 int set_semvalue();  
 void del_semvalue();  
@@ -48,17 +67,21 @@ int semaphore_v();
 
 
 
-int sendMessageQueue(char * message);
-int sendMessageQueue_B(char * message,long msgType);
-int sendMessageQueue_C(char * message ,key_t key);
+int sendMessageQueue_Boa(char * message,long msgType);
+int sendMessageQueue_Block(char * message,long msgType);
+int sendMessageQueue_Function(char * message ,key_t key);
 
 
-char * recvMessageQueue_A(char * waitStr ,long msgType);
-//char * recvMessageQueue_A(void);
-char * recvMessageQueue_B(void);
-char * recvMessageQueue_C(void);
-int recvMessageQueue_D(char * backMSG, key_t key);
+char * recvMessageQueue_Block(char * waitStr ,long msgType);
+int  recvMessageQueue_Backstage(char *waitStr,long msgType);
+int    recvMessageQueue_OTDR(char * backMSG, key_t key);
 void   sigOutime(int signo);
+
+queue *Queue_Initiate();  //初始化队列
+int  Queue_Append(queue *q,int  value); //入队
+int  Queue_Delete(queue *q,int *value); //出队
+int  Queue_isEmpty(queue *q);           //判断队列空
+int  Queue_getData(queue *q,int * value); //获取队头数据
 
 
 char *basename(const char *path);

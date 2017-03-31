@@ -115,20 +115,7 @@ time_t str2Timestamp(char *str)          // 字符串形式(str): 20160715210732
              intYear*365 - 719499
           )*24 + intHour /* now have hours */
        )*60 + intMuinte /* now have minutes */
-    )*60 + intSecond; /* finally seconds */
-
-    
-    
-/*
-    sprintf(strTo,"%s-%s-%s %s:%s:%s",year,mouth,day,h,m,s);
-    printf("DATE:%s\n",strTo);
-    strptime(strTo,TIMEFORMAT,&tmp_time);  
-    printf("Strptime\n");
-    tp = mktime(&tmp_time);  
-    printf("Mktime\n");
-*/
-
-    
+    )*60 + intSecond; /* finally seconds */    
     return tp;  
 }
 
@@ -156,10 +143,7 @@ time_t computTime(char * str)           //str:日、时、分各2字节
      m[i] ='\0';
  
      time_t res=0;
- 
-     printf("Day:%s Hour:%s  Munitis:%s\n",day,h,m);
-     //time_t  day_t,h_t,m_t;
-     //day_t = strtoul (P03->child->value.text.string, NULL, 0); 
+
      res =(time_t)(atoi(m)*60 + atoi(h)*60*60 + atoi(day)*60*60*24);
      return(res);
     
@@ -167,16 +151,8 @@ time_t computTime(char * str)           //str:日、时、分各2字节
 time_t getLocalTimestamp()               // 获取本地时间戳
 {
      time_t timep;
-     //struct tm *p;  
-     char s[100];
-     
      timep=time(NULL);
-     
-     //p=gmtime(&timep);  
-      
-     //strftime(s, sizeof(s), "%Y-%m-%d %H:%M:%S", p);  
-     //printf("NOW :%s\n", s);  
-     //printf("nowTimesstamp:%ld\n",timep);
+
      return(timep);
 }
 

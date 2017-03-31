@@ -322,9 +322,9 @@ otdr *lookupParm(int SNo,int type)   // OTDR SNo  , Test Type
 	sqlite3_close(mydb);
 
         return(myotdr);
-}                                        
-int NetworkIdle(int s,char *buf)
-	{
+}    
+                                    
+int NetworkIdle(int s,char *buf){
 		frame_header_t  *header=NULL;
 		start_measure_t *start=NULL;
 		uint32_t tlen;
@@ -336,7 +336,7 @@ int NetworkIdle(int s,char *buf)
 		start->cmd = CMD_HOST_NETWORK_IDLE;
 		start->len = 0;
 		return send(s, buf, tlen, 0);
-	}
+}
 
 // 设置参数并启动OTDR测试
 int HostStartMeasure(int sockt,otdr const * me,char * buf)
@@ -369,7 +369,7 @@ int HostStartMeasure(int sockt,otdr const * me,char * buf)
 	}
 
 // process data
-int ProcessData(char pbuf[], uint32_t len,int * flag)
+int  ProcessData(char pbuf[], uint32_t len,int * flag,char * fileName)
 	{
 		otdr_state_t *state=NULL;
 		uint32_t cmd;
@@ -395,7 +395,7 @@ int ProcessData(char pbuf[], uint32_t len,int * flag)
 				{
 					FILE *fp;
 					printf("%s : Receive final all data : %d\n", timE, len);
-					fp = fopen("OtdrAllData.hex", "w");
+					fp = fopen(fileName, "w");
 					if(NULL == fp)
 						{
 							printf("file can't open\n");
@@ -485,7 +485,7 @@ int OtdrTest(otdr const * me)
 							}
 						rxlen += curlen;
 					}
-				rxlen = ProcessData(buf, rxlen,&get_final);
+				rxlen = ProcessData(buf, rxlen,&get_final,"OtdrAllData.hex");
 				NetworkIdle(sock,buf);				                                                          //sleep(1);
             }
 		close(sock);

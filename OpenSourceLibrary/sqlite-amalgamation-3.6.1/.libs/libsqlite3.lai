@@ -32,4 +32,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/usr/local/lib'
+libdir='/web/cgi-bin/OpenSourceLibrary/sqlite-amalgamation-3.6.1/install/lib'

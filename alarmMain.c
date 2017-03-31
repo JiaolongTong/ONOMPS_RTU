@@ -10,13 +10,13 @@
 #include "uploadCycTestData.h" 
 #include "myModbus.h"
 
-/***测试链表节点结构***/ //LinkA
+/***测试链表节点结构***/ 
 /*
     SNO:光路号
     CM :局站号
     ANo:告警组号（优先级）
     PowerGate     :光功率门限，低于此门限产生告警
-
+    backIP        :中心服务器IP地址
     fristAlarmFlag:首次告警标识：首次产生告警，置位为1，告警消失：置位为0。
     nextAlarmTime :告警未消失时，下次向服务器上传告警信息的时间
     alarmClick    :上传告警的周期
@@ -32,7 +32,7 @@ struct checkNode{
         int    fristAlarmFlag;
         time_t nextAlarmTime;
         time_t alarmClick;
-
+        char   backIP[17];
 	struct checkNode *next;
 };
 
@@ -64,6 +64,10 @@ int num_A =0;                      //测试链表节点数
 int num_B =0;                      //异常链表节点数
 int flagNew=0;                     //节点更新/插入标志
 
+static int   sigLock=0;
+static queue *myQueue=NULL;
+static pthread_mutex_t mutex;
+
 /*****************************LinkA-checkLink************************************/
 /***插入测试节点****/
 /*
@@ -73,9 +77,6 @@ checkNode *insert_A(checkNode *head,checkNode *newNode)
 {
         checkNode *current=NULL;
         checkNode *pre=NULL;
-        //current = (checkNode *) malloc (sizeof(checkNode ));
-        //pre = (checkNode *) malloc (sizeof(checkNode ));
-	//pre     = NULL;
 	current = head;
         while(current!=NULL){
             pre = current;
@@ -103,7 +104,7 @@ checkNode *link_creat_A(){
         p1->fristAlarmFlag=0;
         p1->nextAlarmTime =0;
         p1->alarmClick    =0;
- 
+        strcpy(p1->backIP,"0.0.0.0");
 	head = insert_A(head,p1);
 	return(head);
 }
@@ -161,6 +162,7 @@ checkNode *findNode_A(checkNode *head,int SNo)
 /***遍历链表***/
 void outPutALL_A(checkNode *head){
 	checkNode *p=NULL;
+        int i=0;
 	p= head;
 	if(p==NULL){
 		printf("Don't have node in alarm tese link!\n");
@@ -169,8 +171,16 @@ void outPutALL_A(checkNode *head){
 	else
 		printf("There are %d lines on alarm testing linkA:\n",num_A);
 	while(p!=NULL){
-		printf("SNo:%d,rtuCM:%d,ANo:%d,PowerGate:%ffristAlarmFlag:%d,nextAlarmTime:%ld,alarmClick:%ld\n"
-                       ,p->SNo,p->CM,p->ANo,p->PowerGate,p->fristAlarmFlag,p->nextAlarmTime, p->alarmClick);
+
+                printf("-----------------Alarm Node:%d----------------------\n",++i);
+                printf("|SNo:%4d                    ANo:%4d                 \n",p->SNo,p->ANo);  
+                printf("|CM :%4d                    CLP:(null)              \n",p->CM); 
+                printf("|fristAlarmFlag:%4d         alarmClick:%d           \n",p->fristAlarmFlag,p->alarmClick); 
+                printf("|nextAlarmTime:%d           nowTime:%d              \n",p->nextAlarmTime,getLocalTimestamp()); 
+                printf("|PowerGate:%f               backIP:%s               \n",p->PowerGate,p->backIP); 
+                printf("--------------------------------------------------\n\n");
+
+
                 p=p->next;
 	}
 }
@@ -188,9 +198,6 @@ alarmNode *insert_B(alarmNode *head,alarmNode *newNode)
 
         alarmNode *current=NULL;
         alarmNode *pre=NULL;
-       // current = (alarmNode *) malloc (sizeof(alarmNode ));
-       // pre = (alarmNode *) malloc (sizeof(alarmNode ));
-       // pre     = NULL;
 	current = head;
         while(current!=NULL&&current->Order < newNode->Order){
             pre = current;
@@ -350,7 +357,7 @@ checkNode * InitA_CycleLink(void)
          int    CM=0;
          int    ret=-1;
          time_t T3,T4;
-
+         char IP[17];
          head = link_creat_A();
          head = delete_A(head,0);                                     
          SNoOnline =(char *) malloc(sizeof(char)*5);
@@ -431,14 +438,18 @@ checkNode * InitA_CycleLink(void)
 				T4= computTime(result[0]);
 				printf("T4:%ld \n",T4);
 				SQL_freeResult(&result,&rednum);
+
+				mysql->filedsName    = "IP01"; 
+				SQL_lookupPar(mysql,&result,&rednum); 
+				strcpy(IP,result[0]);
+				printf("serverIP: %s \n",IP);
+				SQL_freeResult(&result,&rednum);
 		                                     
 	    	                if(!setModbus_P())                                                //P
-		                   exit(EXIT_FAILURE);  
-		                usleep(50000);                         
+		                   exit(EXIT_FAILURE);                          
 		                modbus_t * mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
 		                ret = setOneOpticalThreshold(mb,atoi(SNo),PowerGate); 
-		                freeModbus(mb);     
-		                usleep(50000);                  
+		                freeModbus(mb);                     
 		                if(!setModbus_V())                                                //V
 		                   exit(EXIT_FAILURE);        
 		                if(ret==0){ 	
@@ -449,7 +460,8 @@ checkNode * InitA_CycleLink(void)
 				    node->PowerGate     = PowerGate;
 				    node->fristAlarmFlag= 0;
 				    node->nextAlarmTime = getLocalTimestamp();                    
-				    node->alarmClick    = T3;                                
+				    node->alarmClick    = T3;
+                                    strcpy(node->backIP,IP);                                
 				    head=insert_A(head,node); 
 		                } 
                         }
@@ -485,31 +497,28 @@ alarmNode * deleteALL_B(alarmNode *head){
 	else{
 	    while(p!=NULL){
 		           /*向otdrMain发送启动信号*/
-		        if(!setOTDR_P())                                                //P
-		           exit(EXIT_FAILURE);   
+
 		        printf("Send message to otdrMain! SNo=%d\n",p->SNo);
 			process ="/web/cgi-bin/otdrMain";                        
 			ret = get_pid_by_name(process, cycPID, MAX_PID_NUM);  
 			printf("alarmMain:process '%s' is existed? (%d): %c ", process, ret, (ret > 0)?'y':'n');  
-			signum=SIGRTMIN;                                     
-			mysigval.sival_int = p->SNo+200;                                                      
-			for(n=0;n<ret;n++){                                      
-				printf("otdrMain PID:%u\n", cycPID[n]);                  
-				if(sigqueue(cycPID[n],signum,mysigval)==-1)
-					printf("send signal error\n");
-				}  
-		           /*等待信号的成功处理消息*/			    
-			recvInt = recvMessageQueue_D("2-OK",2222);
-		        if(recvInt==0){
-		              printf("alarmMain Recv back message from otdrMain  sucessful!");
-		         }else{
-		              printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
-		         } 		                                                               
-		        usleep(10000);    //确保信号被处理完
-		        if(!setOTDR_V())                                                //V
-		           exit(EXIT_FAILURE); 
-
-		        if(recvInt==0)  
+                        if(ret>0){
+				signum=SIGRTMIN;                                     
+				mysigval.sival_int = p->SNo+200;                                                      
+				for(n=0;n<ret;n++){                                      
+					printf("otdrMain PID:%u\n", cycPID[n]);                  
+					if(sigqueue(cycPID[n],signum,mysigval)==-1)
+						printf("send signal error\n");
+					}  
+				   /*等待信号的成功处理消息*/			    
+				recvInt = recvMessageQueue_OTDR("2-OK",ALARM_MESSAGE_KEY);
+				if(recvInt==0){
+				      printf("alarmMain Recv back message from otdrMain  sucessful!");
+				 }else{
+				      printf("alarmMain Recv back message from otdrMain  Faild:Time out!");
+				 } 		                                                               
+                         }
+		        if( p!=NULL )  
 			    p=delete_B(p,p->SNo);
 	   }
            printf("\n\n");
@@ -519,26 +528,26 @@ alarmNode * deleteALL_B(alarmNode *head){
 
 checkNode *removeAllNode_A(checkNode * head)
 {
-   checkNode * p=NULL;
-   p=head;
-   if(p==NULL)
-      return p=NULL; 
-   else
-     while(p!=NULL)
-        p=delete_A(p,p->SNo);
-  return p;
+	   checkNode * p=NULL;
+	   p=head;
+	   if(p==NULL)
+	      return p=NULL; 
+	   else
+	     while(p!=NULL)
+		p=delete_A(p,p->SNo);
+	   return p;
 }
 
 alarmNode *removeAllNode_B(alarmNode * head)
 {
-   alarmNode * p=NULL;
-   p=head;
-   if(p==NULL)
-      return p=NULL; 
-   else
-     while(p!=NULL)
-        p=delete_B(p,p->SNo);
-  return p;
+	   alarmNode * p=NULL;
+	   p=head;
+	   if(p==NULL)
+	      return p=NULL; 
+	   else
+	     while(p!=NULL)
+		p=delete_B(p,p->SNo);
+	   return p;
 }
 /***插入待启动节点***/
 /*
@@ -568,6 +577,7 @@ checkNode *insertWaitingNode(checkNode *head)
          char **result = NULL;
          checkNode *node,*find;
          time_t T3,T4;
+         char IP[17];
                                    
          uint32_t SN=0,ANo=0,CM=0,intModNo=0;
          int   fiberType=-1,ModuleType=-1,protectFlag=-1,ret =-1;
@@ -587,10 +597,11 @@ checkNode *insertWaitingNode(checkNode *head)
          mysql->filedsValue =  "-1";                                
          mysql->filedsName  =  "Status";
          SN=SQL_findSNo(mysql,resultSNo);                                       //查找光路状态为待启动的记录
+  
          if(SN>0){
 		for(i =0 ;i<SN;i++){
 
-   		        printf("SNo:%s",resultSNo[i]);                          //获取光纤类型
+   		                                                                //获取光纤类型
 		        strcpy(SNo,resultSNo[i]);         
 	                mysql->tableName     = "AlarmTestSegmentTable";          
 		        mysql->filedsName    = "fiberType"; 
@@ -616,7 +627,6 @@ checkNode *insertWaitingNode(checkNode *head)
                         SQL_lookupPar(mysql,&result,&rednum); 
                         ModuleType=atoi(result[0]); 
                         SQL_freeResult(&result,&rednum);
-
 
 
                         if(fiberType==0 || ModuleType==4){                       //备纤 或 在纤（OPM）模块
@@ -654,6 +664,15 @@ checkNode *insertWaitingNode(checkNode *head)
 				        T4= computTime(result[0]);
 					printf("T4:%ld  ",T4);
 		                        SQL_freeResult(&result,&rednum);
+
+
+					mysql->filedsName    = "IP01"; 
+					SQL_lookupPar(mysql,&result,&rednum); 
+					strcpy(IP,result[0]);
+					printf("serverIP: %s \n",IP);
+					SQL_freeResult(&result,&rednum);
+		                        
+
   
                                         mysql->filedsName    = "Status"; 
                                         mysql->filedsValue   = "1";
@@ -672,7 +691,8 @@ checkNode *insertWaitingNode(checkNode *head)
 					node->PowerGate     = PowerGate;
 					node->fristAlarmFlag= 0;
 					node->nextAlarmTime = getLocalTimestamp();                    
-					node->alarmClick    = T3;                                
+					node->alarmClick    = T3;  
+                                        strcpy(node->backIP,IP);                              
 		                        find=findNode_A(head,node->SNo);                          // 查看链表中是否已经存在SNo光路
 				        if(find ==NULL){
 				               head = insert_A(head,node);                
@@ -715,6 +735,7 @@ checkNode * removeWaitingNode(checkNode *head)
 	 SNo = (char *) malloc(sizeof(char)*5);
          ModNo = (char *) malloc(sizeof(char)*5);
 	 mysql = SQL_Create();
+  
 	 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 	 if( rc != SQLITE_OK )
 	     printf("Lookup SQL error\n");
@@ -722,7 +743,8 @@ checkNode * removeWaitingNode(checkNode *head)
 	 mysql->tableName   = "AlarmTestSegmentTable";	
          mysql->filedsValue =  "-2";                                
          mysql->filedsName  =  "Status";
-         SN=SQL_findSNo(mysql,resultSNo);                           
+         SN=SQL_findSNo(mysql,resultSNo); 
+                         
          if(SN>0){
 		 for(i =0 ;i<SN;i++){
 		       printf("SNo:%s",resultSNo[i]);                          //获取光纤类型
@@ -737,7 +759,7 @@ checkNode * removeWaitingNode(checkNode *head)
 		       printf("fiberType:%d\n",fiberType);
                        SQL_freeResult(&result,&rednum);
                     
-                       intModNo=((intSNo-1)/8+1);                              // 获取所属模块类型              
+                       intModNo=((intSNo-1)/8+1);                              //获取所属模块类型              
                        uint32tostring(intModNo,ModNo);
                        mysql->mainKeyValue  =  ModNo;
                        mysql->tableName     =  "SubModuleTypeTable";
@@ -785,83 +807,44 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
 	sql *mysql=NULL;
 	char **result = NULL;
         modbus_t *mb=NULL;
-        char strSNo[10],strPNo[10],strSNoOnline[10],strNewSwitchPos[10];
+        char strSNo[10],strPNo[10],strSNoOnline[10],strNewSwitchPos[10],backIP[17];
 	int  rednum =0;
         int  oldSwitchPos=0,newSwitchPos=0,flagSW=-1;
 	int rc=0,intSNo=0,intANo=0,intCM=0;
         int fristAlarmFlag=0;
+ 
         time_t nowTime=0,nextAlarmTime=0,alarmClick=0;
 	p= headA;
         q= headB;
         mysql = SQL_Create();
 	if(p==NULL){
-		//printf("This is a void excel!\n");
 		return q;
 	} 
+       
 	else
-	  while(p!=NULL){    
-             if(p!=NULL){
-                  if(flagNew == 0 ){                                                                   
-		      if(p!=NULL)intSNo=p->SNo;
-		      if(p!=NULL)intANo=p->ANo; 
-		      if(p!=NULL)intCM =p->CM;    
-		      if(p!=NULL)fristAlarmFlag=p->fristAlarmFlag;     
-		      if(p!=NULL)PowerGate=p->PowerGate;   
-		      if(p!=NULL)nextAlarmTime=p->nextAlarmTime; 
-		      if(p!=NULL)alarmClick=p->alarmClick;
+	  while(p!=NULL){   
+                                                                 
+		intSNo=p->SNo;
+		intANo=p->ANo; 
+		intCM =p->CM;    
+		fristAlarmFlag=p->fristAlarmFlag;     
+		PowerGate=p->PowerGate;   
+		nextAlarmTime=p->nextAlarmTime; 
+		alarmClick=p->alarmClick;
+                strcpy(backIP ,p->backIP);
 
-	              if(!setModbus_P())                                              //P  
-		         exit(EXIT_FAILURE); 
-                      usleep(50000);  		        
-		      mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-		      powerValue = getOneOpticalValue(mb,intSNo,2);                //获取当前光路光功率值                      
-		      freeModbus(mb);  
-                      usleep(50000);		                 
-		      if(!setModbus_V())                                              //V
-                         exit(EXIT_FAILURE);  
-                      if(powerValue==0)powerValue=-70.0; 
+	        if(!setModbus_P())                                              //P  
+		         exit(EXIT_FAILURE);   		        
+		mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
+		powerValue = getOneOpticalValue(mb,intSNo,2);                //获取当前光路光功率值                      
+		freeModbus(mb);                   
+		if(!setModbus_V())                                              //V
+                    exit(EXIT_FAILURE);  
+                if(powerValue==0)powerValue=-70.0; 
   
-                  }else{
-                       if(p!=NULL){
-		               if(p!=NULL)p=p->next; 
-		               if(p!=NULL){
-				    if(p!=NULL)intSNo=p->SNo;
-				    if(p!=NULL)intANo=p->ANo; 
-				    if(p!=NULL)intCM =p->CM;    
-				    if(p!=NULL)fristAlarmFlag=p->fristAlarmFlag;     
-				    if(p!=NULL)PowerGate=p->PowerGate;              
-				    if(p!=NULL)nextAlarmTime=p->nextAlarmTime; 
-				    if(p!=NULL)alarmClick=p->alarmClick; 
 
-				    if(!setModbus_P())                                                //P  
-					exit(EXIT_FAILURE);   
-				    usleep(50000);				
-				    mb=newModbus(MODBUS_DEV,MODBUS_BUAD);
-				    powerValue = getOneOpticalValue(mb,intSNo,2);                        //获取当前光路光功率值							           
-			            freeModbus(mb);  		       
-                                    usleep(50000);				                     
-			            if(!setModbus_V())                                                //V
-				       exit(EXIT_FAILURE); 
-                                    if(powerValue==0)powerValue=-70.0;  
-                                    flagNew=0;
-		                                        
-		               }else{
-		                    p=NULL;
-                                    flagNew=0;
-		                    break;
-		               }
-                       }else{
-			    p=NULL;
-                            flagNew=0;
-			    break;                           
-                       }
-                  }
-             }else{
-		  p==NULL;
-                  flagNew=0;
-		  break;
-             }              
-             if( powerValue < PowerGate ){    //异常	 
+                
+                if( powerValue < PowerGate ){    //异常	 
                      nowTime = getLocalTimestamp();                   
                      if(fristAlarmFlag ==0){                                   //状态C: 首次出现异常 -->fristAlarmFlag=0   实际光功率值<阈值                 
                           printf("障碍告警(备纤、在纤OPM):StateC--->光路%d 首次出现异常...光功率值:%f <---> 参考门限:%f\n\n",intSNo ,powerValue,PowerGate);
@@ -902,21 +885,8 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
                           bData->powerGate  =PowerGate;
                           bData->level      =0;
                           if(p!=NULL){
-		                  mysql = SQL_Create();
-				  rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
-				  if( rc != SQLITE_OK )
-					printf("Lookup IP SQL error\n");			 
-				  mysql->db = mydb;
-				  mysql->tableName        = "AlarmTestSegmentTable";
-				  mysql->filedsName       = "IP01";
-				  uint32tostring(intSNo,strSNo);
-				  mysql->mainKeyValue = strSNo;  
-				  SQL_lookupPar(mysql,&result,&rednum);
-				  strcpy(bData->backIP,result[0]);
-				  SQL_freeResult(&result,&rednum); 
-			     	  SQL_Destory(mysql);  
-				  sqlite3_close(mydb); 
-		                  upload(bData,intSNo,intCM,1);
+                                  strcpy(bData->backIP,backIP);
+		                  upload(bData,intSNo,intCM,RESPONCE_OpticPowerWarming);
                           }else{
 		                  p=NULL;
 		                  break;
@@ -927,42 +897,18 @@ alarmNode  *rollPolingAlarm(checkNode *headA,alarmNode *headB)
                 else ;                                                       //状态B:正常  -->  fristAlarmFlag=0 实际光功率值>=阈值            
 
                 if(p!=NULL){
-                      if(flagNew==0){
-			      if(p!=NULL) p->fristAlarmFlag=fristAlarmFlag;
-			      if(p!=NULL) p->nextAlarmTime=nextAlarmTime  ;
-			      if(p!=NULL) p=p->next;
-                      }else{
-		              if(p!=NULL) p=p->next;
-                              flagNew=0;   
-		              break;
-                      }
-                }else{
-                     p=NULL; 
-                     flagNew=0; 
-                     break;
-                }                    
+		      p->fristAlarmFlag=fristAlarmFlag;
+		      p->nextAlarmTime=nextAlarmTime  ;
+		     p=p->next;
+                }                   
        }
        return q;
 }
-void addNewtoLink(int signum,siginfo_t *info,void *myact);
-void main(void)
+
+void work_line(void)
 {
         checkNode *node_A;
         alarmNode *node_B;
-        int i,flagCycle = 0,flagProtect=0 ; 
-        pid_t cyclePID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
-        /*初始化信号量*/
-        sem_id        = semget((key_t)1234, 1, 4777 | IPC_CREAT);                         //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
-        modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                         //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
-        otdr_sem_id   = semget((key_t)2468, 1, 4777 | IPC_CREAT);                         //创建OTDR信号量   :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量 
-
-
-       flagCycle = get_pid_by_name("/web/cgi-bin/cycMain", cyclePID, MAX_PID_NUM);  
-       flagProtect = get_pid_by_name("/web/cgi-bin/ProtectMasterMain", protectPID, MAX_PID_NUM);  
-       if(flagCycle <=0 && flagProtect<=0)
-          if(!setOTDRPV()) {                                                                //first launch (for modfiy)        
-            exit(0);
-       }   
         /*初始化测试链表*/
         linkHead_check_A=InitA_CycleLink();
         linkHead_alarm_B=InitB_CycleLink();
@@ -975,71 +921,108 @@ void main(void)
             outPutALL_B(linkHead_alarm_B);
         else
             printf("linkB Head:NULL\n");
+
+        /*执行调度程序*/
+        while(1){
+            pthread_mutex_lock(&mutex);
+            linkHead_alarm_B=rollPolingAlarm(linkHead_check_A,linkHead_alarm_B);            
+            outPutALL_B(linkHead_alarm_B);     
+            linkHead_alarm_B=deleteALL_B(linkHead_alarm_B);
+            pthread_mutex_unlock(&mutex); 
+
+            usleep(100000);
+           
+  
+        }   	
+}
+
+
+
+void sigrecv_headle()
+{ 
+       int SNo =0,data,ret;
+       
+       while(1){
+           while(myQueue->count!=0){
+               pthread_mutex_lock(&mutex);
+
+               ret=Queue_Delete(myQueue,&data);
+	       printf("alarmMain(R): the int value is %d \n",data);
+	       if(data>270 && data <370)                                //最大一次删除99个节点
+	       {
+		   sendMessageQueue_Boa("270-OK-A",ALARM_MESSAGE_TYPE);
+		   SNo = data%270;
+		   linkHead_check_A = delete_A(linkHead_check_A,SNo);                   //删除节点
+		   linkHead_alarm_B = delete_B(linkHead_alarm_B,SNo);
+		   outPutALL_A(linkHead_check_A);
+		   outPutALL_B(linkHead_alarm_B); 
+
+		  
+	       }
+	       switch(data){
+		   case 130:{ 
+		            flagNew = 1;  
+		            linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
+		            outPutALL_A(linkHead_check_A);
+		            sendMessageQueue_Boa("130-OK",ALARM_MESSAGE_TYPE);
+			    
+		          } break;
+		   case 230:{                                                            //终止告警测试
+		            //flagNew = 1;
+		            linkHead_check_A = removeWaitingNode(linkHead_check_A);                   
+		            outPutALL_A(linkHead_check_A);
+		            sendMessageQueue_Boa("230-OK",ALARM_MESSAGE_TYPE);
+			    
+		          }  break;        
+		   case 260:{                                                            //清除RTU模式
+		            flagNew = 1;
+		            linkHead_check_A = removeAllNode_A(linkHead_check_A); 
+		            linkHead_alarm_B = removeAllNode_B(linkHead_alarm_B);                  
+		            outPutALL_A(linkHead_check_A);
+		            outPutALL_B(linkHead_alarm_B); 
+		            sendMessageQueue_Boa("260-OK-A",ALARM_MESSAGE_TYPE);
+			        
+		           } break;        
+		  default: break;                                                           //异步接收光功率异常(测试)
+	      }
+              pthread_mutex_unlock(&mutex);
+         }
+      }
+}
+void addNewtoLink(int signum,siginfo_t *info,void *myact);
+void main(){
+        int i,flagCycle = 0,flagProtect=0 ; 
+        pid_t cyclePID[MAX_PID_NUM],protectPID[MAX_PID_NUM];  
+        pthread_t tha,thb;  
+        void *retval;
+        /*初始化信号量*/
+        sem_id        = semget((key_t)1234, 1, 4777 | IPC_CREAT);                         //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
+        modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                         //创建ModBus信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要获取指定的信号量
         /*初始化信号机制（IPC）*/
         struct sigaction act;
         int sig;
-        sig=SIGUSR1;  //for Boa
+        sig=SIGRTMIN+1;  
         sigemptyset(&act.sa_mask);
         act.sa_sigaction=addNewtoLink;
         act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                               
         if(sigaction(sig,&act,NULL)<0){                              
           printf("install sigal error\n");
         }
-        /*执行调度程序*/
-        while(1){
-             
-            linkHead_alarm_B=rollPolingAlarm(linkHead_check_A,linkHead_alarm_B); 
-            
-            outPutALL_B(linkHead_alarm_B);     
 
-            linkHead_alarm_B=deleteALL_B(linkHead_alarm_B);
+
+        myQueue = Queue_Initiate();   
+        pthread_mutex_init(&mutex,NULL);                 
+
+        pthread_create(&thb,NULL,work_line,(void *)(NULL)); 
+        pthread_create(&tha,NULL,sigrecv_headle,(void *)(NULL));  
  
-            usleep(100000);
-           
-  
-        }   	
-}
-void addNewtoLink(int signum,siginfo_t *info,void *myact)
-{
-       printf("alarmMain(R): the int value is %d \n",info->si_int);
-       int SNo =0;
-       if(info->si_int>270 && info->si_int <370)                                //最大一次删除99个节点
-       {
-           SNo = info->si_int%270;
-           linkHead_check_A = delete_A(linkHead_check_A,SNo);                   //删除节点
-           linkHead_alarm_B = delete_B(linkHead_alarm_B,SNo);
-           outPutALL_A(linkHead_check_A);
-           outPutALL_B(linkHead_alarm_B); 
-           sendMessageQueue("270-OK");
-	   return;
-       }
-       switch(info->si_int){
-           case 130:{ 
-                    flagNew = 1;  
-                    linkHead_check_A = insertWaitingNode(linkHead_check_A);      //启动告警测试
-                    outPutALL_A(linkHead_check_A);
-                    sendMessageQueue("130-OK");
-		    break;
-                  }
-           case 230:{                                                            //终止告警测试
-                    flagNew = 1;
-                    linkHead_check_A = removeWaitingNode(linkHead_check_A);                   
-                    outPutALL_A(linkHead_check_A);
-                    sendMessageQueue("230-OK");
-		    break;
-                  }          
-           case 260:{                                                           //清除RTU模式
-                    flagNew = 1;
-                    linkHead_check_A = removeAllNode_A(linkHead_check_A); 
-                    linkHead_alarm_B = removeAllNode_B(linkHead_alarm_B);                  
-                    outPutALL_A(linkHead_check_A);
-                    outPutALL_B(linkHead_alarm_B); 
-                    sendMessageQueue("260-OK");
-		    break;    
-                   }         
-          default:{                                                             //异步接收光功率异常(测试)
-                    break;
-                  }
-      }
+        pthread_join(thb,&retval); 
+        pthread_join(tha,&retval); 
 }
 
+void addNewtoLink(int signum,siginfo_t *info,void *myact){
+      while(sigLock==1);
+      sigLock=1;
+      Queue_Append(myQueue,info->si_int);
+      sigLock=0; 
+}

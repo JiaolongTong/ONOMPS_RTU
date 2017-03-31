@@ -57,7 +57,7 @@
             msgrcv(msgid, (void*)&data, BUFSIZ, msgtype,IPC_NOWAIT|MSG_NOERROR);
             if(strlen(data.text) !=0){  
                printf("MyName:Msgrecv-%s\n",argv[1]);
-               printf("Distory RecvMessage: %s\n",data.text);                     
+               printf("Distory RecvMessage: %s type:%ld\n",data.text,data.msg_type);                     
                if(strncmp(data.text, argv[1], strlen(argv[1])) == 0){
                      printf("Useful RecvMessage: %s\n",data.text);                      
                      running = 0;                                       //遇到1-OK结束 

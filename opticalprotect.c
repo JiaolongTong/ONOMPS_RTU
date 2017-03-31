@@ -261,6 +261,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
    }
    else{
                /*解析XML消息*/
+                                 
         getOpticalProtectParameter(cmd,tree,protectmpar);
 	CM = mxmlFindElement(cmd, tree, "CM",NULL, NULL,MXML_DESCEND);
 	intCM = strtoul (CM->child->value.text.string, NULL, 0); 
@@ -282,7 +283,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 	   printf( "Open Database error.\n");
 	}
         mysql->db =mydb; 
-
+                                   
              /*循环处理每个保护组*/ 
         for(i=0;i<PN;i++){ 
                	mysql->tableName ="SubModuleTypeTable";                           //检查子单元模块是否存在
@@ -324,7 +325,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                            exit(EXIT_FAILURE);                                    
 			SQL_modify(mysql);  
                         if(!semaphore_v())  
-                           exit(EXIT_FAILURE);                                    	     
+                          exit(EXIT_FAILURE);                                    	     
 		}
 		mysql->mainKeyValue = strSNoA2;
 		ParmerFlagA2=SQL_existIN_db(mysql);
@@ -405,6 +406,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                 }else if(UseFlag ==1  && PortFlagA1==1 && PortFlagA2==1 &&  PortFlagB1==1 &&  PortFlagB2==1 ){
                       if(ModType==MODE3_PROTECT_MASTER){
 		              /*初始化从端RTU*/    
+                                   
                               ctx=newModBus_TCP_Client(protectmpar->Group[i].IP);
                               if( ctx== NULL){
 				  resp->RespondCode =ERROR_CODE_13_PROTECT_FAILED;
@@ -440,7 +442,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                                ctx=NULL;    
 			       if(!setModbus_V())                                                              
 					exit(EXIT_FAILURE);
-
+                                  
                                /*主从RTU初始化失败*/
                                if(flagSetSlaver >= 0 && flagSetMaster >= 0 ){ 
                                         /*均有测试参数，则自动启动保护模式*/
@@ -450,6 +452,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 		                            		                             
 				                        mysql->tableName ="ProtectGroupTable";  
 							protectmpar->Action =STATUS_PerSTATUS_PROTECT;           //写入保护组数据库
+
 							sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n" 
 									  ,protectmpar->Group[i].PNo             
 									  ,protectmpar->Group[i].SNoA            
@@ -500,7 +503,6 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 		                                    
 						       mysql->tableName ="ProtectGroupTable";  
 						       protectmpar->Action =STATUS_WAIT_GATE;            //等待配置测试参数
-
 						       sprintf(strSQL,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d\n"  
 						         		,protectmpar->Group[i].PNo             
 									,protectmpar->Group[i].SNoA            
@@ -515,6 +517,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 						                        ,protectmpar->Group[i].IP              
 									,protectmpar->Action);
 							mysql->filedsValue = strSQL;
+                                                        
 							if(!semaphore_p())  
 							    exit(EXIT_FAILURE);                                    
 							SQL_add(mysql);                                  //更新或者插入新的纪录
@@ -601,11 +604,9 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 				       
                        }
 			   /*等待成功信号*/
-                    recvStr = (char *) malloc(sizeof(char)*10);
-		    recvStr = recvMessageQueue_C();
-		    if(strncmp(recvStr, "170-OK", 6) == 0)                     
+		    if(recvMessageQueue_Backstage("170-OK",PROTECT_MESSAGE_TYPE) == 1){                     
 			    printf("Set Protect Group operation sucessful!\n");
-		    else{
+		    }else{
 		            printf("Set Protect Group operation failed!\n");
 			    resp->RespondCode=3;
 			    resp->Group[0].Main_inform  = "切换保护节点更新失败-->未收到回复消息";
@@ -613,7 +614,7 @@ responed *  setOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
                             free(recvStr);
 			    return resp;   
 		    }
-                    free(recvStr);		   
+	   
 	      }else{
 		      resp->RespondCode=ERROR_CODE_3_EXECULTE_FAILED;
 		      resp->Group[0].Main_inform  = "切换保护节点更新失败-->未找到后台进程";
@@ -688,10 +689,10 @@ Step 3:   校验模块类型，端口信息
 Step 4:   校验未通过，回复相应的错误异常
 Step 5:   校验通过,获取保护组当前状态,以及从端RTU相关信息
 Step 6:   若保护组当前状态处于0 1 -1种的任意一种 则Step7  
-Step 7:   根据指令中的光开关位置，以及从端模块信息，控制从端RTU光开关
-Step 8:   根据指令中的光开关位置，控制主端RTU光开关
-Step 9:   若Step 7 Step 8操作成功,更新与保护相关的数据表
-Step 10:  检查是否存在测试参数,若有参数，则设置更新后台节点标志
+Step 7:  检查是否存在测试参数,若有参数，则设置更新后台节点标志
+Step 8:   根据指令中的光开关位置，以及从端模块信息，控制从端RTU光开关
+Step 9:   根据指令中的光开关位置，控制主端RTU光开关
+Step 10:   若Step 7 Step 8操作成功,更新与保护相关的数据表
 Setp 11:  根据设置后台请求标识向后台发送启动自动保护信号
 
 */
@@ -834,7 +835,10 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 				    SQL_freeResult(&result,&rednum);
 
 				    if(SwitchStatus == STATUS_AUTO_PROTECT ||  SwitchStatus == STATUS_PerSTATUS_PROTECT || SwitchStatus == STATUS_WAIT_GATE){	
-
+                                           /*存在测试参数，表明后台有测试节点*/
+                                           if(haveFlag=ifHaveTestSegment(mydb,mysql,protectmpar->Group[i].SNoA,protectmpar->Group[i].SNoB,protectmpar->Group[i].SNoA+1,protectmpar->Group[i].SNoB+1)){
+                                              ProtectCounter++;   
+                                           }
                                            /*向从端发送光开关切换指令*/			                 
                                            ctx=newModBus_TCP_Client(sIP);
 		                           if(ctx==NULL){
@@ -900,10 +904,6 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 		                           }
                                            freeModbus_TCP_Client(ctx); 
                                            ctx=NULL;
-                                           /*存在测试参数，表明后台有测试节点*/
-                                           if(haveFlag=ifHaveTestSegment(mydb,mysql,protectmpar->Group[i].SNoA,protectmpar->Group[i].SNoB,protectmpar->Group[i].SNoA+1,protectmpar->Group[i].SNoB+1)){
-                                              ProtectCounter++;   
-                                           }
 				    }else{
 				          if(resp->SNorPN!=TYPE_SNo){
 						  resp->RespondCode = ERROR_CODE_14_DBMATCH_FAILED ; 
@@ -966,7 +966,7 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
        char* process;  
        int retProcess = 0,n=0;  
        pid_t protectPID[MAX_PID_NUM];  
-       char*  recvStr=NULL;
+
 
         if(ProtectCounter>0){   
                             /*发送更新节点信号*/   
@@ -982,19 +982,18 @@ responed *  requestProtectSwitch(mxml_node_t *cmd,mxml_node_t *tree,int cmdCode)
 			       printf("send signal error\n");
 		      }  
 			   /*等待成功信号*/
-                    recvStr = (char *) malloc(sizeof(char)*10);
-		    recvStr = recvMessageQueue_C();
-		    if(strncmp(recvStr, "370-OK", 6) == 0)                     
+
+		    if(recvMessageQueue_Backstage("370-OK",PROTECT_MESSAGE_TYPE) == 1){                     
 			    printf("Do  Protect Switch operation sucessful!\n");
-		    else{
+		    }else{
 		            printf("Set Protect Switch operation failed!\n");
 			    resp->RespondCode=3;
 			    resp->Group[0].Main_inform  = "切换保护节点更新失败-->未收到回复消息";
 			    resp->Group[0].Error_inform = "Error:Don't get back massgae![切换保护节点更新失败-->未收到回复消息]";
-                            free(recvStr);
+
 			    return resp;   
 		    }
-                    free(recvStr);		   
+ 	   
 	      }else{
 		      resp->RespondCode=ERROR_CODE_3_EXECULTE_FAILED;
 		      resp->Group[0].Main_inform  = "切换保护节点更新失败-->未找到后台进程";
@@ -1184,7 +1183,7 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 					  if(existFlag){     
                                              SQL_delete(mysql); 
 					  } 
-                                          if(!semaphore_p())  
+                                          if(!semaphore_v())  
 				             exit(EXIT_FAILURE); 
 
 				          /*删除从端模块*/ 
@@ -1229,7 +1228,7 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
       char* process;  
       int retProcess = 0,n=0;  
       pid_t protectPID[MAX_PID_NUM];  
-      char*  recvStr=NULL;
+
 
       if(ProtectCounter>0){ 
                             /*发送取消保护信号*/
@@ -1245,19 +1244,18 @@ responed *  endOpticalProtectSegment(mxml_node_t *cmd,mxml_node_t *tree,int cmdC
 			       printf("send signal error\n");
 		      }  
 			   /*等待成功信号*/
-                    recvStr = (char *) malloc(sizeof(char)*10);
-		    recvStr = recvMessageQueue_C();
-		    if(strncmp(recvStr, "250-OK", 6) == 0)                     //遇"370-OK"结束
+
+		    if(recvMessageQueue_Backstage("250-OK",PROTECT_MESSAGE_TYPE) == 1){                     //遇"250-OK"结束
 			    printf("Cancel Protect Group operation sucessful!\n");
-		    else{
+		    }else{
 		            printf("Cancel Protect Group operation failed!\n");
 			    resp->RespondCode=ERROR_CODE_3_EXECULTE_FAILED;
 			    resp->Group[0].Main_inform  = "切换保护节点删除失败-->未收到回复消息";
 			    resp->Group[0].Error_inform = "Error:Don't get back massgae![切换保护节点删除失败-->未收到回复消息]";
-                            free(recvStr);
+
 			    return resp;   
 		    }
-                    free(recvStr);		   
+		   
 	      }
       }
 

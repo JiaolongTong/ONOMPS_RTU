@@ -16,7 +16,7 @@
 #include <fcntl.h>  
 #include <string.h>  
 #include <fcntl.h>  
-#include <sys/sem.h>
+#include <sys/sem.h>  //System V 信号量
 #include <sys/msg.h>
 #include <signal.h>
 #include <time.h>
@@ -229,7 +229,7 @@ int     getMulOpticalValue(modbus_t *mb,int SNo,int16_t num,float * value);
 
 int16_t getErrorOpticalSNo(modbus_t *mb,int exintNo);                                    //获取异常光路
 
-int doOtdrSwitch(modbus_t * mb,int SNo,int onlyOne);                                     //执行OTDR光开关切换 OK
+int doOtdrSwitch(modbus_t * mb,int SNo,int onlyOne,int ModType);                                     //执行OTDR光开关切换 OK
 
 int setOneOpticalThreshold(modbus_t *mb,int SNo,float value);                            //设置、获取光功率阈值
 int16_t setMulOpticalThreshold(modbus_t *mb,int SNo, float *value, int num);

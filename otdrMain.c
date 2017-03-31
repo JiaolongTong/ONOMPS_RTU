@@ -19,9 +19,10 @@ typedef struct otdrNode otdrNode;
 struct otdrNode{
 	int    SNo;                                 
         int    CM ;                                 
-        int    type;                                	                                                                                       
+        int    type; 
+        int    ModuleType;                               	                                                                                       
         time_t creat_time;  
-        char   *backIP;
+        char   backIP[17];
         pid_t  masterPID;                        
 	struct otdrNode *next;
 };
@@ -35,7 +36,11 @@ int otdr_sem_id =0;
 int n =0;                 //链表节点数
 otdrNode *linkHead;       //链表头
 
+static int   sigLock=0;
+static queue *myQueue=NULL;
+static pthread_mutex_t mutex;
 
+static char serverIP[17];
 /***插入有序节点****/
 /*
      (1) 如果测试类型不同,插入到第一个类型比newNode大的节点之前.
@@ -72,8 +77,9 @@ otdrNode *link_creat()
         p1->SNo  =0;
         p1->CM   =0;
         p1->type =0;
+        p1->ModuleType=0;
         p1->creat_time =0;
-        p1->backIP = NULL;
+        strcpy(p1->backIP,"0.0.0.0");
         p1->masterPID=getpid();
 	head = insert(head,p1);
         
@@ -167,8 +173,9 @@ otdrNode * outFirstnode(otdrNode *head)
         p0->SNo           = head->SNo;
         p0->CM            = head->CM ;
         p0->type          = head->type;
+        p0->ModuleType    = head->ModuleType;
         p0->creat_time    = head->creat_time;
-        p0->backIP        = head->backIP;
+        strcpy(p0->backIP , head->backIP);
         p0->masterPID     = head->masterPID;
 	return(p0);
 }
@@ -184,14 +191,13 @@ void outPutALL(otdrNode *head){
 	else
 		printf("There are %d nodes on OTDR-TEST working link.\n",n);
 	while(p!=NULL){
-                printf("---------------------Node:%d------------------------\n",i+1);
-                printf("|SNo:%4d                    Type:%4d             |\n",p->SNo,p->type);  
-                printf("|SNoA:%4d                   CLP :(null)           |\n",p->CM); 
-                printf("|masterPID:%d               creat_time:%d         |\n",p->masterPID,p->creat_time); 
-                printf("|backIP:%s                              |\n",p->backIP); 
+                printf("--------------------OTDR-Node:%d-------------------\n",++i);
+                printf("|SNo:%4d                    TestType:%4d             \n",p->SNo,p->type);  
+                printf("|CM :%4d                    ModuleType :%4d    \n",p->CM,p->ModuleType); 
+                printf("|masterPID:%d              CreatTime:%d         \n",p->masterPID,p->creat_time); 
+                printf("|backIP:%s                              \n",p->backIP); 
                 printf("---------------------------------------------------\n\n");
 		p=p->next;
-                i++;
 	}
 }
 
@@ -217,18 +223,15 @@ otdrNode * Init_CycleLink(void)
 otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入数据库中状态为-1 的节点，并把状态修改为1
 {
 	 sqlite3 *mydb=NULL;
-	 sql *mysql=NULL;
+	 sql  *mysql=NULL;
          char **result = NULL;
          int  rednum =0;
-	 int rc=0;
-	 char *SNo=NULL;
-
-
-         int  CM=0,i=0;
+	 int  rc=0;
+         int  ModuleType=0,CM=0,i=0;
+	 char SNo[5],ModNo[10],IP[17];
          otdrNode *node=NULL;
-         char *IP=NULL;
-	 SNo = (char *) malloc(sizeof(char)*5);
-         IP  = (char *) malloc(sizeof(char)*16);
+
+
          node=(otdrNode *)malloc(sizeof(otdrNode));
          
          uint32tostring((uint32_t)intSNo,SNo);
@@ -237,68 +240,147 @@ otdrNode * insertTestNode(otdrNode *head,int type,int intSNo)          //插入�
 		 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 		 if( rc != SQLITE_OK ){
 			      printf( "Lookup SQL error\n");
-                              return ;
-		}
+                              return (head) ;
+		 }
 		 mysql->db = mydb;
 		 if(type==3)
 		    mysql->tableName     = "CycleTestSegnemtTable";
 		 if(type==2)
 		    mysql->tableName     = "AlarmTestSegmentTable";
 	
-		 mysql->mainKeyValue     = SNo;   
-		 mysql->filedsName       = "rtuCM"; 
-		 SQL_lookupPar(mysql,&result,&rednum);
-		 CM =atoi(result[0]);
-                 SQL_freeResult(&result,&rednum);
-                 node->CM  =CM;
+		 mysql->mainKeyValue     = SNo;  
+                 if( SQL_existIN_db(mysql)){
+			 mysql->filedsName       = "rtuCM"; 
+			 SQL_lookupPar(mysql,&result,&rednum);
+			 CM =atoi(result[0]);
+		         SQL_freeResult(&result,&rednum);
+		         node->CM  =CM;
+                
 
+			 mysql->filedsName       = "IP01";
+		         SQL_lookupPar(mysql,&result,&rednum);
+		         strcpy(IP,result[0]);
+		         SQL_freeResult(&result,&rednum);    
 
-		 mysql->filedsName       = "IP01";
-                 SQL_lookupPar(mysql,&result,&rednum);
-                 strcpy(IP,result[0]);
-                 SQL_freeResult(&result,&rednum);          
-                 node->backIP =IP;
-                 node->masterPID=getpid();
-		 SQL_Destory(mysql);  
-		 sqlite3_close(mydb); 
+                         sprintf(ModNo,"%d",(atoi(SNo)-1)/8+1);
+                         mysql->tableName     = "SubModuleTypeTable";
+                         mysql->filedsName    = "ModuleType";
+                         mysql->mainKeyValue  = ModNo;
+                         SQL_lookupPar(mysql,&result,&rednum);
+                         ModuleType = atoi(result[0]);
+                         SQL_freeResult(&result,&rednum);
+
+		         strcpy(node->backIP,IP);
+		         node->masterPID=getpid();
+                         node->ModuleType = ModuleType;
+
+			 SQL_Destory(mysql);  
+			 sqlite3_close(mydb); 
+                 }else return (head);
 
          }else{
 		 mysql = SQL_Create();
 		 rc = sqlite3_open("/web/cgi-bin/System.db", &mydb);
 		 if( rc != SQLITE_OK ){
 			      printf( "Lookup SQL error\n");
-                              return ;
-		}
+                              return (head) ;
+		 }
 
 		 mysql->db = mydb;
 		 mysql->tableName        = "NamedTestSegmentTable";
 		 mysql->mainKeyValue     = SNo;   
-		 mysql->filedsName       = "masterPID"; 
-		 SQL_lookupPar(mysql,&result,&rednum);
-		 node->masterPID =atoi(result[0]);
-                 SQL_freeResult(&result,&rednum);               
-                 
+                 if( SQL_existIN_db(mysql)){
+			 mysql->filedsName       = "masterPID"; 
+			 SQL_lookupPar(mysql,&result,&rednum);
+			 node->masterPID =atoi(result[0]);
+		         SQL_freeResult(&result,&rednum); 
+
+                         sprintf(ModNo,"%d",(atoi(SNo)-1)/8+1);
+                         mysql->tableName     = "SubModuleTypeTable";
+                         mysql->filedsName    = "ModuleType";
+                         mysql->mainKeyValue  =  ModNo;
+                         SQL_lookupPar(mysql,&result,&rednum);
+                         node->ModuleType     = atoi(result[0]);
+                         SQL_freeResult(&result,&rednum);  
+            
+                 }else return (head);
 		 SQL_Destory(mysql);  
 		 sqlite3_close(mydb); 
             
                  node->CM  =0;
-                 node->backIP=NULL;
+                 strcpy(node->backIP,"0.0.0.0");
          }
-
 
 	 node->SNo =intSNo;
          node->type=type;
-           
-           
+                      
          head=insert(head,node);     
-	 free(SNo);	
+	
               
          return(head);
 }
 
+/***加入新的测试节点***/
+/*
+   (1)信号附加参数是：type*100+SNo形式
+      --->type=1 :加入一个点名测试节点,测试执行完毕，由main向BOA回复“1-OK”消息队列
+      --->type=2 :加入一个告警测试节点,节点插入成功，向告警测试进程(alarmMain)发送“2-OK”消息队列
+      --->type=3 :加入一个周期测试节点,节点插入成功，向周期测试进程(cycMain)发送“3-OK”消息队列
+      --->type=4 :加入一个保护测试节点节点,节点插入成功，向保护测试进程(ProtectMasterMain)发送“4-OK”消息队列
+   (2)同一类型的消息，按照信号到来的时间，依次插入测试链表
+      --->可以解决多个客户端（WEB）向同一个光路，几乎同时进行点名测试。
+*/
 
-void addNewtoLink(int signum,siginfo_t *info,void *myact);
+void  sigrecv_headle()
+{
+	       int type=0,value=0,ret,data;
+       
+               while(myQueue->count!=0){
+          
+		       ret=Queue_Delete(myQueue,&data);
+		       type=data/100;
+		       value =data%100;
+		       printf("otdrMain(R): the int value is %d \n",data);
+		       printf("type:%d,value:%d,",type,value);
+		       switch(type){
 
+				
+				   case 1:{  
+		                                    printf("插入点名测试节点\n");               
+						    linkHead=insertTestNode(linkHead,1,value);
+						    outPutALL(linkHead);     
+						    //sendMessageQueue_Named(SMQstr,masterPID);         在主进程中回复
+						    break;
+					  }
+				   case 2:{         
+		                                    printf("障碍告警测试节点（普通）\n");                                        
+						    linkHead=insertTestNode(linkHead,2,value);                   
+						    outPutALL(linkHead);
+						    sendMessageQueue_Function("2-OK",ALARM_MESSAGE_KEY );  
+						    break;
+					  }
+
+				   case 4:{          
+		                                    printf("障碍告警测试节点（保护）\n");                                          
+						    linkHead=insertTestNode(linkHead,2,value);                   
+						    outPutALL(linkHead);
+						    sendMessageQueue_Function("4-OK",PROTECT_MESSAGE_KEY );  
+						    break;
+					  }
+
+				   case 3:{       
+		                                    printf("插入周期测试节点\n");                                          
+						    linkHead=insertTestNode(linkHead,3,value);                   
+						    outPutALL(linkHead);
+						    sendMessageQueue_Function("3-OK",CYCLE_MESSAGE_KEY); 
+					  }
+
+				  default:break;
+		      }
+                      usleep(50000);
+               }
+     
+}
 /***otdr测试调度主进程***/
 /*
     (1)  初始化链表
@@ -320,236 +402,197 @@ void addNewtoLink(int signum,siginfo_t *info,void *myact);
           --->F.循环调度下个节点(to A).
 */
 
-void main(void)
+void work_line(void)
 {
         otdrNode *p1=NULL;
         int SNo=0,i;
         int intCM=0;
-        int type=0;
+        int ModuleType,type=0;
         int otdrSWFlag=-1;
         pid_t masterPID;
         otdr * testPar=NULL;
         modbus_t * mb=NULL ;
         backData *bData=NULL; 
         char *SMQstr=NULL;
+       
+        linkHead=Init_CycleLink();
+        printf("-----------------work_line Here\n");
+        /*执行调度程序*/
+        while(1){
+            sigrecv_headle();
+            p1=outFirstnode(linkHead);            
+            if(p1!=NULL){
+		   SNo     = p1->SNo; 
+		   intCM   = p1->CM;
+	  	   type    = p1->type;
+		   masterPID = p1->masterPID;
+                   ModuleType =p1->ModuleType;
+		   testPar = lookupParm(SNo,type); 
+		   if(testPar->haveParm == 1){                     
+			   printf("NowTime:%ld,Type:%d\n" ,getLocalTimestamp(),type);
+			   printf("SNo      -uint -[%d]\n",SNo);
+			   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
+			   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
+			   printf("P03      -uint -[%d]\n",testPar->Lambda_nm);
+			   printf("P04      -uint -[%d]\n",testPar->MeasureTime_ms);
+			   printf("P05      -float-[%f]\n",testPar->n);
+			   printf("P06      -float-[%f]\n",testPar->NonRelectThreshold);
+			   printf("P07      -float-[%f]\n",testPar->EndThreshold);
+		           printf("masterPID-short-[%d]\n",masterPID);	
 
-        sem_id = semget((key_t)1234, 1, 4777 | IPC_CREAT);                                //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+			   if(!setModbus_P())                                                //P
+				 exit(EXIT_FAILURE); 
+			   otdrSWFlag=-1;
+			   mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
+		           otdrSWFlag = doOtdrSwitch(mb,SNo,onlyOne_Moudle,ModuleType); 
+                           freeModbus(mb);
+			   if(!setModbus_V())                                                //V
+				 exit(EXIT_FAILURE); 
+                           //otdrSWFlag=0;
+			   if(otdrSWFlag==0){ 
+				     if(type==2)
+					printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
+				     if(type==3)
+					printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
+				     if(type==1)
+					printf("Excess OTDR Test ------------------------------------------------------------------>点名测试       SNo=%d masterPID:%d\n",SNo,masterPID);
+				     OtdrTest(testPar);	  
+				     if(type == 1){
+				          SMQstr = (char*)malloc(sizeof(char)*20);
+				          sprintf(SMQstr,"1-OK-%d",masterPID);
+					  sendMessageQueue_Named(SMQstr,masterPID);                //根据主控进程进程号区分消息类型
+				          free(SMQstr);
+				          SMQstr=NULL;
+				     }else{  
+				     
+					  bData=backData_Create();
+					  bData->otdrPar =testPar;
+					  strcpy(bData->backIP,p1->backIP);
+					  upload(bData,SNo,intCM,type);
+					  backData_Destory(bData); 
+                                      
+				     } 
+                                    // remove(en_ORDRDATA);                             
+				     printf("-------OTDR--Test-------\n");
+			  	     linkHead = delete(linkHead,SNo,type);                                          
+			             }else{
+                                         linkHead = delete(linkHead,SNo,type);
+                                     }
+		  }else{
+                          if(testPar->haveParm == 0){
+                                 linkHead = delete(linkHead,SNo,type);
+                          }
+		  }
+		 OTDR_Destory(testPar); 
+                 outPutALL(linkHead);	 
+ 
+		 if(p1!=NULL){
+		          free(p1); 
+			  p1=NULL;
+	         }	
+            }
+            usleep(10000);
+        }
+}
 
-        modbus_sem_id = semget((key_t)5678, 1, 4777 | IPC_CREAT);                          //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
-        if(!set_semvalue())                                                               //程序第一次被调用，初始化信号量
+void addNewtoLink(int signum,siginfo_t *info,void *myact);
+int  main( int argc ,char **argv ){
+
+        if(argc<2){
+             printf("请输入服务器地址，用于检查RTU链接! otdrMain [ServerIP]\n");
+             return -1;
+        }else{
+
+             strcpy(serverIP,argv[1]);
+             if(!PM_Accsee_IP("eth0",serverIP)){
+                printf("服务器地址 ServerIP:%s  可达\n",argv[1]);
+             }else{
+                 printf("服务器地址 ServerIP:%s 不可达,重新设置\n",argv[1]);
+                 return -1;
+             }
+            
+        }
+
+        sem_id        = semget((key_t)1234, 1, (4777 | IPC_CREAT));                        //创建数据库信号量 :每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量
+        modbus_sem_id = semget((key_t)5678, 1, (4777 | IPC_CREAT));                        //每一个需要用到信号量的进程,在第一次启动的时候需要初始化信号量 
+        if(!set_semvalue())                                                                //程序第一次被调用，初始化信号量
         {  
             printf("Failed to initialize semaphore\n");  
             exit(EXIT_FAILURE);  
         }  
 
-        if(!setModbusPV())                                                                      //程序第一次被调用，初始化信号量
+        if(!setModbusPV())                                                                  //程序第一次被调用，初始化信号量
         {  
               printf("Failed to initialize modbus_semaphore\n");  
               exit(EXIT_FAILURE); 
-        } 
-
-        //initModbusPV();         //创建ModBus信号量Modbus  信号量 
-        /*初始化测试链表*/
-       
-        linkHead=Init_CycleLink();
-
-        /*初始化信号机制（IPC）*/
+        } 	
+        /*初始化信号机制（IPC）(BOA)*/
         struct sigaction act;
         int sig;
-        sig= SIGRTMIN;//SIGUSR1;  
+        sig= SIGRTMIN;
         sigemptyset(&act.sa_mask);
         act.sa_sigaction=addNewtoLink;
         act.sa_flags=SA_SIGINFO|SA_RESTART;                                                                                                                                                               
         if(sigaction(sig,&act,NULL)<0){                              
-          printf("install sigal error\n");
+            printf("install sigal error\n");
         }
-        
-       /*执行调度程序*/
-        while(1){
-            while(1){
-		        p1=outFirstnode(linkHead);   
-		        flagNew = 0;          
-		        if(p1!=NULL && flagNew ==0){
-		                   SNo     = p1->SNo; 
-				   intCM   = p1->CM;
-				   type    = p1->type;
-				   masterPID = p1->masterPID;
-				   testPar = lookupParm(SNo,type); 
-				   if(testPar->haveParm == 1 && flagNew ==0 ){                     
-					   printf("NowTime:%ld,Type:%d\n" ,getLocalTimestamp(),type);
-					   printf("SNo      -uint -[%d]\n",SNo);
-					   printf("P01      -uint -[%d]\n",testPar->MeasureLength_m);
-					   printf("P02      -uint -[%d]\n",testPar->PulseWidth_ns);
-					   printf("P03      -uint -[%d]\n",testPar->Lambda_nm);
-					   printf("P04      -uint -[%d]\n",testPar->MeasureTime_ms);
-					   printf("P05      -float-[%f]\n",testPar->n);
-					   printf("P06      -float-[%f]\n",testPar->NonRelectThreshold);
-					   printf("P07      -float-[%f]\n",testPar->EndThreshold);
-				           printf("masterPID-short-[%d]\n",masterPID);	
-					   if(!setModbus_P())                                                //P
-						 exit(EXIT_FAILURE); 
-					     otdrSWFlag=-1;
-					     mb =newModbus(MODBUS_DEV,MODBUS_BUAD);
-				             for(i=0;i<5;i++){
-						 otdrSWFlag = doOtdrSwitch(mb,SNo,1); 
-				                 if(!otdrSWFlag)break;
-				             }   
-					     freeModbus(mb);           
-					   if(!setModbus_V())                                                //V
-						 exit(EXIT_FAILURE); 
+        myQueue = Queue_Initiate(); 
 
-					   if(otdrSWFlag==0 && flagNew ==0 ){ 
-					     if(type==2)
-						printf("Excess OTDR Test ------------------------------------------------------------------>障碍告警测试   SNo=%d\n",SNo);
-					     if(type==3)
-						printf("Excess OTDR Test ------------------------------------------------------------------>周期测试       SNo=%d\n",SNo);
-					     if(type==1)
-						printf("Excess OTDR Test ------------------------------------------------------------------>点名测试       SNo=%d masterPID:%d\n",SNo,masterPID);
-					     OtdrTest(testPar);
-					     printf("before OK\n");		  
-					       if(type == 1){
-				                  SMQstr = (char*)malloc(sizeof(char)*20);
-				                  sprintf(SMQstr,"1-OK-%d",masterPID);
-						  sendMessageQueue_B(SMQstr,masterPID);                //根据主控进程进程号区分消息类型
-				                  free(SMQstr);
-				                  SMQstr=NULL;
-				               }  
-					       else{
-						  bData=backData_Create();
-						  bData->otdrPar =testPar;
-						  strcpy(bData->backIP,p1->backIP);
-						  upload(bData,SNo,intCM,type);
-						  backData_Destory(bData); 
-					       }                               
-					   printf("-------OTDR--Test-------\n");
-					   linkHead = delete(linkHead,SNo,type);                                          
-					  }else{
-                                                if(otdrSWFlag < 0){
-                                                   linkHead = delete(linkHead,SNo,type);
-                                                }
-                                                if(flagNew ==0) break;
-                                          }
-				  }else{
-                                        if(testPar->haveParm == 0){
-                                           linkHead = delete(linkHead,SNo,type);
-                                        }
-                                        if(flagNew ==0) break;
-				  }
-				  OTDR_Destory(testPar); 
-                                  outPutALL(linkHead);	  	
-		        }else break; 
-		        if(p1!=NULL){
-	   	           free(p1); 
-		           p1=NULL;
-		        }
-		        usleep(10000);
-                }
-        }
-}
+        work_line();
 
-/***加入新的测试节点***/
-/*
-   (1)信号附加参数是：type*100+SNo形式
-      --->type=1 :加入一个点名测试节点,测试执行完毕，由main向BOA回复“1-OK”消息队列
-      --->type=2 :加入一个告警测试节点,节点插入成功，向告警测试进程(alarmMain)发送“2-OK”消息队列
-      --->type=3 :加入一个告周期测试节点,节点插入成功，向周期测试进程(cycMain)发送“3-OK”消息队列
-   (2)同一类型的消息，按照信号到来的时间，依次插入测试链表
-      --->可以解决多个客户端（WEB）向同一个光路，几乎同时进行点名测试。
-*/
-
-void addNewtoLink(int signum,siginfo_t *info,void *myact)
-{
-       int type=0,value=0,flag=0,fd=0;
-       pid_t pid; 
-       char newIP[16];
-       char oldIP[16];
-       char oldMask[16];
-       char str[30];
-       type=info->si_int/100;
-       value =info->si_int%100;
-       printf("type:%d,value:%d,",type,value);
-       switch(type){
-
-           case 0:{ 
-                            flagNew = 1;   
-		            if(value==38){    //重启RTU         
-				    printf("Start Reboot System......\n");  
-				    sendMessageQueue_B("0-OK-38",38);  
-				    execl("/web/cgi-bin/reboot.sh","reboot.sh");  
-                                    flagNew = 0;       
-			 	    break;
-		            }
-		            if(value==16){    //网络配置
-		                 get_ip(newIP);
-		                 
-				 if(0!=PM_Accsee_IP("eth0","192.168.0.140")){
-				       if ((fd = open ("/web/cgi-bin/fiberMointor.tmp" , O_RDWR)) < 0){
-		                            perror ("Error opening file");
-		                       }else{
-					    lseek(fd,0,SEEK_SET);			 
-					    read(fd,oldIP,16);
-		                            printf("Back to Old IP:%s",oldIP);  
-		                            read(fd,oldMask,16); 
-		                            printf("Back to Old Mask:%s",oldMask); 
-				       }
-				       close (fd);                                  
-		                       set_ip(oldIP);
-		                 }else{
-		                       printf("Set to New IP:%s",newIP); 
-				       if ((fd = open ("/web/cgi-bin/fiberMointor.conf" , O_RDWR)) < 0){
-		                            perror ("Error opening file");
-		                       }else{
-				            sprintf(str,"eth0 %s",newIP);
-					    lseek(fd,0,SEEK_SET);			 
-					    write(fd,str,strlen(str));   
-				       }
-				       close (fd);                           
-		                 }
-                                 flagNew = 0;   
-		                 break;
-		            } 
-                            flagNew = 0;                        
-                  }
-                
-           case 1:{         
-                            flagNew = 1;                                      
-			    linkHead=insertTestNode(linkHead,type,value);
-			    outPutALL(linkHead);
-                            flagNew = 0;       
-		            //sendMessageQueue_B("1-OK");                   在主进程中回复
-			    break;
-                  }
-           case 2:{       
-                            flagNew = 1;                                            
-		            linkHead=insertTestNode(linkHead,2,value);                   
-		            outPutALL(linkHead);
-		            sendMessageQueue_C("2-OK",2222);
-                            flagNew = 0;   
-			    break;
-                  }
-
-           case 4:{                    
-                            flagNew = 1;                               
-		            linkHead=insertTestNode(linkHead,2,value);                   
-		            outPutALL(linkHead);
-		            sendMessageQueue_C("4-OK",4444);
-                            flagNew = 0;   
-			    break;
-                  }
-
-           case 3:{                    
-                            flagNew = 1;                               
-		            linkHead=insertTestNode(linkHead,type,value);                   
-		            outPutALL(linkHead);
-		            sendMessageQueue_C("3-OK",3333);
-                            flagNew = 0;   
-			    break;
-                  }
-
-          default:break;
-      }
 }
 
 
+void configNetwork(){
+        int flag=0,fd=0;
+
+	char newIP[16];
+	char oldIP[16];
+	char oldMask[16];
+	char str[30];
+
+	get_ip(newIP);
+						 
+	if(0!=PM_Accsee_IP("eth0",serverIP)){
+		if ((fd = open ("/web/cgi-bin/fiberMointor.tmp" , O_RDWR | O_CREAT)) < 0){
+			perror ("Error opening file");
+		}else{
+			lseek(fd,0,SEEK_SET);			 
+			read(fd,oldIP,16);
+			printf("Back to Old IP:%s",oldIP);  
+			read(fd,oldMask,16); 
+			printf("Back to Old Mask:%s",oldMask); 
+		}
+		close (fd);                                  
+		set_ip(oldIP);
+	}else{
+		printf("Set to New IP:%s",newIP); 
+		if ((fd = open ("/web/cgi-bin/fiberMointor.conf" , O_RDWR | O_CREAT)) < 0){
+			perror ("Error opening file");
+		}else{
+			sprintf(str,"eth0 %s",newIP);
+			lseek(fd,0,SEEK_SET);			 
+			write(fd,str,strlen(str));   
+		}
+		close (fd);                           
+	} 
+	
+
+}
+void doReboot(){
+          
+		printf("Start Reboot System......\n");  
+                sendMessageQueue_Named("0-OK-38",38);
+		execl("/web/cgi-bin/reboot.sh","reboot.sh");      				 	   
+
+}
+void addNewtoLink(int signum,siginfo_t *info,void *myact){
+      while(sigLock==1);
+      sigLock=1;
+      Queue_Append(myQueue,info->si_int);
+      if(info->si_int == 16) configNetwork();//网络配置
+      if(info->si_int == 38) doReboot();     //重启RTU  
+      sigLock=0; 
+}
 
 

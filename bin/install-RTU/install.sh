@@ -217,8 +217,13 @@ cp -rf ./web/cgi-bin/BoaCom.cgi /web/cgi-bin
 cp -rf ./web/cgi-bin/otdrMain   /web/cgi-bin
 cp -rf ./web/cgi-bin/cycMain    /web/cgi-bin
 cp -rf ./web/cgi-bin/alarmMain  /web/cgi-bin
+cp -rf ./web/cgi-bin/ProtectMasterMain  /web/cgi-bin
+cp -rf ./web/cgi-bin/ProtectSlaveMain   /web/cgi-bin
+cp -rf ./web/cgi-bin/reboot.sh          /web/cgi-bin
+cp -rf ./web/cgi-bin/selfCheck          /web/cgi-bin
 
-chmod 4777 /web/cgi-bin/recv.xml /web/cgi-bin/BoaCom.cgi /web/cgi-bin/otdrMain /web/cgi-bin/cycMain /web/cgi-bin/alarmMain
+
+chmod 4777 /web/cgi-bin/recv.xml /web/cgi-bin/BoaCom.cgi /web/cgi-bin/otdrMain /web/cgi-bin/cycMain /web/cgi-bin/alarmMain /web/cgi-bin/fiberMointor.conf
 
 read -p "是否配置OTDR测试[Y/n]:"
 if [ -z "$REPLY" ]
@@ -229,25 +234,43 @@ else
 fi
 echo "otdrMain $otdrMain">>/web/cgi-bin/fiberMointor.conf
 
-read -p "是否配置周期测试[Y/n]:"
+read -p "是否配置周期测试[y/N]:"
 if [ -z "$REPLY" ]
 then
-   cycleMain=y;
+   cycleMain=n;
 else
    cycleMain=$REPLY;
 fi
 echo "cycleMain $cycleMain">>/web/cgi-bin/fiberMointor.conf
 
 
-read -p "是否配置障碍告警测试[Y/n]:"
+read -p "是否配置障碍告警测试[y/N]:"
 if [ -z "$REPLY" ]
 then
-   alarmMain=y;
+   alarmMain=n;
 else
    alarmMain=$REPLY;
 fi
 echo "alarmMain $alarmMain">>/web/cgi-bin/fiberMointor.conf  
 
+read -p "是否配置主端保护模式[y/N]"
+if [ -z "$REPLY" ]
+then
+   ProtectMasterMain=n;
+else
+   ProtectMasterMain=$REPLY;
+fi
+echo "ProtectMasterMain $ProtectMasterMain">>/web/cgi-bin/fiberMointor.conf  
+
+
+read -p "是否配置从端保护模式[y/N]"
+if [ -z "$REPLY" ]
+then
+   ProtectSlaveMain=n;
+else
+   ProtectSlaveMain=$REPLY;
+fi
+echo "ProtectSlaveMain $ProtectSlaveMain">>/web/cgi-bin/fiberMointor.conf  
 
 read -p "是否配置上电自启动[y/N]:"
 if [ -z "$REPLY" ]
@@ -259,6 +282,7 @@ fi
 echo "autoPowerOn $autoPowerOn">>/web/cgi-bin/fiberMointor.conf
 
 cp -rf ./S110fiberMointor  /etc/init.d
+cp -rf ./S40network        /etc/init.d
 
 sleep 1
 echo "步骤6:成功!"
